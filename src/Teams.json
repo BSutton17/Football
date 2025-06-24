@@ -1,7 +1,7 @@
 {
   "TeamOne": {
     "offensivePlayers": [
-      { "id": "O-1WR1", "role": "WR", "speed": 99, "routeRunning": 80 },
+      { "id": "O-1WR1", "role": "WR", "speed": 91, "routeRunning": 87 },
       { "id": "O-1WR2", "role": "WR", "speed": 92, "routeRunning": 90 },
       { "id": "O-1WR3", "role": "WR", "speed": 87, "routeRunning": 88 },
       { "id": "O-1WR4", "role": "WR", "speed": 89, "routeRunning": 85 },
@@ -11,7 +11,7 @@
       { "id": "O-1RB2", "role": "RB", "speed": 83, "routeRunning": 80, "blocking": 76 }
     ],
     "defensivePlayers": [
-      { "id": "D-1CB1", "role": "CB", "speed": 81, "reactionTime": 88, "blitzing": 72 },
+      { "id": "D-1CB1", "role": "CB", "speed": 93, "reactionTime": 88, "blitzing": 72 },
       { "id": "D-1CB2", "role": "CB", "speed": 89, "reactionTime": 86, "blitzing": 70 },
       { "id": "D-1CB3", "role": "CB", "speed": 90, "reactionTime": 87, "blitzing": 74 },
       { "id": "D-1S1", "role": "S", "speed": 86, "reactionTime": 90, "blitzing": 83 },
