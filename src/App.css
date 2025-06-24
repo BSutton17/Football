@@ -269,8 +269,8 @@ body {
     height: 7vw;
   }
   .field {
-  width: 90vw;
-  height: 60vh;
+  width: 95vw;
+  height: 90vh;
   border: 0.3vh solid green;
   position: relative;
   background: linear-gradient(to bottom, #e0ffe0 50%, #f0fff0 50%);
