@@ -7,7 +7,7 @@ body {
   width: 100vw;
   margin: 0;
   text-align: center;
-  overflow-x: hidden; /* Prevent scrollbars */
+  overflow: hidden; /* Prevent scrollbars */
 }
 
 .roomID{
