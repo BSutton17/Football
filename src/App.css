@@ -1,0 +1,275 @@
+/* Main */
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100vw;
+  margin: 0;
+  text-align: center;
+  overflow-x: hidden; /* Prevent scrollbars */
+}
+
+.roomID{
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+.hike{
+  position: fixed;
+  left: 0;
+  top: 0;
+}
+/* Field */
+.field {
+  width: 60vw;
+  height: 90vh;
+  border: 0.3vh solid green;
+  position: relative;
+  background: linear-gradient(to bottom, #e0ffe0 50%, #f0fff0 50%);
+}
+
+/* Halves */
+.half {
+  width: 100%;
+  height: 50%;
+  position: relative;
+  text-align: center;
+  font-weight: bold;
+  pointer-events: auto; /* disable interaction */
+}
+
+.bottom-half, .top-half {
+  pointer-events: auto; /* enable dragging only here for now */
+}
+
+/* Add Player Button */
+.add-player-btn {
+  position: absolute;
+  bottom: 1vh;
+  left: 1vw;
+  padding: 0.5vh 1vw;
+  font-size: 1.5vh;
+  z-index: 10;
+}
+
+/* Player */
+.player {
+  position: absolute;
+  width: 2.5vw;
+  height: 2.5vw;
+  max-width: 8vh;
+  max-height: 8vh;
+  min-width: 3vh;
+  min-height: 3vh;
+  background-color: #333;
+  color: white;
+  font-weight: bold;
+  text-align: center;
+  border-radius: 50%;
+  cursor: grab;
+  user-select: none;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+}
+
+.offense {
+  background-color: #1e90ff;
+}
+.defense {
+  background-color: #dc143c;
+}
+
+.yellow{
+  background-color: yellow;
+}
+
+.lime {
+  background-color: lime;
+}
+
+.red{
+  background-color: red;
+}
+
+.offense, .defense {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Routes */
+.route-btn, .zone-btn {
+  position: absolute;
+  text-align: center;
+  width: 5vw;
+  height: 3vw;
+  border-radius: 50%; /* Oval shape */
+  border: none;
+  z-index: 2;
+  cursor: pointer;
+  top: -10px; 
+  left: 50%; 
+  transform: translate(-50%, -50%); 
+}
+
+.route-btn {
+  background-color: rgb(0, 168, 154);
+  color: white;
+}
+
+.zone-btn {
+  background-color: rgb(133, 2, 2);
+  color: white;
+}
+
+.route-btn:hover {
+  background-color: rgb(0, 128, 128);
+}
+
+.zone-btn:hover {
+  background-color: rgb(100, 0, 0);
+}
+
+.route-svg {
+  position: absolute;
+  width: 15vw;     /* Responsive width */
+  height: 60vh;   /* Keeps aspect ratio */
+  pointer-events: none;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  overflow: visible;
+}
+
+
+.route-arrow {
+  position: absolute;
+  width: 2px;
+  background-color: yellow;
+  z-index: 2;
+}
+
+.arrow-head {
+  width: 0;
+  height: 0;
+  position: absolute;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid yellow;
+}
+
+/* Defense */
+.selection-indicator {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  pointer-events: none;
+  z-index: 10;
+  font-size: 20px;
+}
+
+.zone-svg, .man-svg{
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none; /* important! */
+  }
+
+  .zone-svg{
+    z-index: 1;
+  }
+
+  .man-svg{
+    z-index: 1;
+    overflow: visible;
+  }
+
+  .zone-svg ellipse,
+  .zone-svg line {
+    pointer-events: auto; /* enable pointer events on interactive elements */
+    cursor: grab;
+  }
+
+  /* Inventory */
+  .inventory {
+  display: flex;
+  flex-wrap: wrap;
+  background-color: #f0f0f0;
+  padding: 8px;
+  justify-content: center;
+  gap: 8px;
+  border-top: 2px solid #ccc;
+}
+
+.inventory-player {
+  background: white;
+  border: 1px solid #333;
+  padding: 6px 10px;
+  border-radius: 6px;
+  user-select: auto !important;
+  pointer-events: auto !important;
+  cursor: grab;
+}
+
+.inventory-player.offense {
+  background-color: #cce5ff;
+}
+
+.inventory-player.defense {
+  background-color: #f8d7da;
+}
+
+/* Throwing */
+.Warning{
+  color: rgb(220, 184, 1)
+}
+
+.danger{
+  color: red
+}
+
+.black{
+  color: black;
+}
+
+.line-of-scrimage{
+  width: 100%;
+  height: 5px;
+  background-color: rgba(47, 47, 216, 0.664);
+  z-index: 1;
+}
+
+.first-down{
+  width: 100%;
+  height: 2.5px;
+  background-color: rgba(233, 199, 5, 0.466);
+  z-index: 1;
+}
+
+.hide{
+  visibility: hidden;
+}
+
+.info{
+  position: fixed;
+  top: 0;
+  right: 0;
+}
+
+/* Phones */
+@media only screen and (max-width: 600px) {
+  .route-btn {
+    width: 15vw;  
+    height: 7vw;
+  }
+  .field {
+  width: 90vw;
+  height: 60vh;
+  border: 0.3vh solid green;
+  position: relative;
+  background: linear-gradient(to bottom, #e0ffe0 50%, #f0fff0 50%);
+}
+
+}
