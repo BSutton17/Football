@@ -233,7 +233,7 @@ const placePlayers = (initialX, initialY, rect) => {
         route: null,
         assignedOffensiveId: null,
         hasCut: false,
-        position: { x, y: newY },
+        position: { x, y: y },
       };
 
 
@@ -256,7 +256,7 @@ const placePlayers = (initialX, initialY, rect) => {
       } else {
         socket.emit("place_character", {
           ...playerData,
-          position: { x, y: newY },
+          position: { x, y: y },
           isOffense: false,
           zone: null,
           assignedOffensiveId: null,
@@ -306,7 +306,7 @@ const placePlayers = (initialX, initialY, rect) => {
         route: null,
         assignedOffensiveId: null,
         hasCut: false,
-        position: { x, y: newY },
+        position: { x, y: y },
       };
 
 
@@ -329,7 +329,7 @@ const placePlayers = (initialX, initialY, rect) => {
       } else {
         socket.emit("place_character", {
           ...playerData,
-          position: { x, y: newY },
+          position: { x, y: y },
           isOffense: false,
           zone: null,
           assignedOffensiveId: null,
