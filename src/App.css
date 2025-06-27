@@ -226,6 +226,10 @@ body {
 
 .defense-inventory{
   background-color: #ee8d8d93;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100vw;
 }
 
 .inventory-player {
@@ -327,6 +331,8 @@ body {
   height: 85vh;
   margin-top: 10%;
   background-color: #28aa28;
+  width: 95vw;
+  height: 80vh;
   border: 0.3vh solid green;
   position: relative;
 }
