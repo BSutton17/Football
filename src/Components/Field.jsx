@@ -36,6 +36,7 @@ function Field({ socket, room, name }) {
   } = useAppContext();
 
   const { handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd } = useHandlerContext();
+  const oneYardInPixels = fieldSize.height / 40;
 
   // Show offense inventory if player is currently on offense, else defense inventory
   const inventoryToShow = isOffense ? inventory.offense : inventory.defense;
@@ -156,10 +157,10 @@ function Field({ socket, room, name }) {
       else if(liveCountdown / 1000 <= 1.5 && liveCountdown / 1000 > 0.5){
         return "Warning"
       }
-      // else{
-      //   setQbPenalty(10)
-      //   return "danger"
-      // }
+      else{
+        //setQbPenalty(10)
+        return "danger"
+      }
     }
 
   function formatDown(down) {
@@ -172,26 +173,111 @@ function Field({ socket, room, name }) {
   }
 }
 
-useEffect(()=>{
-  setYardLine(yardLine)
-}, [yardLine])
+  useEffect(()=>{
+    setYardLine(yardLine)
+  }, [yardLine])
 
-useEffect(()=>{
-  setDistance(distance)
-}, [distance])
+  useEffect(()=>{
+    setDistance(distance)
+  }, [distance])
 
-useEffect(()=>{
-  setDown(down)
-}, [down])
+  useEffect(()=>{
+    setDown(down)
+  }, [down])
 
-function formatDistance(distance){
-  if(yardLine >= 90){
-    return "goal"
+  function formatDistance(distance){
+    if(yardLine >= 90){
+      return "goal"
+    }
+    else{
+      return distance
+    }
   }
-  else{
-    return distance
+
+  function renderYardLines() {
+
+    return Array.from({ length: 41 }).flatMap((_, i) => {
+      const top = i * oneYardInPixels;
+      const offset = yardLine % 5;
+      const isFiveYardLine = ((i % 5) - offset) === 0;
+
+      if (isFiveYardLine) {
+        // Full width line every 5 yards
+        return (
+          <div
+            key={`yard-line-full-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              left: 0,
+              width: '100%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />
+        );
+      } else {
+        // Four small ticks on opposite sides: two near edges, two closer to middle
+        return [
+          // Left edge tick
+          <div
+            key={`yard-line-tick-left-edge-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              left: '0%',
+              width: '3%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />,
+          // Right edge tick
+          <div
+            key={`yard-line-tick-right-edge-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              right: '0%',
+              width: '3%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />,
+          // Left inner tick (closer to middle)
+          <div
+            key={`yard-line-tick-left-inner-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              left: '30%',  // adjust percentage to position closer to middle
+              width: '3%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />,
+          // Right inner tick (closer to middle)
+          <div
+            key={`yard-line-tick-right-inner-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              right: '30%',  // adjust percentage to position closer to middle
+              width: '3%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />,
+        ];
+      }
+    });
   }
-}
+
+
   return (
     <>
     <div className='info'>
@@ -203,14 +289,13 @@ function formatDistance(distance){
             : `> ${50 - (yardLine - 50)}`
           : 'Loading...'}
       </h2>
-
       <h2>{formatDown(down)} & {formatDistance(distance)}</h2>
     </div>
     <div className='result'>
     {routeStarted && liveCountdown !== null && (
       <div className={displayDangerLevel()}><h1>{(liveCountdown / 1000).toFixed(2)}</h1></div>
     )}
-    <h1>{outcome}</h1>
+    <h1 className='outcome'>{outcome}</h1>
     </div>
     <div
       className="field"
@@ -220,6 +305,8 @@ function formatDistance(distance){
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >  
+    {/* Tick marks */}
+      {renderYardLines()}
       <DefensiveField 
         offsetX={offsetX}
         offsetY={offsetY}
@@ -231,7 +318,7 @@ function formatDistance(distance){
         socket={socket}
         room={room}
       />
-      <PlayerInventory players={inventoryToShow} type={inventoryType} socket={socket} />
+      <PlayerInventory className="player-inventory"players={inventoryToShow} type={inventoryType} socket={socket} />
     </div>
     <button className={isOffense ? 'hike' : "hide"} onClick={startRoute}>Hike!</button>
     <h3 className='roomID'>{roomId}</h3>

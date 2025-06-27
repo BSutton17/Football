@@ -47,35 +47,39 @@ export const Player = ({
 
     if (role === "CB" || role === "LB" || role === "S") {
       result = "Intercepted";
-      outcomeRef.current = result;
-      setOutcome(result);
     } else if (isOffense) {
-      const yards = calculateTotalAndYAC(openess, route, yardLine);
-      if(yards == "Touchdown!"){
-        result = "Touchdown!"
-      }
-      else{
-              result = (yardLine + completedYards < 100)
-        ? `${yards.totalYards} yard completion`
-        : "Touchdown!";
-      }
+      const catchResult = catchBall(openess);
 
-      outcomeRef.current = result;
-      if(result != "Touchdown!")
-      setCompletedYards(yards.totalYards);
-      setOutcome(result);
+      console.log(`[CATCH] Result: ${catchResult}`);
 
-      if (result !== "") {
-        console.log(`[CATCH] Sending outcome to defense: ${result}`);
-        socket.emit("play_outcome", {
-          outcome: result,
-          yardLine: yardLine,
-          roomId,
-        });
+      if (catchResult === "Caught") {
+        const yards = calculateTotalAndYAC(openess, route, yardLine);
+        if (yards === "Touchdown!") {
+          result = "Touchdown!";
+        } else {
+          result = (yardLine + completedYards < 100)
+            ? `${yards.totalYards} yard completion`
+            : "Touchdown!";
+          setCompletedYards(yards.totalYards);
+        }
+      } else {
+        result = catchResult;
       }
     }
 
-    // Stop all players
+    outcomeRef.current = result;
+    setOutcome(result);
+
+    if (result !== "") {
+      console.log(`[CATCH] Sending outcome to defense: ${result}`);
+      socket.emit("play_outcome", {
+        outcome: result,
+        yardLine: yardLine,
+        roomId,
+      });
+    }
+
+    // Stop all player motion
     setPlayers(prev =>
       prev.map(player => ({
         ...player,
@@ -93,6 +97,7 @@ export const Player = ({
       }))
     );
   };
+
 
   const notMoveablePlayer = role === "qb" || role === "offensive-lineman" || role === "defensive-lineman";
 

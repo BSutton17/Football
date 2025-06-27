@@ -7,8 +7,7 @@ import { useAppContext } from './Context/AppContext';
 const socket = io.connect("https://football-server-63f55d8fa79f.herokuapp.com/")
 //const socket = io.connect("http://localhost:3001");
 function App() {
-  const [room, setRoom] = useState("");       
-  const [name, setName] = useState("");       
+  const [room, setRoom] = useState("");      
   const [isJoining, setIsJoining] = useState(false); 
   const { setRoomId, setIsPlayerOne, setOffenseName, setDffenseName, setIsOffense, setSocket } = useAppContext()
 
@@ -33,7 +32,7 @@ function App() {
   }, [setIsPlayerOne, setOffenseName, setDffenseName]);
 
   const joinRoom = () => {
-    if (room !== "" && name !== "") {
+    if (room !== "" ) {
       socket.emit("join_room", room, name); 
       setIsJoining(true);
       setRoomId(room)
@@ -45,11 +44,6 @@ function App() {
 
   // Start a new room (this can just be for regular players, no admin logic)
   const startRoom = () => {
-    if (name === "") {
-      alert("Please enter a valid name.");
-      return;
-    }
-
     // Generate random 4-digit room ID
     const newRoom = Math.floor(Math.random() * (9999 - 1000 + 1) + 1000);
     const strRoom = String(newRoom);
@@ -73,11 +67,6 @@ function App() {
           <h1 id="title">Electric Football</h1>
           <div className="name_input">
             <input
-              placeholder="Name..."
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-            <input
               placeholder="Room Id..."
               type="number"
               value={room}
@@ -89,7 +78,7 @@ function App() {
         </div>
       ) : (
         <div>
-          <Field socket={socket} room={room} name={name}/>
+          <Field socket={socket} room={room} />
           {/* <button onClick={logout}>Leave Game</button> */}
         </div>
       )}

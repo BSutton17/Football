@@ -81,7 +81,7 @@ export const Provider = ({ children }) => {
     <AppContext.Provider value={{ 
         players, setPlayers, 
         draggingId, setDraggingId, 
-        fieldRef, 
+        fieldRef,   
         selectedPlayerId, setSelectedPlayerId, 
         selectedZoneId, setSelectedZoneId,
         fieldSize, setFieldSize, 

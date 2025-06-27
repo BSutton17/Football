@@ -7,7 +7,7 @@ const PlayerInventory = ({ players, type }) => {
     const { handleTouchStartCustom } = useHandlerContext()
 
   return (
-    <div className="inventory">
+    <div className={type + "-inventory"}>
       {players.map((player) => (
         <div
           key={player.id}

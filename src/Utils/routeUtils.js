@@ -177,14 +177,14 @@
     const centerX = fieldSize.width ; // full size
 
     const startX = x;
-    const startY = y - 16; // offset for visual alignment
+    const startY = y - 10; // offset for visual alignment
 
     switch (route) {
       //wr
       case "corner": {
         const forwardY = y - forwardDist;
         const horizontalX = x < direction ? x - 75 : x + 75;
-        return `M${x},${y - 16} L${x},${forwardY} L${horizontalX},${forwardY - 50}`;
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY - 50}`;
       }
       case "go": {
         const endY = y - offsetY - 200;
@@ -194,7 +194,7 @@
       case "post": {
         const forwardY = y - forwardDist;
         const horizontalX = x > direction ? x - 75 : x + 75;
-        return `M${x},${y - 16} L${x},${forwardY} L${horizontalX},${forwardY - 50}`;
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY - 50}`;
       }
       case "slant": {
         const verticalY = y - forwardDist / 2.5;
@@ -210,27 +210,27 @@
         const diagonalX = x + dx * 0.25;
         const diagonalY = verticalY + dy * 0.25;
 
-        return `M${x},${y - 16} L${x},${verticalY} L${diagonalX},${diagonalY}`;
+        return `M${x},${startY} L${x},${verticalY} L${diagonalX},${diagonalY}`;
       }
       case "curl": {
         const forwardY = y - forwardDist;
         const horizontalX = x > direction ? x - 25 : x + 25;
-        return `M${x},${y - 16} L${x},${forwardY} L${horizontalX},${forwardY + 25}`;
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY + 25}`;
       }
       case "in": {
         const forwardY = y - forwardDist;
         const horizontalX = x < direction ? x + 100 : x - 100;
-        return `M${x},${y - 16} L${x},${forwardY} L${horizontalX},${forwardY}`;
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY}`;
       }
       case "comeback": {
         const forwardY = y - forwardDist * 1.25;
         const horizontalX = x < direction ? x - 75 : x + 75;
-        return `M${x},${y - 16} L${x},${forwardY} L${horizontalX},${forwardY + 75}`;
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY + 75}`;
       }
       case "out": {
         const forwardY = y - forwardDist;
         const horizontalX = x < direction ? x - 75 : x + 75;
-        return `M${x},${y - 16} L${x},${forwardY} L${horizontalX},${forwardY}`;
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY}`;
       }
 
       //TE
@@ -239,19 +239,19 @@
         const firsty = y - (forwardDist / 1.75)
         const forwardY = y - (forwardDist / 1.5);
         const horizontalX = x < direction ? (centerX / 2) * 1.37 : centerX / 3;
-        return `M${x},${y - 16} L${firstx},${firsty} L${horizontalX},${forwardY}`
+        return `M${x},${startY} L${firstx},${firsty} L${horizontalX},${forwardY}`
       }
       case "curl inside": {
         const firstx = x < direction ? x + centerX / 6.5 : x - centerX / 6.5
         const firsty = y - (forwardDist / 1.2)
         const secondx = x < direction ? x + centerX / 6 : x - centerX / 6
         const secondy = y - forwardDist * 0.6
-        return `M${x},${y - 16} L${firstx},${firsty} L${secondx},${secondy}`
+        return `M${x},${startY} L${firstx},${firsty} L${secondx},${secondy}`
       }
       case "flat": {
         const forwardY = y - forwardDist / 2;
         const horizontalX = x < direction ? x - 75 : x + 75;
-        return `M${x},${y - 16} L${x},${forwardY} L${horizontalX},${forwardY}`
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY}`
       }
 
       case "curl outside": {
@@ -259,7 +259,7 @@
         const firsty = y - (forwardDist / 1.2)
         const secondx = x > direction ? x + centerX / 11 : x - centerX / 11
         const secondy = y - forwardDist * 0.8
-        return `M${x},${y - 16} L${firstx},${firsty} L${secondx},${secondy}`
+        return `M${x},${startY} L${firstx},${firsty} L${secondx},${secondy}`
       }
 
       //RB
@@ -268,7 +268,7 @@
         const firsty = y - (forwardDist / 1.4)
         const secondx = x > direction ? x - centerX / 35 : x + centerX / 35
         const secondy = y - forwardDist * 1.2
-        return `M${x},${y - 16} L${firstx},${firsty} L${secondx},${secondy}`
+        return `M${x},${startY} L${firstx},${firsty} L${secondx},${secondy}`
       }
 
       case "swing": {
@@ -282,7 +282,7 @@
         const firsty = y - (forwardDist / 1.3)
         const forwardY = y - (forwardDist / 1.2);
         const horizontalX = x > direction ? x + 300 : x - 300;
-        return `M${x},${y - 16} L${firstx},${firsty} L${horizontalX},${forwardY}`
+        return `M${x},${startY} L${firstx},${firsty} L${horizontalX},${forwardY}`
       }
 
       case "wheel": {
@@ -292,7 +292,7 @@
          const secondy = y - (forwardDist / 1.2) 
          const thirdx = x > direction ? (centerX / 2) * 1.75 : centerX / 12
          const thirdy = y - (forwardDist / 1.2) * 2.5 
-          return `M${x},${y - 16} L${firstx},${firsty} L${secondx},${secondy} L${thirdx},${thirdy}`
+          return `M${x},${startY} L${firstx},${firsty} L${secondx},${secondy} L${thirdx},${thirdy}`
       }
       default:
         

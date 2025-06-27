@@ -308,14 +308,6 @@ useEffect(() => {
       });
     }
     
-    console.log("[OFFENSE] Emitting play_outcome:", outcome);
-    socket.emit("play_outcome", {
-      outcome,
-      completedYards,
-      firstDownStartY: newFirstDownStartY,
-      roomId
-    });
-    
     if (!["Touchdown!", "Intercepted"].includes(outcome)) {
       console.log("[OFFENSE] Emitting play_reset");
       socket.emit("play_reset", {
@@ -705,8 +697,8 @@ const stopAllPlayerMovement = () => {
         top: `${offsetFromTop}px`,
         height: `${visibleEndZoneHeight}px`,
         width: '100%',
-        backgroundColor: 'gray',
-        zIndex: 0,
+        backgroundColor: '#28aa28',
+        zIndex: 2,
       }}
       />
     )}

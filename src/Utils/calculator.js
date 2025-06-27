@@ -250,9 +250,10 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
   // total yards = average yards - coverage penalty + yac potential
   let totalYards = (averageYards * coveragePenalty) + yacPotential;
 
-  if(route == "go" &&  openness == "lime") {
+  if((route == "go" &&  openness == "lime") || (Math.max(0, Math.round(totalYards)) > 100 - yardLine)) {
     return "Touchdown!"
   }
+  
   // Calculate yards after catch
   const yac = totalYards - averageYards;
 

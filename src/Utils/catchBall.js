@@ -1,7 +1,7 @@
 export const catchBall = (openness, qbPenalty) =>{
     const catchRate = Math.random() * (100 - 1) + 1
     console.log("catchRate: " + catchRate)
-    switch(openness + qbPenalty){
+    switch(openness){
         case "lime":
             if(catchRate < 96){
                 return "Caught"

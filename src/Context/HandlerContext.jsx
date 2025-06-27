@@ -19,90 +19,97 @@ export const HandlerProvider = ({ children }) => {
     roomId
   } = useAppContext();
 
-const placePlayers = (initialX, initialY, rect) => {
-  const dropX = initialX - rect.left;
-  let dropY = initialY - rect.top;
-  const half = fieldSize.height / 2;
+  const placePlayers = (initialX, initialY, rect) => {
+    if (!draggingId) return; // safety check
 
-  if (draggingId?.startsWith('O') && dropY < half) return;
-  if (draggingId?.startsWith('D') && dropY > half) return;
+    const dropX = initialX - rect.left;
+    let dropY = initialY - rect.top;
+    const half = fieldSize.height / 2;
 
-  let updatedPlayer = null;
-  let updatedZone = null;
+    // Enforce team side boundaries
+    if (draggingId.startsWith('O') && dropY < half) return;
+    if (draggingId.startsWith('D') && dropY > half) return;
 
-  setPlayers((prev) =>
-    prev.map((p) => {
-      // Handle player movement
-      if (p.id === draggingId) {
-        let newPosition = {};
+    let updatedPlayer = null;
+    let updatedZone = null;
 
-        if (draggingId.startsWith('O')) {
-          newPosition = { x: dropX, y: dropY - (half - half / 15) };
-        } else if (draggingId.startsWith('D')) {
-          newPosition = { x: dropX, y: dropY - half / 15 };
+    setPlayers((prev) =>
+      prev.map((p) => {
+        // Move the dragged player only
+        if (p.id === draggingId) {
+          let newPosition;
+
+          if (draggingId.startsWith('O')) {
+            newPosition = { x: dropX, y: dropY - (half - half / 15) };
+          } else if (draggingId.startsWith('D')) {
+            newPosition = { x: dropX, y: dropY - half / 15 };
+          } else {
+            newPosition = { x: dropX, y: dropY };
+          }
+
+          updatedPlayer = { ...p, position: newPosition };
+          return updatedPlayer;
         }
 
-        updatedPlayer = { ...p, position: newPosition };
-        return updatedPlayer;
-      }
+        // Handle zone circle drag only if the dragged id matches the zoneCircle.id
+        if (p.zoneCircle && p.zoneCircle.id === draggingId) {
+          const bottom = half;
+          const flatThreshold = bottom * (2 / 3);
+          const midThreshold = bottom * (1 / 3);
+          const leftBound = fieldSize.width / 3;
+          const rightBound = (fieldSize.width / 3) * 2;
 
-      // Handle zone circle movement
-      if (p.zoneCircle && p.zoneCircle.id === draggingId) {
-        let newZone = p.zone;
-        const bottom = fieldSize.height / 2;
-        const flatThreshold = bottom * (2 / 3);
-        const midThreshold = bottom * (1 / 3);
-        const leftBound = fieldSize.width / 3;
-        const rightBound = (fieldSize.width / 3) * 2;
+          let newZone = p.zone;
 
-        if (dropY > flatThreshold) {
-          const middleFlat = dropX >= leftBound && dropX <= rightBound;
-          newZone = middleFlat ? 'hook' : 'flat';
-        } else if (dropY > midThreshold) {
-          newZone = dropX < leftBound || dropX > rightBound ? 'cloud' : 'hook';
-        } else {
-          newZone = 'deep';
+          if (dropY > flatThreshold) {
+            const middleFlat = dropX >= leftBound && dropX <= rightBound;
+            newZone = middleFlat ? 'hook' : 'flat';
+          } else if (dropY > midThreshold) {
+            newZone = dropX < leftBound || dropX > rightBound ? 'cloud' : 'hook';
+          } else {
+            newZone = 'deep';
+          }
+
+          updatedZone = {
+            playerId: p.id,
+            zoneType: newZone,
+            zoneCircle: {
+              ...p.zoneCircle,
+              x: dropX,
+              y: dropY,
+            },
+          };
+
+          return {
+            ...p,
+            zone: newZone,
+            zoneCircle: updatedZone.zoneCircle,
+          };
         }
 
-        updatedZone = {
-          playerId: p.id,
-          zoneType: newZone,
-          zoneCircle: {
-            ...p.zoneCircle,
-            x: dropX,
-            y: dropY,
-          },
-        };
+        return p;
+      })
+    );
 
-        return {
-          ...p,
-          zone: newZone,
-          zoneCircle: updatedZone.zoneCircle,
-        };
-      }
+    // Emit socket updates after state changes
+    if (updatedPlayer) {
+      socket.emit("update_character_position", {
+        playerId: updatedPlayer.id,
+        position: updatedPlayer.position,
+        room: roomId,
+      });
+    }
 
-      return p;
-    })
-  );
+    if (updatedZone) {
+      socket.emit("zone_area_assigned", {
+        playerId: updatedZone.playerId,
+        zoneType: updatedZone.zoneType,
+        zoneCircle: updatedZone.zoneCircle,
+        room: roomId,
+      });
+    }
+  };
 
-  // Emit socket updates after state changes
-  if (updatedPlayer) {
-    socket.emit("update_character_position", {
-      playerId: updatedPlayer.id,
-      position: updatedPlayer.position,
-      room: roomId,
-    });
-  }
-
-  if (updatedZone) {
-    socket.emit("zone_area_assigned", {
-      playerId: updatedZone.playerId,
-      zoneType: updatedZone.zoneType,
-      zoneCircle: updatedZone.zoneCircle,
-      room: roomId,
-    });
-  }
-};
 
   const handleMouseDown = (e, id) => {
     e.preventDefault();
@@ -131,7 +138,14 @@ const placePlayers = (initialX, initialY, rect) => {
     e.preventDefault();
     setDraggingId(id);
     setSelectedPlayerId(null);
+    touchedPlayerRef.current = {
+      id,
+      startTouch: null,
+      lastTouch: null,
+      wasDragged: false,
+    };
   };
+
 
   const handleTouchMove = (e) => {
     e.preventDefault();
@@ -140,27 +154,45 @@ const placePlayers = (initialX, initialY, rect) => {
     const touch = e.touches[0];
     const rect = fieldRef.current.getBoundingClientRect();
 
-    // Track for drop later
+    const currentTouch = {
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+
+    // Store lastTouch and also detect actual movement
     if (touchedPlayerRef.current) {
-      touchedPlayerRef.current.lastTouch = {
-        x: touch.clientX,
-        y: touch.clientY,
-      };
+      const start = touchedPlayerRef.current.startTouch;
+      if (!start) {
+        touchedPlayerRef.current.startTouch = currentTouch;
+      } else {
+        const dx = currentTouch.x - start.x;
+        const dy = currentTouch.y - start.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        touchedPlayerRef.current.wasDragged = distance > 5; // 5px threshold
+      }
+
+      touchedPlayerRef.current.lastTouch = currentTouch;
     }
 
     placePlayers(touch.clientX, touch.clientY, rect);
   };
+
 
   const handleTouchEnd = () => {
     if (touchedPlayerRef.current && touchedPlayerRef.current.lastTouch) {
       const { x, y } = touchedPlayerRef.current.lastTouch;
       const rect = fieldRef.current.getBoundingClientRect();
 
-      handleDropOnFieldTouch(
-        touchedPlayerRef.current,
-        x - rect.left,
-        y - rect.top
-      );
+      // Check if this was a NEW player (not on field yet)
+      const isExistingPlayer = players.some(p => p.id === touchedPlayerRef.current.id);
+
+      if (!isExistingPlayer) {
+        handleDropOnFieldTouch(
+          touchedPlayerRef.current,
+          x - rect.left,
+          y - rect.top
+        );
+      }
 
       touchedPlayerRef.current = null;
     }
@@ -180,8 +212,14 @@ const placePlayers = (initialX, initialY, rect) => {
     e.preventDefault();
     setDraggingId(data.id);
     setSelectedPlayerId(null);
-    touchedPlayerRef.current = { ...data };
+    touchedPlayerRef.current = {
+      ...data,
+      startTouch: null,
+      lastTouch: null,
+      wasDragged: false,
+    };
   };
+
 
   const handleDrop = (e, height) => {
     e.preventDefault();
@@ -193,6 +231,7 @@ const placePlayers = (initialX, initialY, rect) => {
   };
 
     const handleDropOnField = (playerData, x, y) => {
+      console.log("Y: " + y + ", height: " + fieldSize.height)
       const role = playerData.role;
       let newY;
 
@@ -208,7 +247,7 @@ const placePlayers = (initialX, initialY, rect) => {
           break;
         case "LB":
         case "CB":
-          newY = y / 3;
+          newY = y / 2.5;
           break;
         case "S":
           newY = y / 6;
@@ -233,7 +272,7 @@ const placePlayers = (initialX, initialY, rect) => {
         route: null,
         assignedOffensiveId: null,
         hasCut: false,
-        position: { x, y: newY },
+        position: { x, y: newY},
       };
 
 
@@ -256,7 +295,7 @@ const placePlayers = (initialX, initialY, rect) => {
       } else {
         socket.emit("place_character", {
           ...playerData,
-          position: { x, y: newY },
+          position: { x, y: newY},
           isOffense: false,
           zone: null,
           assignedOffensiveId: null,
@@ -267,76 +306,98 @@ const placePlayers = (initialX, initialY, rect) => {
 
     };
 
-    const handleDropOnFieldTouch = (playerData, x, y) => {
-      const role = playerData.role;
-      let newY;
+const handleDropOnFieldTouch = (playerData, x, y) => {
+  const role = playerData.role;
+  let newY;
 
-      switch (role) {
-        case "WR":
-          newY = y / 20;
-          break;
-        case "RB":
-          newY = y / 4;
-          break;
-        case "TE":
-          newY = y / 10;
-          break;
-        case "LB":
-        case "CB":
-        case "S":
-          newY = y;
-          break;
-        default:
-          newY = y / 10;
-      }
+  switch (role) {
+    case "WR":
+      newY = y / 20;
+      break;
+    case "RB":
+      newY = y / 4;
+      break;
+    case "TE":
+      newY = y / 10;
+      break;
+    case "LB":
+    case "CB":
+      newY = y / 2.5;
+      break;
+    case "S":
+      newY = y / 6;
+    default:
+      newY = y / 10;
+  }
 
-      const isOffense = playerData.type == "offense"
+  const isOffense = playerData.type === "offense";
 
-      const newPlayer = {
-        ...playerData,
-        position: { x, y: newY },
-        isOffense,
-        route: null,
-        hasCut: false,
-      }
-      const newDPlayer = {
-        ...playerData,
-        zone: null,
-        isOffense,
-        route: null,
-        assignedOffensiveId: null,
-        hasCut: false,
-        position: { x, y: newY },
-      };
+  setPlayers((prev) => {
+    const playerExists = prev.find((p) => p.id === playerData.id);
+    if (playerExists) {
+      // Update existing player immutably with new position object
+      return prev.map((p) =>
+        p.id === playerData.id
+          ? {
+              ...p,
+              position: isOffense ? { x, y: newY } : { x, y },
+              // Keep other props intact or update if needed
+              route: null,
+              hasCut: false,
+              zone: isOffense ? p.zone : null,
+              assignedOffensiveId: isOffense ? p.assignedOffensiveId : null,
+            }
+          : p
+      );
+    } else {
+      // Add new player with fresh position object
+      const newPlayer = isOffense
+        ? {
+            ...playerData,
+            position: { x, y: newY },
+            isOffense,
+            route: null,
+            hasCut: false,
+          }
+        : {
+            ...playerData,
+            position: { x, y: newY },
+            zone: null,
+            isOffense,
+            route: null,
+            assignedOffensiveId: null,
+            hasCut: false,
+          };
 
+      return [...prev, newPlayer];
+    }
+  });
 
-      setPlayers((prev) => [...prev, isOffense ? newPlayer : newDPlayer]);
+  setInventory((prev) => ({
+    ...prev,
+    [playerData.type]: prev[playerData.type].filter((p) => p.id !== playerData.id),
+  }));
 
-      setInventory((prev) => ({
-        ...prev,
-        [playerData.type]: prev[playerData.type].filter(
-          (p) => p.id !== playerData.id
-        ),
-      }));
+  // Emit socket event with fresh position object
+  if (isOffense) {
+    socket.emit("place_character", {
+      ...playerData,
+      position: { x, y: newY },
+      isOffense,
+      room: roomId,
+    });
+  } else {
+    socket.emit("place_character", {
+      ...playerData,
+      position: { x, y: newY },
+      isOffense: false,
+      zone: null,
+      assignedOffensiveId: null,
+      room: roomId,
+    });
+  }
+};
 
-      if (isOffense) {
-        socket.emit("place_character", {
-          ...playerData,
-          position: { x, y: newY },
-          isOffense,
-          room: roomId,
-        });
-      } else {
-        socket.emit("place_character", {
-          ...playerData,
-          position: { x, y: newY },
-          isOffense: false,
-          zone: null,
-          assignedOffensiveId: null,
-          room: roomId,
-        });
-      }
-    };
 
   let animationFrameId;
 
