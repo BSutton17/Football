@@ -110,8 +110,8 @@ body {
 .route-btn, .zone-btn {
   position: absolute;
   text-align: center;
-  width: 5vw;
-  height: 3vw;
+  width: 75px;
+  height: 40px;
   border-radius: 50%; /* Oval shape */
   border: none;
   z-index: 4;
