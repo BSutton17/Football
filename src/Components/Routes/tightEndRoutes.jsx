@@ -3,7 +3,7 @@ import React from 'react';
 import { useAppContext } from '../../Context/AppContext';
 
 const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) => {
-  const { setSackTimeRemaining, setSelectedPlayerId } = useAppContext()
+  const { setSackTimeRemaining, setSelectedPlayerId, socket } = useAppContext()
   return (
     <div className="route-buttons">
       <button
