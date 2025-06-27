@@ -325,7 +325,7 @@ const handleDropOnFieldTouch = (playerData, x, y) => {
       newY = y / 2.5;
       break;
     case "S":
-      newY = y / 6;
+      newY = y / 5.5;
     default:
       newY = y / 10;
   }

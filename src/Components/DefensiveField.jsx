@@ -39,7 +39,9 @@ function DefensiveField({ offsetX, offsetY, socket}) {
         setRouteProgress,
         setCompletedYards,
         roomId,
-        switchSides
+        switchSides,
+        defenseName,
+        offenseName
     } = useAppContext();
 
     const { handleMouseDown, handleTouchStart, handleDragOver, handleDrop } = useHandlerContext();
@@ -151,7 +153,7 @@ function DefensiveField({ offsetX, offsetY, socket}) {
     setDown(data.newDown);
     setYardLine(data.newYardLine);
 
-    setOutcome(""); // Ready for next play
+    setOutcome(""); 
   };
   
   socket.on("play_stopped", ({ yardLine, down, distance }) => {
