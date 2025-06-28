@@ -134,6 +134,37 @@ export const HandlerProvider = ({ children }) => {
     setDraggingId(null);
   };
 
+    const handleTouchEnd = () => {
+       if (draggingId?.startsWith('D-') || draggingId?.startsWith('O')) {
+      setSelectedPlayerId(draggingId);
+    } else if (draggingId?.startsWith('DZ')) {
+      setSelectedZoneId(draggingId);
+    }
+    if (touchedPlayerRef.current && touchedPlayerRef.current.lastTouch) {
+      const { x, y } = touchedPlayerRef.current.lastTouch;
+      const rect = fieldRef.current.getBoundingClientRect();
+
+      // Check if this was a NEW player (not on field yet)
+      const isExistingPlayer = players.some(p => p.id === touchedPlayerRef.current.id);
+
+      if (!isExistingPlayer) {
+        handleDropOnFieldTouch(
+          touchedPlayerRef.current,
+          x - rect.left,
+          y - rect.top
+        );
+      }
+
+      touchedPlayerRef.current = null;
+    }
+
+    if (draggingId !== null) {
+      setSelectedPlayerId(draggingId);
+    }
+
+    setDraggingId(null);
+  };
+
   const handleTouchStart = (e, id) => {
     e.preventDefault();
     setDraggingId(id);
@@ -178,31 +209,31 @@ export const HandlerProvider = ({ children }) => {
   };
 
 
-  const handleTouchEnd = () => {
-    if (touchedPlayerRef.current && touchedPlayerRef.current.lastTouch) {
-      const { x, y } = touchedPlayerRef.current.lastTouch;
-      const rect = fieldRef.current.getBoundingClientRect();
+  // const handleTouchEnd = () => {
+  //   if (touchedPlayerRef.current && touchedPlayerRef.current.lastTouch) {
+  //     const { x, y } = touchedPlayerRef.current.lastTouch;
+  //     const rect = fieldRef.current.getBoundingClientRect();
 
-      // Check if this was a NEW player (not on field yet)
-      const isExistingPlayer = players.some(p => p.id === touchedPlayerRef.current.id);
+  //     // Check if this was a NEW player (not on field yet)
+  //     const isExistingPlayer = players.some(p => p.id === touchedPlayerRef.current.id);
 
-      if (!isExistingPlayer) {
-        handleDropOnFieldTouch(
-          touchedPlayerRef.current,
-          x - rect.left,
-          y - rect.top
-        );
-      }
+  //     if (!isExistingPlayer) {
+  //       handleDropOnFieldTouch(
+  //         touchedPlayerRef.current,
+  //         x - rect.left,
+  //         y - rect.top
+  //       );
+  //     }
 
-      touchedPlayerRef.current = null;
-    }
+  //     touchedPlayerRef.current = null;
+  //   }
 
-    if (draggingId !== null) {
-      setSelectedPlayerId(draggingId);
-    }
+  //   if (draggingId !== null) {
+  //     setSelectedPlayerId(draggingId);
+  //   }
 
-    setDraggingId(null);
-  };
+  //   setDraggingId(null);
+  // };
 
   const handleDragOver = (e) => {
     e.preventDefault();

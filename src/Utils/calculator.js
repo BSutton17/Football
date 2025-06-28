@@ -32,7 +32,7 @@ export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSi
 
   // Skip defensive linemen
   const filteredDefense = defensivePlayers.filter(p =>
-    p.role !== 'defensive-lineman'
+    p.role !== 'defensive-lineman' && !p.isBlitzing
   );
 
   // Reference baseline height: 524
@@ -113,11 +113,12 @@ export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSi
 
       dotSecond = wrVelocity.x * normWrToSecondDef.x + wrVelocity.y * normWrToSecondDef.y;
     }
-        
+  
 
     // Dot product between WR velocity and normalized vector to defender
     const dot = wrVelocity.x * normWrToDef.x + wrVelocity.y * normWrToDef.y;
     dotProduct = dot;
+      console.log("dot: " + dot)   
     // Calculate openness score based on distance and velocity direction
     let opennessScore;
 
@@ -132,16 +133,21 @@ export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSi
       opennessScores[wr.id] = opennessScore;
       return;
     }
-    else if(dot > 0 && dotSecond > 0.20 ){
-      opennessScore = 10;
-      opennessScores[wr.id] = opennessScore;
-      return;
-    }
     else if (closest.dist < closeCoverageThreshold) {
       opennessScore = 10;
       opennessScores[wr.id] = opennessScore;
       return; // ✅ exits early
     } 
+    else if(dot > 0 && dotSecond > 0.20 ){
+      opennessScore = 10;
+      opennessScores[wr.id] = opennessScore;
+      return;
+    }
+    else if(dot > 0){
+      opennessScore = 5;
+      opennessScores[wr.id] = opennessScore;
+      return;
+    }
     else if (dot < -0.50) {
       // WR moving away from defender and not smothered
       opennessScore = 1;
@@ -178,11 +184,11 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
   let easeOfYac;
 
   if (openness == "red") {
-    coverage = Math.random(); // Smothered
+    coverage = 0; // Smothered
   } else if (openness == "yellow") {
-    coverage = Math.random() * (1.25 - 0.75) + 0.75;
+    coverage = Math.random();
   } else {
-    coverage = Math.random() * (1.5 - 1) + 1;
+    coverage = Math.random() * (1.25 - 1) + 1;
   }
 
   console.log("route: " + route)
@@ -190,51 +196,54 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
   switch (route) {
     case 'corner':
       averageYards = 15;
-      easeOfYac = 0.80;
+      easeOfYac = getRandomInt(1, 8);
       break;
     case 'go':
       averageYards = 25;
-      easeOfYac = 0.95;
+      easeOfYac = getRandomInt(1, 28);
       break;
     case 'seam':
       averageYards = 20;
-      easeOfYac = 0.95;
+      easeOfYac = getRandomInt(1, 15);
       break;
     case 'post':
       averageYards = 18;
-      easeOfYac = 0.85;
+      easeOfYac = getRandomInt(1, 15);
       break;
     case 'in':
+      averageYards = 9;
+      easeOfYac = getRandomInt(1, 7);
+      break;
     case 'curl inside':
     case 'curl outside':
-      averageYards = 9;
-      easeOfYac = 0.4;
+      averageYards = 4;
+      easeOfYac = getRandomInt(1, 2);
       break;
     case 'curl':
-      averageYards = 7;
-      easeOfYac = 0.1;
+      averageYards = 6;
+      easeOfYac = getRandomInt(1, 2);
       break;
     case 'slant':
     case 'shallow':
     case 'texas':
-      averageYards = 5;
-      easeOfYac = 0.3;
+      averageYards = 4;
+      easeOfYac = getRandomInt(1, 7);
       break;
     case 'comeback':
       averageYards = 7;
-      easeOfYac = 0.1
+      easeOfYac = getRandomInt(1, 4);
       break;
     case 'out':
       averageYards = 9;
-      easeOfYac = 0.25;
+      easeOfYac = getRandomInt(1, 6);
       break;
     case 'flat':
-      averageYards = 4;
-      easeOfYac = 0.3;
+      averageYards = 3;
+      easeOfYac = getRandomInt(1, 8);
       break;
     case 'swing':
       averageYards = 1;
-      easeOfYac = 1;
+      easeOfYac = getRandomInt(1, 6);
       break;
     default:
       averageYards = 10;
@@ -245,12 +254,13 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
   // Calculate total yards as average + some factor based on easeOfYac and coverage
   // Higher easeOfYac and lower coverage lead to more yards
   const coveragePenalty = coverage; // coverage value reduces yards
-  const yacPotential = easeOfYac * (averageYards * 0.5); // max extra yards from YAC = ~50% avg yards scaled by ease
+  const yacPotential = easeOfYac;
 
   // total yards = average yards - coverage penalty + yac potential
-  let totalYards = (averageYards * coveragePenalty) + yacPotential;
+  let totalYards = averageYards + (coveragePenalty * yacPotential);
 
-  if((route == "go" &&  openness == "lime") || (Math.max(0, Math.round(totalYards)) > 100 - yardLine)) {
+  console.log("totalYards: " + totalYards + ", yards to go: " + (100 - yardLine))
+  if((route == "go" &&  openness == "lime") || totalYards > 100 - yardLine) {
     return "Touchdown!"
   }
   
@@ -261,11 +271,15 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
 
 
   return {
-    totalYards: Math.max(0, Math.round(totalYards)),
+    totalYards: Math.round(totalYards),
     yac: Math.max(0, Math.round(yac))
   };
 }
 
 
-
+function getRandomInt(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min + 1) + min);
+}
 

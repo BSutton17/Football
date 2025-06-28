@@ -9,11 +9,14 @@ import teamData  from '../Teams.json'
 import ReceiverRoutes from './Routes/receiverRoutes';
 import TightEndRoutes from './Routes/tightEndRoutes';
 import RunningBackRoutes from './Routes/runningBackRoutes';
+import EndZoneGraphics from './EndZoneGraphics'
 
 function OffensiveField({ offsetX, offsetY, socket }) {
   const {
     players,
-    setCompletedYards,
+    setSackTimeRemaining,
+    liveCountdown,
+    sackTimeRemaining,
     outcomeRef,
     setPlayers,
     selectedPlayerId,
@@ -25,7 +28,6 @@ function OffensiveField({ offsetX, offsetY, socket }) {
     routeStarted,
     setRouteStarted,
     setPaused,
-    setSackTimeRemaining,
     sackTimerRef,
     outcome,
     setOutcome,
@@ -52,7 +54,9 @@ function OffensiveField({ offsetX, offsetY, socket }) {
     currentYards, 
     setCurrentYards,
     firstDownStartY, 
-    setFirstDownStartY
+    setFirstDownStartY,
+    thrownBallLine, 
+    setThrownBallLine
   } = useAppContext();
 
   const { handleMouseDown, handleTouchStart, handleDragOver, handleDrop } = useHandlerContext();
@@ -63,124 +67,118 @@ function OffensiveField({ offsetX, offsetY, socket }) {
   // Constants
   const lineOfScrimmageY = fieldSize.height / 2;
   const oneYardInPixels = fieldSize.height / 40;
-  const endZoneHeight = 10 * oneYardInPixels;
-  const yardsPast80 = Math.max(0, yardLine - 80);
-  const visibleYards = Math.min(10, yardsPast80);
-  const visibleEndZoneHeight = visibleYards * oneYardInPixels;
-
-  const offsetFromTop = yardLine <= 90 ? 0 : (yardLine - 90) * oneYardInPixels;
 
   // listeners
-useEffect(() => {
-  // Handle a new character placed on the field, adding or updating player info
-  const handleCharacterPlaced = (data) => {
-    //console.log("OFFENSE");
-    //console.log("Received character placement data:", data);
+  useEffect(() => {
+    // Handle a new character placed on the field, adding or updating player info
+    const handleCharacterPlaced = (data) => {
+      //console.log("OFFENSE");
+      //console.log("Received character placement data:", data);
 
-    setPlayers((prevPlayers) => {
-      const playerId = data.id || data.playerId;
-      //console.log("Player ID to replace:", playerId);
+      setPlayers((prevPlayers) => {
+        const playerId = data.id || data.playerId;
+        //console.log("Player ID to replace:", playerId);
 
-      const filtered = prevPlayers.filter((p) => p.id !== playerId);
-      //console.log("Remaining players after filter:", filtered.map((p) => p.id));
+        const filtered = prevPlayers.filter((p) => p.id !== playerId);
+        //console.log("Remaining players after filter:", filtered.map((p) => p.id));
 
-      const updatedPlayers = [...filtered, data];
-      //console.log("Updated players list:", updatedPlayers.map((p) => p.id));
+        const updatedPlayers = [...filtered, data];
+        //console.log("Updated players list:", updatedPlayers.map((p) => p.id));
 
-      return updatedPlayers;
-    });
-  };
+        return updatedPlayers;
+      });
+    };
 
-socket.on("play_stopped", () => {
-  stopAllPlayerMovement();
-  setRouteStarted(false);
-  setOutcome(""); 
-});
+  socket.on("play_stopped", () => {
+    stopAllPlayerMovement();
+    setRouteStarted(false);
+    setOutcome(""); 
+  });
 
 
-  // Handle zone assignment from server
-  const handleZoneAssigned = ({ playerId, zoneType, zoneCircle, assignedOffensiveId }) => {
-    setPlayers((prev) =>
-      prev.map((p) => {
-        if (p.id === playerId) {
-          if (zoneType === "man") {
+    // Handle zone assignment from server
+    const handleZoneAssigned = ({ playerId, zoneType, zoneCircle, assignedOffensiveId }) => {
+      setPlayers((prev) =>
+        prev.map((p) => {
+          if (p.id === playerId) {
+            if (zoneType === "man") {
+              return {
+                ...p,
+                zone: "man",
+                assignedOffensiveId,
+                zoneCircle: null,
+                hasCut: false,
+              };
+            } else {
+              return {
+                ...p,
+                zone: zoneType,
+                zoneCircle,
+                assignedOffensiveId: null,
+                hasCut: false,
+              };
+            }
+          }
+          return p;
+        })
+      );
+
+      //console.log("Zone assigned:", { playerId, zoneType, zoneCircle, assignedOffensiveId });
+    };
+
+    const handleCharacterPositionUpdated = ({ playerId, position }) => {
+      setPlayers(prev =>
+        prev.map(p => p.id === playerId ? { ...p, position } : p)
+      );
+    };
+
+    const handleZoneDefenderUpdate = (data) => {
+      if (!data || !data.playerId || !data.position) return;
+
+      setPlayers(prevPlayers =>
+        prevPlayers.map(player => {
+          if (player.id === data.playerId && player.zone !== 'man') {
             return {
-              ...p,
-              zone: "man",
-              assignedOffensiveId,
-              zoneCircle: null,
-              hasCut: false,
-            };
-          } else {
-            return {
-              ...p,
-              zone: zoneType,
-              zoneCircle,
-              assignedOffensiveId: null,
-              hasCut: false,
+              ...player,
+              position: { ...data.position },
             };
           }
-        }
-        return p;
-      })
-    );
+          return player;
+        })
+      );
+    };
 
-    //console.log("Zone assigned:", { playerId, zoneType, zoneCircle, assignedOffensiveId });
-  };
+    const handleZoneAreUpdate = (data) => {
+      const { playerId, zoneType, zoneCircle } = data;
 
-  const handleCharacterPositionUpdated = ({ playerId, position }) => {
-    setPlayers(prev =>
-      prev.map(p => p.id === playerId ? { ...p, position } : p)
-    );
-  };
-
-  const handleZoneDefenderUpdate = (data) => {
-    if (!data || !data.playerId || !data.position) return;
-
-    setPlayers(prevPlayers =>
-      prevPlayers.map(player => {
-        if (player.id === data.playerId && player.zone !== 'man') {
-          return {
-            ...player,
-            position: { ...data.position },
-          };
-        }
-        return player;
-      })
-    );
-  };
-
-  const handleZoneAreUpdate = (data) => {
-    const { playerId, zoneType, zoneCircle } = data;
-
-    setPlayers((prevPlayers) =>
-      prevPlayers.map((player) => {
-        if (player.id === playerId) {
-          return {
-            ...player,
-            zone: zoneType,
-            zoneCircle: zoneCircle,
-          };
-        }
-        return player;
-      })
-    );
-  };
+      setPlayers((prevPlayers) =>
+        prevPlayers.map((player) => {
+          if (player.id === playerId) {
+            return {
+              ...player,
+              zone: zoneType,
+              zoneCircle: zoneCircle,
+            };
+          }
+          return player;
+        })
+      );
+    };
 
 
-  socket.on("zone_area_assigned", handleZoneAreUpdate)
-  socket.on("zone_defender_position_update", handleZoneDefenderUpdate);
-  socket.on("character_position_updated", handleCharacterPositionUpdated);
-  socket.on("character_placed", handleCharacterPlaced);
-  socket.on("zone_assigned", handleZoneAssigned);
+    socket.on("zone_area_assigned", handleZoneAreUpdate)
+    socket.on("zone_defender_position_update", handleZoneDefenderUpdate);
+    socket.on("character_position_updated", handleCharacterPositionUpdated);
+    socket.on("character_placed", handleCharacterPlaced);
+    socket.on("zone_assigned", handleZoneAssigned);
 
-  return () => {
-    socket.off("zone_defender_position_update", handleZoneDefenderUpdate);
-    socket.off("character_position_updated", handleCharacterPositionUpdated);
-    socket.off("character_placed", handleCharacterPlaced);
-    socket.off("zone_assigned", handleZoneAssigned);
-  };
-}, [socket]);
+    return () => {
+      socket.off("zone_defender_position_update", handleZoneDefenderUpdate);
+      socket.off("character_position_updated", handleCharacterPositionUpdated);
+      socket.off("character_placed", handleCharacterPlaced);
+      socket.off("zone_assigned", handleZoneAssigned);
+    };
+  }, [socket]);
 
   // Misc
   let onField = false;
@@ -224,16 +222,24 @@ useEffect(() => {
     }
   }, [fieldSize.height]);
 
+  const prevOutcomeRef = useRef(null);
 
   useEffect(() => {
-    if (outcome === "Touchdown!" || outcome === "Intercepted" || outcome === "Switch Sides") {
-      //socket.emit("switch_sides", { roomId, outcome, yardLine });
-      switchSides(outcome, yardLine);
+    if (outcome && outcome !== prevOutcomeRef.current) {
+      prevOutcomeRef.current = outcome;
+
+      if (outcome === "Intercepted") {
+        switchSides(outcome, yardLine, fieldSize.height);
+      } else if (["Touchdown!", "Turnover on Downs", "Safety"].includes(outcome)) {
+        setTimeout(() => {
+          switchSides(outcome, yardLine, fieldSize.height);
+        }, 3000);
+      }
     }
-  }, [outcome]);
+  }, [outcome, yardLine]);
 
   // reset
-  const handleOutcomeResult = (outcomeValue) => {
+  const handleOutcomeResult = (outcomeValue, firstDownStartY) => {
     if (!isOffense || !outcomeValue === ""){
       console.log("here")
       return;
@@ -247,6 +253,7 @@ useEffect(() => {
     let negativeYards = 0;
     let newTotalYards;
     let newFirstDownStartY = firstDownStartY
+    console.log(firstDownStartY)
 
       if (outcome.includes("yard") && newTotal >= distance) {
         newYardLine = yardLine + completedYards;
@@ -277,7 +284,14 @@ useEffect(() => {
         setDistance(newDistance);
         newDown = down + 1
         setDown(newDown);
-    }
+      }
+      else{
+        setYardLine(newYardLine);
+        setFirstDownStartY(newFirstDownStartY);
+        setDistance(newDistance);
+        newDown = down + 1
+        setDown(newDown);
+      }
     
     // Reset state
     //setCurrentYards(newTotalYards || 0);
@@ -307,23 +321,20 @@ useEffect(() => {
         DLine: teamData[defenseName].DLine,
       });
     }
+    console.log("newFirstDownStartY before: " + newFirstDownStartY)
     
-    if (!["Touchdown!", "Intercepted"].includes(outcome)) {
+    //if (!["Touchdown!", "Intercepted"].includes(outcome)) {
       console.log("[OFFENSE] Emitting play_reset");
+      console.log("newFirstDownStartY during: " + newFirstDownStartY)
       socket.emit("play_reset", {
-        newYardLine,
-        newDown,
-        newDistance,
-        inventory,
-      });
-    }
-    
-    socket.emit("play_stopped", {
-      yardLine: newYardLine,
-      down: newDown,
-      distance: newDistance,
-      roomId,
-    });
+          newYardLine,
+          newDown,
+          newDistance,
+          newFirstDownStartY,
+          roomId
+        });
+     // }
+
 
     // Clear local outcome
     setOutcome("");
@@ -628,80 +639,62 @@ const stopAllPlayerMovement = () => {
     outcomeRef.current = '';
   }, [outcome]);
 
-  //QB sack timer
-  useEffect(() => {
-    if (routeStarted) {
-      const OLineRating = inventory.OLine;
-      const DLineRating = inventory.DLine;
-      const variability = Math.random() * (500 - 200) + 200;
+useEffect(() => {
+  if (!routeStarted) return;
 
-      const sackTime = (OLineRating * 60) - (DLineRating * 30) + variability;
-      console.log(`[SACK TIMER] routeStarted, sackTime: ${sackTime}, current outcome: "${outcome}"`);
+  const OLineRating = inventory.OLine;
+  const DLineRating = inventory.DLine;
+  const variability = Math.random() * (500 - 200) + 200;
 
-      //update timer and send it to the defense
-      setSackTimeRemaining((prev) => {
-        const newTime = prev + sackTime;
-        return newTime;
+  const sackTime = (OLineRating * 60) - (DLineRating * 30) + variability;
+
+  const totalTime = sackTimeRemaining + sackTime;
+  setSackTimeRemaining(totalTime);
+  setLiveCountdown(totalTime); // Triggers next effect
+}, [routeStarted]);
+
+useEffect(() => {
+  if (!routeStarted || outcomeRef.current !== "" || !liveCountdown) return;
+
+  if (sackTimerRef.current) clearTimeout(sackTimerRef.current);
+
+  sackTimerRef.current = setTimeout(() => {
+    if (outcomeRef.current === "") {
+      setRouteStarted(false);
+      socket.emit("route_started", { routeStarted: false, roomId });
+      setOutcome("Sacked");
+      socket.emit("play_outcome", {
+        outcome: "Sacked",
+        yardLine,
+        roomId
       });
-
-      sackTimerRef.current = setTimeout(() => {
-        console.log(`[SACK TIMER FIRED] outcomeRef.current: "${outcomeRef.current}"`);
-        if (outcomeRef.current === "") {
-          console.log("[SACK TIMER] Outcome is empty. Setting outcome to 'Sacked'");
-          setRouteStarted(false);
-          socket.emit("route_started", { routeStarted: false, roomId });
-          setOutcome("Sacked");
-          socket.emit("play_outcome", {
-            outcome: "Sacked",
-            yardLine,
-            firstDownStartY,
-            roomId
-          });
-          
-        } else {
-          console.log(`[SACK TIMER] Outcome is NOT empty ("${outcomeRef.current}"). Not setting sack outcome.`);
-        }
-      }, sackTime);
+    } else {
+      console.log(`[SACK TIMER] Outcome is NOT empty ("${outcomeRef.current}"). Not setting sack outcome.`);
     }
+  }, liveCountdown);
 
-    return () => {
-      if (sackTimerRef.current) {
-        console.log("[SACK TIMER] Clearing sack timer");
-        clearTimeout(sackTimerRef.current);
-      }
-    };
-  }, [routeStarted, setOutcome, setRouteStarted, setPlayers]);
+  return () => clearTimeout(sackTimerRef.current);
+}, [liveCountdown]);
 
   useEffect(() => {
-  if (outcome != "") {
-    // Stop all offensive and defensive movement
-    stopAllPlayerMovement()
-    setTimeout(()=>{
-      handleOutcomeResult(outcome);
-    }, 3000)
-    // Optional: stop any timers or route sync here too
-    setRouteStarted(false);
-    //socket.emit("route_started", { routeStarted: false, roomId });
-  }
-}, [outcome, routeStarted]);
+    if (outcome != "") {
+      // Stop all offensive and defensive movement
+      stopAllPlayerMovement()
+      setTimeout(()=>{
+        handleOutcomeResult(outcome, firstDownStartY);
+      }, 3000)
+      
+      setTimeout(()=>{
+          setRouteStarted(false);
+      }, 100)
 
-
+      //socket.emit("route_started", { routeStarted: false, roomId });
+    }
+  }, [outcome, routeStarted]);
 
   return (
     <>
-    {yardLine > 80 && (
-      <div
-      className="end-zone"
-      style={{
-        position: 'absolute',
-        top: `${offsetFromTop}px`,
-        height: `${visibleEndZoneHeight}px`,
-        width: '100%',
-        backgroundColor: '#28aa28',
-        zIndex: 2,
-      }}
-      />
-    )}
+      <EndZoneGraphics oneYardInPixels={oneYardInPixels} yardLine={yardLine}/>
     <div
       className={distance < 20 && yardLine < 90 ? "first-down" : "hide"}
       style={{ top: `${firstDownStartY}px`, position: 'absolute' }}
@@ -736,6 +729,27 @@ const stopAllPlayerMovement = () => {
               role={player.role}
             />
 
+            {outcome !== "" && (() => {
+              
+              if(!thrownBallLine) return;
+              return (
+                <svg
+                  className="thrown-line-svg"
+                >
+                  <line
+                    x1={fieldSize.width / 2}
+                    y1={fieldSize.height / 6}
+                    x2={thrownBallLine.x}
+                    y2={thrownBallLine.y}
+                    stroke="white"
+                    strokeWidth="5"
+                    strokeDasharray="6, 9"
+                  />
+                </svg>
+              );
+            })()}
+
+
             {/* Show route only if ball not snapped yet */}
             {isOffense && player.route && outcome == "" && !routeStarted && (
               <svg className="route-svg">
@@ -767,6 +781,16 @@ const stopAllPlayerMovement = () => {
                   strokeWidth="5"
                   fill="none"
                   markerEnd="url(#arrow)"
+                />
+              </svg>
+            )}
+            {player.isBlocking && (
+              <svg className="route-svg">
+                <path
+                  d={getRoutePath(fieldSize, player.position.x, player.position.y, 'block', offsetX, offsetY)}
+                  stroke="gray"
+                  strokeWidth="4"
+                  fill="none"
                 />
               </svg>
             )}

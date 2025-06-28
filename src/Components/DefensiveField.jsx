@@ -6,6 +6,7 @@ import '../App.css';
 import { useAppContext } from '../Context/AppContext';
 import { useHandlerContext } from '../Context/HandlerContext';
 import {isMovingTowardDefender} from'../Utils/calculator'
+import DefensiveZone from './Routes/defensizeZones'
 import teamData from '../Teams.json'
 function DefensiveField({ offsetX, offsetY, socket}) {
     const {
@@ -116,80 +117,55 @@ function DefensiveField({ offsetX, offsetY, socket}) {
     //console.log("time remaining: " + data)
   };
   
-  const handlePlayOutcome = ({ outcome, completedYards, firstDownStartY }) => {
+  const handlePlayOutcome = ({ outcome, completedYards }) => {
     console.log("[DEFENSE] play_outcome received:", {
       outcome,
-      completedYards,
-      firstDownStartY
+      completedYards
     });
 
     setOutcome(outcome);
     setCompletedYards(completedYards)
-    setFirstDownStartY(firstDownStartY)
   };
 
-  const handlePlayReset = (data) => {
-    console.log("[DEFENSE] play_reset received");
-    setInventory(data.inventory);
-    setRouteProgress({});
-    setSelectedPlayerId(null);
-    setSelectedZoneId(null);
-    setDraggingId(null);
-    setOpeness("");
-    setPaused(false);
-    setSackTimeRemaining(0);
-    setLiveCountdown(null);
-    setQbPenalty(0);
-    setRouteStarted(false);
+socket.on("play_reset", (data) => {
+  console.log("[DEFENSE] play_reset received");
+  setRouteProgress({});
+  setSelectedPlayerId(null);
+  setSelectedZoneId(null);
+  setDraggingId(null);
+  setOpeness("");
+  setPaused(false);
+  setSackTimeRemaining(0);
+  setLiveCountdown(null);
+  setQbPenalty(0);
+  setRouteStarted(false);
+  setOutcome(""); 
+  setCurrentYards(0);
 
-    setPlayers(prev =>
-      prev.filter(p =>
-        p.role === 'qb' ||
-        p.role === 'offensive-lineman' ||
-        p.role === 'defensive-lineman')
-    );
+  setPlayers(prev =>
+    prev.filter(p =>
+      p.role === 'qb' || p.role === 'offensive-lineman' || p.role === 'defensive-lineman')
+  );
 
-    setDistance(data.newDistance);
-    setDown(data.newDown);
-    setYardLine(data.newYardLine);
-
-    setOutcome(""); 
-  };
-  
-  socket.on("play_stopped", ({ yardLine, down, distance }) => {
-    setRouteStarted(false);
-    setOutcome("");
-
-    setYardLine(yardLine);
-    setDown(down);
-    setDistance(distance);
-    setCurrentYards(0); // Reset for next drive
-    setRouteProgress({});
-    setSelectedPlayerId(null);
-    setSelectedZoneId(null);
-    setDraggingId(null);
-    setOpeness("");
-    setPaused(false);
-    setSackTimeRemaining(0);
-    setLiveCountdown(null);
-    setQbPenalty(0);
-
-    setPlayers(prev =>
-      prev.filter(p =>
-        p.role === 'qb' ||
-        p.role === 'offensive-lineman' ||
-        p.role === 'defensive-lineman')
-    );
-
-    setInventory({
-      offense: teamData[offenseName].offensivePlayers,
-      defense: teamData[defenseName].defensivePlayers,
-      OLine: teamData[offenseName].OLine,
-      DLine: teamData[defenseName].DLine,
-    });
-
-    console.log("[DEFENSE] Play stopped with update:", { yardLine, down, distance });
+  setInventory({
+    offense: teamData[offenseName].offensivePlayers,
+    defense: teamData[defenseName].defensivePlayers,
+    OLine: teamData[offenseName].OLine,
+    DLine: teamData[defenseName].DLine,
   });
+
+  setDistance(data.newDistance);
+  setDown(data.newDown);
+  setYardLine(data.newYardLine);
+  setFirstDownStartY(data.newFirstDownStartY);
+
+  console.log("[DEFENSE] Play reset with update:", {
+    yardLine: data.newYardLine,
+    down: data.newDown,
+    distance: data.newDistance,
+    firstDownStartY: data.newFirstDownStartY
+  });
+});
 
   // Register listeners
   socket.on("character_position_updated", handleCharacterPositionUpdated);
@@ -199,12 +175,9 @@ function DefensiveField({ offsetX, offsetY, socket}) {
   socket.on('ready_to_catch', handleReadyToCatch);
   socket.on('route_assigned', handleRouteAssigned);
   socket.on('play_outcome', handlePlayOutcome);
-  socket.on('play_reset', handlePlayReset);
   socket.on("sack_timer_update", handleSackTimerUpdate);
-  socket.on("play_reset", handlePlayReset);
 
   return () => {
-    socket.off("play_reset", handlePlayReset);
     socket.off("character_position_updated", handleCharacterPositionUpdated);
     socket.off('character_placed', handleCharacterPlaced);
     socket.off('route_started', handleRouteStarted);
@@ -212,8 +185,7 @@ function DefensiveField({ offsetX, offsetY, socket}) {
     socket.off('ready_to_catch', handleReadyToCatch);
     socket.off('route_assigned', handleRouteAssigned);
     socket.off('play_outcome', handlePlayOutcome);
-    socket.off('play_reset', handlePlayReset);
-    socket.off("play_stopped")
+    socket.off('play_reset')
   };
 }, [socket]);
 
@@ -257,25 +229,25 @@ function DefensiveField({ offsetX, offsetY, socket}) {
           const staticPlayers = [
             {
             id: 'D-L1',
-            position: { x: width / 2 - (width / 8), y: height / 2 - 25 },
+            position: { x: width / 2 - (width / 8), y: height / 2 - 12 },
             isOffense: false,
             role: 'defensive-lineman',
           },
           {
             id: 'D-L2',
-            position: { x: width / 2 - (width / 22.5), y: height / 2 - 25 },
+            position: { x: width / 2 - (width / 22.5), y: height / 2 - 12 },
             isOffense: false,
             role: 'defensive-lineman',
           },
           {
             id: 'D-L3',
-            position: { x: width / 2 + (width / 22.5), y: height / 2 - 25 },
+            position: { x: width / 2 + (width / 22.5), y: height / 2 - 12 },
             isOffense: false,
             role: 'defensive-lineman',
           },
           {
             id: 'D-L4',
-            position: { x: width / 2 + (width / 8), y: height / 2 - 25 },
+            position: { x: width / 2 + (width / 8), y: height / 2 - 12 },
             isOffense: false,
             role: 'defensive-lineman',
           }
@@ -400,16 +372,39 @@ function DefensiveField({ offsetX, offsetY, socket}) {
 
           updated = true;
 
-          // Emit updated zone player position with throttling:
-          // const lastEmit = emitThrottle.get(p.id) || 0;
-          // if (time - lastEmit > 50) {
-          //   socket.emit("zone_defender_position_update", {
-          //     playerId: p.id,
-          //     position: newPos,
-          //     room: roomId,
-          //   });
-          //   emitThrottle.set(p.id, time);
-          // }
+          return {
+            ...p,
+            position: newPos,
+            lastUpdateTime: time,
+          };
+        }
+        else if (p.isBlitzing) {
+          const targetX = p.position.x > fieldSize.width / 2 ? fieldSize.width / 1.5 : fieldSize.width / 3.5;
+          const targetY = fieldSize.height/2;
+
+          const dx = targetX - p.position.x;
+          const dy = targetY - p.position.y;
+          const distance = Math.hypot(dx, dy);
+
+          if (distance < 0.5) {
+            if (p.lastUpdateTime) {
+              updated = true;
+              return { ...p, lastUpdateTime: null, position: { x: targetX, y: targetY } };
+            }
+            return p;
+          }
+
+          const lastTime = p.lastUpdateTime || time;
+          const deltaTime = (time - lastTime) / 1000;
+          const speed = p.speed || 100; // Adjust as needed
+          const step = Math.min(speed * deltaTime, distance);
+
+          const newPos = {
+            x: p.position.x + (dx / distance) * step,
+            y: p.position.y + (dy / distance) * step,
+          };
+
+          updated = true;
 
           return {
             ...p,
@@ -435,91 +430,6 @@ function DefensiveField({ offsetX, offsetY, socket}) {
   animationFrameId = requestAnimationFrame(animate);
   return () => cancelAnimationFrame(animationFrameId);
 }, [routeStarted, setPlayers, fieldSize.height, socket, roomId]);
-  
-  // translate offesnive y to defense for comparison
-  function convertOffensiveYtoDefensiveY(offensiveY) {
-    return offensiveY * 1.02597 + 281.58;
-  } 
-
-  // Helper function to find closest offensive player ID by Euclidean distance
-    const findClosestOffensivePlayerId = (defenderPosition, players) => {
-    let closestId = null;
-    let closestDistSq = Infinity;
-
-    players.forEach(p => {
-
-        if (p.isOffense && p.role !== 'offensive-lineman' && p.role !== 'qb') {
-        const dx = p.position.x - defenderPosition.x;
-          
-        if (Math.abs(dx) < closestDistSq) {
-            closestDistSq = Math.abs(dx);
-            closestId = p.id;
-        }
-        }
-    });
-
-    return closestId;
-    };
-
-    const assignZone = (id, coverage) => {
-      if (coverage === "zone") {
-        const defaultY = fieldSize.height / 4;
-
-        setPlayers((prev) =>
-          prev.map((p) =>
-            p.id === id
-              ? {
-                  ...p,
-                  zone: 'flat',
-                  zoneCircle: {
-                    id: `DZ-${Date.now()}-${Math.random()}`,
-                    x: p.position.x,
-                    y: defaultY,
-                  },
-                }
-              : p
-          )
-        );
-
-        socket.emit("assign_zone", {
-          playerId: id,
-          zoneType: "flat",
-          zoneCircle: {
-            id: `DZ-${Date.now()}-${Math.random()}`,
-            x: players.find(p => p.id === id)?.position?.x || 0,
-            y: defaultY,
-          },
-          room: roomId,
-        });
-
-        setSelectedPlayerId(null);
-      } else if (coverage === "man") {
-        setPlayers((prev) =>
-          prev.map((p) => {
-            if (p.id === id) {
-              const offensivePlayerId = findClosestOffensivePlayerId(p.position, prev);
-              return {
-                ...p,
-                zone: "man",
-                assignedOffensiveId: offensivePlayerId,
-                zoneCircle: null,
-                hasCut: false,
-              };
-            }
-            return p;
-          })
-        );
-
-        socket.emit("assign_zone", {
-          playerId: id,
-          zoneType: "man",
-          assignedOffensiveId: findClosestOffensivePlayerId(players.find(p => p.id === id)?.position, players),
-          room: roomId,
-        });
-
-        setSelectedPlayerId(null);
-      }
-    };
 
   return (
     <div className="half top-half"
@@ -566,6 +476,33 @@ function DefensiveField({ offsetX, offsetY, socket}) {
                 </svg>
               );
             })()}
+
+            {player.isBlitzing && outcome === "" && !routeStarted && (
+              <svg className="man-svg">
+                <defs>
+                  <marker
+                    id="arrow"
+                    markerWidth="4"
+                    markerHeight="4"
+                    refX="2"
+                    refY="2"
+                    orient="auto"
+                    markerUnits="strokeWidth"
+                  >
+                    <path d="M0,0 L4,2 L0,4 Z"fill="red" />
+                  </marker>
+                </defs>
+
+                <path
+                  d={`M ${player.position.x} ${player.position.y} L ${player.position.x > fieldSize.width / 2 ? fieldSize.width / 1.5 : fieldSize.width / 3.5} ${player.position.y + 50}`}
+                  stroke="red"
+                  strokeWidth="5"
+                  fill="none"
+                  markerEnd="url(#arrow)"
+                />
+              </svg>
+            )}
+
 
             {/* In Zone coverage Draw line to zoneCircle and circle itself */}
             {!isOffense && player.zoneCircle && (
@@ -620,33 +557,9 @@ function DefensiveField({ offsetX, offsetY, socket}) {
             )}
 
             {!isOffense && selectedPlayerId === player.id && !routeStarted && (
-            <div className="zone-buttons">
-                <button
-                className="zone-btn"
-                onClick={() => assignZone(player.id, "zone")}
-                style={{ left: player.position.x, top: player.position.y - offsetY }}
-                >Zone</button>
-
-                <button
-                className="zone-btn"
-                onClick={() => {
-                  setSelectedPlayerId(null);
-                  setSackTimeRemaining((prev) => {
-                    const newTime = prev - (player.blitzing * 5);
-                    socket.emit("sack_timer_update", { sackTimeRemaining: newTime, roomId });
-                    return newTime;
-                  });
-                }}
-                style={{ left: player.position.x + offsetX, top: player.position.y }}
-                >Blitz</button>
-
-                <button
-                className="zone-btn"
-                onClick={() => assignZone(player.id, "man")}
-                style={{ left: player.position.x - offsetX, top: player.position.y }}
-                >Man</button>
-            </div>
+              <DefensiveZone player={player} offsetX={offsetX} offsetY={offsetY} fieldSize={fieldSize}/>
             )}
+
         </React.Fragment>
         ))}
 

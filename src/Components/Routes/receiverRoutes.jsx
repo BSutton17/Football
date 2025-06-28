@@ -78,6 +78,7 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
       </button>
       <button
         className="route-btn"
+        id="comeback"
         onClick={() => assignRoute(player.id, 'comeback')}
         style={{
           left:

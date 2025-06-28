@@ -261,6 +261,16 @@
         const secondy = y - forwardDist * 0.8
         return `M${x},${startY} L${firstx},${firsty} L${secondx},${secondy}`
       }
+      case "block": {
+        // Upside-down T: horizontal top, vertical stem
+        const topY = y + 25;
+        const bottomY = y + 10;
+        const leftX = x - 10;
+        const rightX = x + 10;
+
+        // Represented as two lines: horizontal then vertical
+        return `M${leftX},${topY} L${rightX},${topY} M${x},${topY} L${x},${bottomY}`;
+      }
 
       //RB
       case "texas": {

@@ -3,12 +3,35 @@ import React from 'react';
 import { useAppContext } from '../../Context/AppContext';
 
 const runningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) => {
-  const { setSackTimeRemaining, setSelectedPlayerId, socket, roomId } = useAppContext()
+  const { setSackTimeRemaining, setSelectedPlayerId, setPlayers, socket, roomId } = useAppContext();
+
+  const handleRouteClick = (route) => {
+    assignRoute(player.id, route);
+    
+    setPlayers((prevPlayers) =>
+      prevPlayers.map((p) => {
+        if (p.id === player.id) {
+          if (p.isBlocking) {
+            // If player was blocking, decrease sack timer
+            setSackTimeRemaining((prev) => {
+              const newTime = prev - (p.blocking * 5);
+              socket.emit("sack_timer_update", { sackTimeRemaining: newTime, roomId });
+              return newTime;
+            });
+          }
+          // Remove blocking status
+          return { ...p, isBlocking: false };
+        }
+        return p;
+      })
+    );
+  };
+
   return (
     <div className="route-buttons">
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'in')}
+        onClick={() => handleRouteClick('in')}
         style={{
           left:
             player.position.x > fieldSize.width / 2
@@ -21,7 +44,7 @@ const runningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
       </button>
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'go')}
+        onClick={() => handleRouteClick('go')}
         style={{
           left: player.position.x,
           top: player.position.y - offsetY,
@@ -31,7 +54,7 @@ const runningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
       </button>
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'out')}
+        onClick={() => handleRouteClick('out')}
         style={{
           left:
             player.position.x < fieldSize.width / 2
@@ -44,9 +67,12 @@ const runningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
       </button>
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'texas')}
+        onClick={() => handleRouteClick('texas')}
         style={{
-          left: player.position.x < fieldSize.width / 2 ? player.position.x + offsetX : player.position.x - offsetX,
+          left:
+            player.position.x < fieldSize.width / 2
+              ? player.position.x + offsetX
+              : player.position.x - offsetX,
           top: player.position.y,
         }}
       >
@@ -54,7 +80,7 @@ const runningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
       </button>
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'wheel')}
+        onClick={() => handleRouteClick('wheel')}
         style={{
           left:
             player.position.x < fieldSize.width / 2
@@ -63,17 +89,33 @@ const runningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
           top: player.position.y + offsetY,
         }}
       >
-        wheel
+        Wheel
       </button>
       <button
         className="route-btn"
         onClick={() => {
           setSelectedPlayerId(null);
-          setSackTimeRemaining((prev) => {
-            const newTime = prev + (player.blitzing * 5);
-            socket.emit("sack_timer_update", { sackTimeRemaining: newTime, roomId });
-            return newTime;
-          });
+          assignRoute(player.id, null)
+          setPlayers((prevPlayers) =>
+            prevPlayers.map((p) => {
+              if (p.id === player.id) {
+                const updatedBlocking = !p.isBlocking;
+                const timeChange = player.blocking * 5;
+
+                setSackTimeRemaining((prev) => {
+                  const newTime = updatedBlocking ? prev + timeChange : prev - timeChange;
+                  socket.emit("sack_timer_update", { sackTimeRemaining: newTime, roomId });
+                  return newTime;
+                });
+
+                return {
+                  ...p,
+                  isBlocking: updatedBlocking,
+                };
+              }
+              return p;
+            })
+          );
         }}
         style={{
           left: player.position.x,
@@ -84,7 +126,7 @@ const runningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
       </button>
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'swing')}
+        onClick={() => handleRouteClick('swing')}
         style={{
           left:
             player.position.x > fieldSize.width / 2
@@ -93,17 +135,20 @@ const runningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
           top: player.position.y + offsetY,
         }}
       >
-        swing
+        Swing
       </button>
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'rb flat')}
+        onClick={() => handleRouteClick('rb flat')}
         style={{
-          left: player.position.x > fieldSize.width / 2 ? player.position.x + offsetX : player.position.x - offsetX,
+          left:
+            player.position.x > fieldSize.width / 2
+              ? player.position.x + offsetX
+              : player.position.x - offsetX,
           top: player.position.y,
         }}
       >
-       flat
+        Flat
       </button>
     </div>
   );

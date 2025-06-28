@@ -29,10 +29,11 @@ function Field({ socket, room, name }) {
     roomId, 
     setQbPenalty,
     isOffense, 
-    isPlayerOne,
+    setOutcome,
     setYardLine,
     setDistance,
-    setDown
+    setDown,
+    setThrownBallLine
   } = useAppContext();
 
   const { handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd } = useHandlerContext();
@@ -57,6 +58,13 @@ function Field({ socket, room, name }) {
     offsetX = fieldSize.width / 15;
     offsetY = fieldSize.height / 10;
   }
+
+  const sackTimeRef = useRef(sackTimeRemaining);
+
+  // Keep the ref in sync
+  useEffect(() => {
+    sackTimeRef.current = sackTimeRemaining;
+  }, [sackTimeRemaining]);
 
   useEffect(() => {
     const updateFieldSize = () => {
@@ -88,6 +96,7 @@ function Field({ socket, room, name }) {
 
   const startRoute = () => {
     setRouteStarted(true);
+    setThrownBallLine(null)
 
     const interval = setInterval(() => {
         setRouteProgress((prev) => {
@@ -128,19 +137,20 @@ function Field({ socket, room, name }) {
       if (!isOffense) return;
       let intervalId;
 
-      if (routeStarted && outcome == "" && sackTimeRemaining > 0) {
+      if (routeStarted && outcome === "" && sackTimeRemaining > 0) {
         setLiveCountdown(sackTimeRemaining); // initialize countdown
 
         intervalId = setInterval(() => {
-          setLiveCountdown(prev => {
-            const next = prev - 47;
-            socket.emit("sack_timer_update", { sackTimeRemaining: next, roomId });
-            if (next <= 0) {
-              clearInterval(intervalId);
-              return 0;
-            }
-            return next;
-          });
+          sackTimeRef.current -= 47; 
+          const next = sackTimeRef.current;
+          socket.emit("sack_timer_update", { sackTimeRemaining: next, roomId });
+
+          if (next <= -47) {
+            clearInterval(intervalId);
+            setLiveCountdown(0);
+          } else {
+            setLiveCountdown(next);
+          }
         }, 47);
       } else {
         setLiveCountdown(null);
@@ -148,7 +158,6 @@ function Field({ socket, room, name }) {
 
       return () => clearInterval(intervalId);
     }, [routeStarted, sackTimeRemaining, outcome]);
-
 
     const displayDangerLevel = () =>{
       if(liveCountdown / 1000 > 1.5) {
@@ -169,7 +178,9 @@ function Field({ socket, room, name }) {
     case 2: return "2nd";
     case 3: return "3rd";
     case 4: return "4th";
-    default: return `${down}th`;
+    case 5: 
+        setOutcome("Turnover on Downs")
+        break;
   }
 }
 

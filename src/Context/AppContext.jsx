@@ -30,6 +30,7 @@ export const Provider = ({ children }) => {
       const [offenseName, setOffenseName] = useState("TeamOne")
       const [defenseName, setDffenseName] = useState("TeamTwo")
       const [outcome, setOutcome] = useState("")
+      const [thrownBallLine, setThrownBallLine] = useState(null);
       const [firstDownStartY, setFirstDownStartY] = useState(0); 
       const [currentYards, setCurrentYards] = useState(0); 
       const [inventory, setInventory] = useState({
@@ -52,7 +53,7 @@ export const Provider = ({ children }) => {
       }, [offenseName]);
       
       // Switch sides function — swap offense and defense teams & reset field state
-      const switchSides = (outcome, yardLine) => {
+      const switchSides = (outcome, yardLine, height) => {
         const newOffenseName = defenseName;
         const newDefenseName = offenseName;
 
@@ -65,16 +66,23 @@ export const Provider = ({ children }) => {
           OLine: teamData[newOffenseName].OLine,
           DLine: teamData[newOffenseName].DLine,
         });
-        
-        if(outcome == "Intercepted" || outcome == "Switch Sides"){
-          setYardLine(100 - yardLine);
+        console.log("switch sides outcome: " + outcome)
+        console.log(down)
+        console.log("100 - yardLine: " + (100 - yardLine))
+        if(outcome == "Intercepted" || outcome == "Turnover on Downs"){
+          setTimeout(()=>{
+            setYardLine(100 - yardLine);
+          }, 50)
         }
         else if(outcome == "Touchdown!"){
           setYardLine(25);
         }
         
+        setTimeout(()=>{
         setDown(1);
         setDistance(10);
+        setFirstDownStartY(height/4)
+        }, 100)
       };
     
   return (
@@ -109,7 +117,8 @@ export const Provider = ({ children }) => {
         readyToCatchIds, setReadyToCatchIds,
         outcomeRef,
         currentYards, setCurrentYards,
-        firstDownStartY, setFirstDownStartY
+        firstDownStartY, setFirstDownStartY,
+        thrownBallLine, setThrownBallLine
       }}>
       {children}
     </AppContext.Provider>

@@ -28,7 +28,9 @@ export const Player = ({
     qbPenalty,
     outcomeRef,
     socket,
-    roomId
+    roomId,
+    setThrownBallLine,
+    selectedPlayerId 
   } = useAppContext();
 
   if (!position) {
@@ -57,16 +59,21 @@ export const Player = ({
         if (yards === "Touchdown!") {
           result = "Touchdown!";
         } else {
-          result = (yardLine + completedYards < 100)
-            ? `${yards.totalYards} yard completion`
-            : "Touchdown!";
+          result = `${yards.totalYards} yard completion`;
           setCompletedYards(yards.totalYards);
         }
       } else {
         result = catchResult;
       }
     }
+    const receiver = players.find(p => p.id === id);
 
+    setThrownBallLine({x: receiver.position.x, y: receiver.position.y});
+
+      // setTimeout(() => {
+      //   setThrownBallLine(null);
+      // }, 3000); 
+    
     outcomeRef.current = result;
     setOutcome(result);
 

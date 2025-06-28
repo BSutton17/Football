@@ -3,12 +3,36 @@ import React from 'react';
 import { useAppContext } from '../../Context/AppContext';
 
 const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) => {
-  const { setSackTimeRemaining, setSelectedPlayerId, socket, roomId } = useAppContext()
+  const { setSackTimeRemaining, setSelectedPlayerId, setPlayers, socket, roomId } = useAppContext();
+
+  const handleRouteClick = (route) => {
+    assignRoute(player.id, route);
+    
+    setPlayers((prevPlayers) =>
+      prevPlayers.map((p) => {
+        if (p.id === player.id) {
+          if (p.isBlocking) {
+            // If player was blocking, decrease sack timer
+            setSackTimeRemaining((prev) => {
+              const newTime = prev - (p.blocking * 5);
+              socket.emit("sack_timer_update", { sackTimeRemaining: newTime, roomId });
+              return newTime;
+            });
+          }
+          // Remove blocking status
+          return { ...p, isBlocking: false };
+        }
+        return p;
+      })
+    );
+  };
+
+
   return (
     <div className="route-buttons">
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'in')}
+        onClick={() => handleRouteClick('in')}
         style={{
           left:
             player.position.x > fieldSize.width / 2
@@ -19,9 +43,10 @@ const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
       >
         In
       </button>
+
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'go')}
+        onClick={() => handleRouteClick('go')}
         style={{
           left: player.position.x,
           top: player.position.y - offsetY,
@@ -29,9 +54,10 @@ const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
       >
         Seam
       </button>
+
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'out')}
+        onClick={() => handleRouteClick('out')}
         style={{
           left:
             player.position.x < fieldSize.width / 2
@@ -42,19 +68,21 @@ const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
       >
         Out
       </button>
+
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'curl inside')}
+        onClick={() => handleRouteClick('curl inside')}
         style={{
           left: player.position.x < fieldSize.width / 2 ? player.position.x + offsetX : player.position.x - offsetX,
           top: player.position.y,
         }}
       >
-        inside
+        Inside
       </button>
+
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'flat')}
+        onClick={() => handleRouteClick('flat')}
         style={{
           left:
             player.position.x < fieldSize.width / 2
@@ -65,15 +93,34 @@ const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
       >
         Flat
       </button>
+
+      {/* Block button with toggle logic */}
       <button
         className="route-btn"
         onClick={() => {
           setSelectedPlayerId(null);
-          setSackTimeRemaining((prev) => {
-            const newTime = prev + (player.blitzing * 5);
-            socket.emit("sack_timer_update", { sackTimeRemaining: newTime, roomId });
-            return newTime;
-          });
+          assignRoute(player.id, null)
+
+          setPlayers((prevPlayers) =>
+            prevPlayers.map((p) => {
+              if (p.id === player.id) {
+                const updatedBlocking = !p.isBlocking;
+                const timeChange = player.blocking * 5;
+
+                setSackTimeRemaining((prev) => {
+                  const newTime = updatedBlocking ? prev + timeChange : prev - timeChange;
+                  socket.emit("sack_timer_update", { sackTimeRemaining: newTime, roomId });
+                  return newTime;
+                });
+
+                return {
+                  ...p,
+                  isBlocking: updatedBlocking,
+                };
+              }
+              return p;
+            })
+          );
         }}
         style={{
           left: player.position.x,
@@ -82,9 +129,10 @@ const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
       >
         Block
       </button>
+
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'shallow')}
+        onClick={() => handleRouteClick('shallow')}
         style={{
           left:
             player.position.x > fieldSize.width / 2
@@ -95,15 +143,16 @@ const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
       >
         Shallow
       </button>
+
       <button
         className="route-btn"
-        onClick={() => assignRoute(player.id, 'curl outside')}
+        onClick={() => handleRouteClick('curl outside')}
         style={{
           left: player.position.x > fieldSize.width / 2 ? player.position.x + offsetX : player.position.x - offsetX,
           top: player.position.y,
         }}
       >
-       outside
+        Outside
       </button>
     </div>
   );
