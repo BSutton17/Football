@@ -30,7 +30,7 @@ export const Player = ({
     socket,
     roomId,
     setThrownBallLine,
-    selectedPlayerId 
+    sackTimerRef 
   } = useAppContext();
 
   if (!position) {
@@ -75,6 +75,7 @@ export const Player = ({
       // }, 3000); 
     
     outcomeRef.current = result;
+    sackTimerRef.current = null
     setOutcome(result);
 
     if (result !== "") {

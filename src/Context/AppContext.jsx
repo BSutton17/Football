@@ -20,7 +20,7 @@ export const Provider = ({ children }) => {
       const [liveCountdown, setLiveCountdown] = useState(null);
       const [down, setDown] = useState(1)
       const [distance, setDistance] = useState(10)
-      const [yardLine, setYardLine] = useState(25)
+      const [yardLine, setYardLine] = useState(15)
       const [qbPenalty, setQbPenalty] = useState(0)
       const [socket, setSocket] = useState()
       const [readyToCatchIds, setReadyToCatchIds] = useState(new Set());
@@ -76,6 +76,9 @@ export const Provider = ({ children }) => {
         }
         else if(outcome == "Touchdown!"){
           setYardLine(25);
+        }
+        else if(outcome == "Safety"){
+          setYardLine(35);
         }
         
         setTimeout(()=>{

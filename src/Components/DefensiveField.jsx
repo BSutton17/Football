@@ -158,6 +158,9 @@ socket.on("play_reset", (data) => {
   setDown(data.newDown);
   setYardLine(data.newYardLine);
   setFirstDownStartY(data.newFirstDownStartY);
+  if(data.newYardLine < 0){
+    setOutcome("Safety")
+  }  
 
   console.log("[DEFENSE] Play reset with update:", {
     yardLine: data.newYardLine,

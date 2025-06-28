@@ -241,7 +241,6 @@ useEffect(() => {
   // reset
   const handleOutcomeResult = (outcomeValue, firstDownStartY) => {
     if (!isOffense || !outcomeValue === ""){
-      console.log("here")
       return;
     } 
 
@@ -277,6 +276,9 @@ useEffect(() => {
       else if (outcome === "Sacked") {
         negativeYards = Math.floor(Math.random() * (10 - 5)) + 5;
         newYardLine = yardLine - negativeYards;
+        if(newYardLine < 0){
+          setOutcome("Safety")
+        }
         setYardLine(newYardLine);
         newFirstDownStartY = firstDownStartY - yardsToPixels(negativeYards)
         setFirstDownStartY(newFirstDownStartY);
@@ -636,7 +638,7 @@ const stopAllPlayerMovement = () => {
 
   // Keep the ref updated with the latest outcome
   useEffect(() => {
-    outcomeRef.current = '';
+    outcomeRef.current = outcome;
   }, [outcome]);
 
 useEffect(() => {
@@ -659,7 +661,9 @@ useEffect(() => {
   if (sackTimerRef.current) clearTimeout(sackTimerRef.current);
 
   sackTimerRef.current = setTimeout(() => {
+    console.log("Outcome as far as timer is concered: " + outcome.current)
     if (outcomeRef.current === "") {
+      console.log("Sacked in offensiveField")
       setRouteStarted(false);
       socket.emit("route_started", { routeStarted: false, roomId });
       setOutcome("Sacked");
