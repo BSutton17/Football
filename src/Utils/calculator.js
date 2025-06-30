@@ -202,6 +202,7 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
       easeOfYac = getRandomInt(1, 28);
       break;
     case 'seam':
+    case 'wheel':
       averageYards = 20;
       easeOfYac = getRandomInt(1, 15);
       break;
@@ -237,6 +238,7 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
       easeOfYac = getRandomInt(1, 6);
       break;
     case 'flat':
+    case 'rb flat':
       averageYards = 3;
       easeOfYac = getRandomInt(1, 8);
       break;
