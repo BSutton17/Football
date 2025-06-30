@@ -144,16 +144,9 @@ socket.on("play_reset", (data) => {
   setLiveCountdown(null);
   setQbPenalty(0);
   setRouteStarted(false);
-  setPlayers(preSnapRef.current); // ✅ use ref to access latest data
+  setPlayers(preSnapRef.current); 
   setOutcome(""); 
   setCurrentYards(0);
-  setInventory({
-    offense: teamData[offenseName].offensivePlayers,
-    defense: teamData[defenseName].defensivePlayers,
-    OLine: teamData[offenseName].OLine,
-    DLine: teamData[defenseName].DLine,
-    Qb: teamData[offenseName].Qb
-  });
   setDistance(data.newDistance);
   setDown(data.newDown);
   setYardLine(data.newYardLine);
@@ -188,12 +181,16 @@ socket.on("play_reset", (data) => {
   }));
 
   setPreSnapPlayers(updatedPlayers);
-  preSnapRef.current = updatedPlayers; // ✅ store immediately
+  preSnapRef.current = updatedPlayers;
 
   })
 
+  const handleRemovePlayer = (playerId) => {
+    setPlayers(prev => prev.filter(p => p.id !== playerId));
+  };
 
-  // Register listeners
+    // Register listeners
+  socket.on("player_removed", handleRemovePlayer);
   socket.on('character_placed', handleCharacterPlaced);
   socket.on('route_started', handleRouteStarted);
   socket.on('player_positions_update', handlePlayerPositionsUpdate); // Use singular - must match server emit

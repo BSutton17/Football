@@ -38,7 +38,7 @@ function OffensiveField({ offsetX, offsetY, socket }) {
     setOpeness,
     setInventory,
     offenseName, 
-    defenseName,
+    preSnapRef,
     setDown,
     setDistance,
     setYardLine,
@@ -51,7 +51,7 @@ function OffensiveField({ offsetX, offsetY, socket }) {
     switchSides,
     roomId,
     currentYards, 
-    setCurrentYards,
+    setPreSnapPlayers,
     firstDownStartY, 
     setFirstDownStartY,
     thrownBallLine, 
@@ -183,6 +183,12 @@ function OffensiveField({ offsetX, offsetY, socket }) {
       );
     };
 
+  const handleRemovePlayer = (playerId) => {
+    setPlayers(prev => prev.filter(p => p.id !== playerId));
+  };
+
+    // Register listeners
+    socket.on("player_removed", handleRemovePlayer);
     socket.on("zone_area_assigned", handleZoneAreUpdate)
     socket.on("zone_defender_position_update", handleZoneDefenderUpdate);
     socket.on("character_position_updated", handleCharacterPositionUpdated);
@@ -250,12 +256,26 @@ useEffect(() => {
     if (outcome && outcome !== prevOutcomeRef.current) {
       prevOutcomeRef.current = outcome;
 
-      if (outcome === "Intercepted") {
+    if (outcome === "Intercepted") {
+      setTimeout(() => {
         switchSides(outcome, yardLine, fieldSize.height);
-      } else if (["Touchdown!", "Turnover on Downs", "Safety"].includes(outcome)) {
+        preSnapRef.current = players.filter(p =>
+        p.role === 'qb' ||
+        p.role === 'offensive-lineman' ||
+        p.role === 'defensive-lineman'
+      );
+
+      }, 3000);
+    }
+    else if (["Touchdown!", "Turnover on Downs", "Safety"].includes(outcome)) {
         setTimeout(() => {
           switchSides(outcome, yardLine, fieldSize.height);
         }, 3000);
+        preSnapRef.current = players.filter(p =>
+        p.role === 'qb' ||
+        p.role === 'offensive-lineman' ||
+        p.role === 'defensive-lineman'
+      );
       }
     }
   }, [outcome, yardLine]);
@@ -308,6 +328,16 @@ useEffect(() => {
         newDown = down + 1
         setDown(newDown);
       }
+      else if(outcome === "Intercepted" || outcome == "Turnover on Downs") {
+        newYardLine = 100 - yardLine;
+        setYardLine(newYardLine);
+        newFirstDownStartY = fieldSize.height/4
+        setFirstDownStartY(newFirstDownStartY);
+        newDistance = 10
+        setDistance(newDistance);
+        newDown = 1
+        setDown(newDown);
+      }
       else{
         setYardLine(newYardLine);
         setFirstDownStartY(newFirstDownStartY);
@@ -327,18 +357,9 @@ useEffect(() => {
     setSackTimeRemaining(0);
     setLiveCountdown(null);
     setRouteStarted(false);
-    setPlayers(preSnapPlayers); 
-
-    if (!["Touchdown!", "Intercepted"].includes(outcome)) {
-      setInventory({
-        offense: teamData[offenseName].offensivePlayers,
-        defense: teamData[defenseName].defensivePlayers,
-        OLine: teamData[offenseName].OLine,
-        DLine: teamData[defenseName].DLine,
-        Qb: teamData[offenseName].Qb
-      });
+    if(outcome !== "Intercepted") {
+      setPlayers(preSnapPlayers); 
     }
-    
     //if (!["Touchdown!", "Intercepted"].includes(outcome)) {
       console.log("[OFFENSE] Emitting play_reset");
       socket.emit("play_reset", {

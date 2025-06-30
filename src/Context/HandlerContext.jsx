@@ -20,25 +20,6 @@ export const HandlerProvider = ({ children }) => {
     preSnapPlayers
   } = useAppContext();
 
-  useEffect(() => {
-    if (!socket) return;
-    const handleRemovePlayer = ({ playerId, isOffense, playerData }) => {
-      setPlayers(prev => prev.filter(p => p.id !== playerId));
-      setInventory(prev => ({
-        ...prev,
-        [isOffense ? "offense" : "defense"]: [...prev[isOffense ? "offense" : "defense"], playerData],
-      }));
-      setSelectedPlayerId(null);
-    };
-
-    socket.on("respawn_players", ({ players }) => {
-      setPlayers(players);
-    });
-
-    socket.on("remove_player", handleRemovePlayer);
-    return () => socket.off("remove_player", handleRemovePlayer); 
-  }, []);
-
   const placePlayers = (initialX, initialY, rect) => {
     if (!draggingId) return;
 
@@ -245,33 +226,6 @@ export const HandlerProvider = ({ children }) => {
     placePlayers(touch.clientX, touch.clientY, rect);
   };
 
-
-  // const handleTouchEnd = () => {
-  //   if (touchedPlayerRef.current && touchedPlayerRef.current.lastTouch) {
-  //     const { x, y } = touchedPlayerRef.current.lastTouch;
-  //     const rect = fieldRef.current.getBoundingClientRect();
-
-  //     // Check if this was a NEW player (not on field yet)
-  //     const isExistingPlayer = players.some(p => p.id === touchedPlayerRef.current.id);
-
-  //     if (!isExistingPlayer) {
-  //       handleDropOnFieldTouch(
-  //         touchedPlayerRef.current,
-  //         x - rect.left,
-  //         y - rect.top
-  //       );
-  //     }
-
-  //     touchedPlayerRef.current = null;
-  //   }
-
-  //   if (draggingId !== null) {
-  //     setSelectedPlayerId(draggingId);
-  //   }
-
-  //   setDraggingId(null);
-  // };
-
   const handleDragOver = (e) => {
     e.preventDefault();
   };
@@ -288,17 +242,17 @@ export const HandlerProvider = ({ children }) => {
     };
   };
 
-
   const handleDrop = (e, height) => {
     e.preventDefault();
     const data = e.dataTransfer.getData('application/json');
     const rect = fieldRef.current.getBoundingClientRect();
     const playerData = JSON.parse(data);
     const x = e.clientX - rect.left;
-    handleDropOnField(playerData, x, height, rect);
+    const yValue = e.clientY - rect.top;
+    handleDropOnField(playerData, x, height, yValue, rect);
   };
 
-  const handleDropOnField = (playerData, x, y, rect) => {
+  const handleDropOnField = (playerData, x, y, yValue, rect) => {
     const role = playerData.role;
 
     const normalizedX = x / rect.width;
@@ -317,10 +271,8 @@ export const HandlerProvider = ({ children }) => {
         break;
       case "LB":
       case "CB":
-        newY = y / 2.5;
-        break;
       case "S":
-        newY = y / 6;
+        newY = yValue;
         break;
       default:
         newY = y / 10;

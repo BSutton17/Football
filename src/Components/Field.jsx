@@ -385,6 +385,7 @@ function Field({ socket, room, name }) {
         // Emit event to other clients
         socket.emit("remove_player", {
           playerId: selectedPlayerId,
+          isOffense,
           room: roomId,
         });
 

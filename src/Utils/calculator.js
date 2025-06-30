@@ -118,7 +118,6 @@ export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSi
     // Dot product between WR velocity and normalized vector to defender
     const dot = wrVelocity.x * normWrToDef.x + wrVelocity.y * normWrToDef.y;
     dotProduct = dot;
-      console.log("dot: " + dot)   
     // Calculate openness score based on distance and velocity direction
     let opennessScore;
 

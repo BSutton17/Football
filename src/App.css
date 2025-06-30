@@ -16,11 +16,20 @@ body {
   top: 0;
   left: 0;
 }
-.hike{
-  position: fixed;
-  left: 0;
-  top: 0;
-}
+
+  .hike{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20vh;
+    height: 20vh;
+    border-radius: 50%;  
+    position: fixed;
+    bottom: 8vh;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #8da7eece;
+  }
 /* Field */
 .field {
   width: 60vw;
@@ -216,7 +225,7 @@ body {
     display: flex;
     flex-wrap: wrap;
     padding: 8px;
-    height: 20vh;
+    min-height: 15vh;
     justify-content: center;
     gap: 8px;
     border-top: 2px solid #ccc;
