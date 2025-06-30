@@ -22,6 +22,8 @@ export const HandlerProvider = ({ children }) => {
 
   const placePlayers = (initialX, initialY, rect) => {
     if (!draggingId) return;
+    if (!players.some(p => p.id === draggingId)) return;
+
 
     // Calculate drop position relative to the field's bounding rect
     const dropX = initialX - rect.left;
@@ -152,12 +154,20 @@ export const HandlerProvider = ({ children }) => {
     setDraggingId(null);
   };
 
-    const handleTouchEnd = () => {
-       if (draggingId?.startsWith('D-') || draggingId?.startsWith('O')) {
+  const handleTouchEnd = () => {
+    if (touchedPlayerRef.current && !touchedPlayerRef.current.wasDragged) {
+      // Not a real drag — cancel interaction
+      touchedPlayerRef.current = null;
+      setDraggingId(null);
+      return;
+    }
+
+    if (draggingId?.startsWith('D-') || draggingId?.startsWith('O')) {
       setSelectedPlayerId(draggingId);
     } else if (draggingId?.startsWith('DZ')) {
       setSelectedZoneId(draggingId);
     }
+
     if (touchedPlayerRef.current && touchedPlayerRef.current.lastTouch) {
       const { x, y } = touchedPlayerRef.current.lastTouch;
       const rect = fieldRef.current.getBoundingClientRect();
@@ -172,14 +182,9 @@ export const HandlerProvider = ({ children }) => {
           y - rect.top
         );
       }
-
-      touchedPlayerRef.current = null;
     }
 
-    if (draggingId !== null) {
-      setSelectedPlayerId(draggingId);
-    }
-
+    touchedPlayerRef.current = null;
     setDraggingId(null);
   };
 
@@ -199,6 +204,14 @@ export const HandlerProvider = ({ children }) => {
   const handleTouchMove = (e) => {
     e.preventDefault();
     if (!draggingId || !fieldRef.current) return;
+    if (
+    touchedPlayerRef.current &&
+    !touchedPlayerRef.current.wasDragged &&
+    !players.some(p => p.id === touchedPlayerRef.current.id)
+  ) {
+    return;
+  }
+
 
     const touch = e.touches[0];
     const rect = fieldRef.current.getBoundingClientRect();
