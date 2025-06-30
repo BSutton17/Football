@@ -106,7 +106,6 @@ function Field({ socket, room, name }) {
   setPreSnapPlayers(players.map(p => ({
     ...p,
     position: { ...p.position },
-    zoneCircle: null,
     route: null
   })));
 
