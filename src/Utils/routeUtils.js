@@ -291,7 +291,7 @@
         const firstx = x > direction? x + centerX / 12: x - centerX / 5
         const firsty = y - (forwardDist / 1.3)
         const forwardY = y - (forwardDist / 1.2);
-        const horizontalX = x > direction ? x + 300 : x - 300;
+        const horizontalX = x > direction ? (centerX / 2) * 1.75 : centerX / 12;
         return `M${x},${startY} L${firstx},${firsty} L${horizontalX},${forwardY}`
       }
 

@@ -11,6 +11,8 @@ import teamData from '../Teams.json';
 function Field({ socket, room, name }) {
   const {
     players,
+    setPlayers,
+    setSelectedPlayerId,
     draggingId,
     fieldRef,
     fieldSize,
@@ -19,6 +21,7 @@ function Field({ socket, room, name }) {
     setRouteStarted,
     setRouteProgress,
     inventory,
+    setInventory,
     sackTimeRemaining,
     outcome, 
     liveCountdown, 
@@ -27,13 +30,15 @@ function Field({ socket, room, name }) {
     distance,
     yardLine,
     roomId, 
-    setQbPenalty,
+    selectedPlayerId ,
     isOffense, 
     setOutcome,
     setYardLine,
     setDistance,
     setDown,
-    setThrownBallLine
+    setThrownBallLine,
+    preSnapPlayers, 
+    setPreSnapPlayers,
   } = useAppContext();
 
   const { handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd } = useHandlerContext();
@@ -95,6 +100,30 @@ function Field({ socket, room, name }) {
   }, [draggingId, handleMouseUp]);
 
   const startRoute = () => {
+  const rect = fieldRef.current.getBoundingClientRect();
+
+  // Save local pre-snap state (absolute positions)
+  setPreSnapPlayers(players.map(p => ({
+    ...p,
+    position: { ...p.position },
+    zoneCircle: null,
+    route: null
+  })));
+
+  // Emit normalized pre-snap state to others
+  socket.emit("pre_snap_players", {
+    players: players.map(p => ({
+      ...p,
+      position: {
+        x: p.position.x / rect.width,
+        y: p.position.y / rect.height
+      },
+      zoneCircle: null,
+      route: null
+    })),
+    room: roomId
+  });
+
     setRouteStarted(true);
     setThrownBallLine(null)
 
@@ -331,8 +360,41 @@ function Field({ socket, room, name }) {
       />
       <PlayerInventory className="player-inventory"players={inventoryToShow} type={inventoryType} socket={socket} />
     </div>
-    <button className={isOffense ? 'hike' : "hide"} onClick={startRoute}>Hike!</button>
+    <button className={isOffense ? 'hike' : "hide"} onClick={() => startRoute()}>Hike!</button>
     <h3 className='roomID'>{roomId}</h3>
+
+    {selectedPlayerId && (
+    <button
+      className="remove-player-button"
+      onClick={() => {
+        const playerToRemove = players.find(p => p.id === selectedPlayerId);
+        if (!playerToRemove) return;
+
+        // Remove from players
+        setPlayers(prev => prev.filter(p => p.id !== selectedPlayerId));
+
+        // Add back to inventory
+        setInventory(prev => ({
+          ...prev,
+          [playerToRemove.isOffense ? "offense" : "defense"]: [
+            ...prev[playerToRemove.isOffense ? "offense" : "defense"],
+            playerToRemove,
+          ],
+        }));
+
+        // Emit event to other clients
+        socket.emit("remove_player", {
+          playerId: selectedPlayerId,
+          room: roomId,
+        });
+
+        // Clear selection
+        setSelectedPlayerId(null);
+      }}
+    >
+      Remove
+    </button>
+    )}
     </>
   );
 };

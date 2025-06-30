@@ -13,10 +13,11 @@ function DefensiveField({ offsetX, offsetY, socket}) {
         players,
         selectedPlayerId,
         setSelectedPlayerId,
+        setPreSnapPlayers,
         setPlayers,
         fieldSize,
         setCurrentYards,
-        currentYards,
+        preSnapPlayers,
         routeStarted,
         outcome,
         setSackTimeRemaining,
@@ -40,6 +41,7 @@ function DefensiveField({ offsetX, offsetY, socket}) {
         setRouteProgress,
         setCompletedYards,
         roomId,
+        preSnapRef,
         setThrownBallLine,
         defenseName,
         offenseName
@@ -64,9 +66,6 @@ function DefensiveField({ offsetX, offsetY, socket}) {
     // Convert from normalized to pixel positions
     const pixelX = data.position.x * rect.width;
     const pixelY = data.position.y * rect.height;
-
-    console.log("Normalized Position:", data.position);
-    console.log("Converted to Pixels:", pixelX, pixelY);
 
     const newPlayer = {
       ...data,
@@ -116,13 +115,10 @@ function DefensiveField({ offsetX, offsetY, socket}) {
     setPlayers(prev =>
       prev.map(p => (p.id === playerId ? { ...p, route: routeName } : p))
     );
-    //console.log("Player and route assigned: ", playerId, routeName);
   };
   
   const handleSackTimerUpdate = (data) => {
-    //console.log("Sack timer update received:", data);
     setSackTimeRemaining(data); 
-    //console.log("time remaining: " + data)
   };
   
   const handlePlayOutcome = ({ outcome, completedYards }) => {
@@ -148,14 +144,9 @@ socket.on("play_reset", (data) => {
   setLiveCountdown(null);
   setQbPenalty(0);
   setRouteStarted(false);
+  setPlayers(preSnapRef.current); // ✅ use ref to access latest data
   setOutcome(""); 
   setCurrentYards(0);
-
-  setPlayers(prev =>
-    prev.filter(p =>
-      p.role === 'qb' || p.role === 'offensive-lineman' || p.role === 'defensive-lineman')
-  );
-
   setInventory({
     offense: teamData[offenseName].offensivePlayers,
     defense: teamData[defenseName].defensivePlayers,
@@ -179,11 +170,26 @@ socket.on("play_reset", (data) => {
   });
 });
 
-
   socket.on("ball_thrown", (normalizedX, normalizedY) =>{
     const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
     console.log("receiver in defense: " + normalizedX, normalizedY)
     setThrownBallLine({ x: normalizedX * rect.width, y: normalizedY * rect.height })
+  })
+
+  socket.on("pre_snap_players", (data) => {
+      console.log("Made it to pre snap")
+      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
+      const updatedPlayers = data.players.map(p => ({
+    ...p,
+    position: {
+      x: p.position.x * rect.width,
+      y: p.position.y * rect.height
+    }
+  }));
+
+  setPreSnapPlayers(updatedPlayers);
+  preSnapRef.current = updatedPlayers; // ✅ store immediately
+
   })
 
 
@@ -215,26 +221,18 @@ socket.on("play_reset", (data) => {
     //route starts
   useEffect(() => {
     if (!routeStarted) return;
-
-    //console.log("🏈 DefensiveField: Route started");
     
     const now = performance.now();
 
     setPlayers(prevPlayers =>
       prevPlayers.map(p => {
-        if (!p.isOffense && p.zoneCircle) {
-          //console.log(`🛡️ ZONE defender ${p.id} assigned to move to (${p.zoneCircle.x}, ${p.zoneCircle.y})`);
-        }
-
         if (p.zone === 'man' && p.assignedOffensiveId) {
           const target = prevPlayers.find(op => op.id === p.assignedOffensiveId);
           if (target) {
             const dx = target.position.x - p.position.x;
             const dy = target.position.y - p.position.y;
             const distance = Math.hypot(dx, dy);
-            //console.log(`👤 MAN defender ${p.id} tracking offensive ${target.id}. Distance: ${distance.toFixed(2)}`);
           } else {
-            //console.warn(`⚠️ Defender ${p.id} assigned to missing offensive player ${p.assignedOffensiveId}`);
           }
         }
 
@@ -349,6 +347,7 @@ socket.on("play_reset", (data) => {
             const deltaTime = (time - lastTime) / 1000;
             if (distance > 0.1) {
                if((target.position.y + losOffset) < p.position.y || (target.currentWaypointIndex > 0 && !isMovingTowardDefender)){
+              
                 const step = hasPaused ? 0 : Math.min((p.speed * 1.25) * deltaTime, distance);
                 updated = true;
 
@@ -385,8 +384,7 @@ socket.on("play_reset", (data) => {
 
           const lastTime = p.lastUpdateTime || time;
           const deltaTime = (time - lastTime) / 1000;
-          const speed = p.speed || 100; // Adjust as needed
-          const step = Math.min(speed * deltaTime, distance);
+          const step = Math.min(p.speed * deltaTime, distance);
 
           const newPos = {
             x: p.position.x + (dx / distance) * step,
@@ -419,8 +417,7 @@ socket.on("play_reset", (data) => {
 
           const lastTime = p.lastUpdateTime || time;
           const deltaTime = (time - lastTime) / 1000;
-          const speed = p.speed || 100; // Adjust as needed
-          const step = Math.min(speed * deltaTime, distance);
+          const step = Math.min(p.speed * deltaTime, distance);
 
           const newPos = {
             x: p.position.x + (dx / distance) * step,

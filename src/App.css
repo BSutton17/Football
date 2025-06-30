@@ -211,54 +211,90 @@ body {
   }
 
   /* Inventory */
-  .offense-inventory, .defense-inventory {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 8px;
-  justify-content: center;
-  gap: 8px;
-  border-top: 2px solid #ccc;
+  .offense-inventory,
+  .defense-inventory {
+    display: flex;
+    flex-wrap: wrap;
+    padding: 8px;
+    height: 20vh;
+    justify-content: center;
+    gap: 8px;
+    border-top: 2px solid #ccc;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    z-index: 5;
+    background-color: #f9f9f9;
+  }
+
+  /* Re-add background color per team */
+  .offense-inventory {
+    background-color: #8da7ee93;
+  }
+
+  .defense-inventory {
+    background-color: #ee8d8d93;
+  }
+
+  .x-out {
+    position: relative;
+    top: 0vh;
+    right: 3vw;
+    cursor: pointer;
+    font-size: 18px;
+    color: white;
+    z-index: 10;
+  }
+
+  .show-inv{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20vh;
+    height: 5vh;
+    border-radius: 20px;
+  }
+
+  .inventory-player.offense {
+    background-color: #cce5ff;
+  }
+
+  .inventory-player.defense {
+    background-color: #f8d7da;
+  }
+
+  .inventory-container{
+    display: flex;
+    justify-content: center;
+    width: 100vw;
+  }
+  
+  .inventory-menu {
+    position: relative;
+    width: 110vh;
+    height: 4vh;
+    border-bottom: 3px solid white;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    right: 1.2vw
+  }
+
+
+  .remove-player-button {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none; /* Disables iOS long press menu */
-  touch-action: none; /* Prevents default gestures like scrolling */
-  width: 100vw;
-  z-index: 5;
+  top: 8vh;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: white;
+  color: black;
+  padding: 1vh 2vw;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  z-index: 999;
 }
-
-.offense-inventory{
-  background-color: #8da7ee93;
-}
-
-.defense-inventory{
-  background-color: #ee8d8d93;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100vw;
-}
-
-.inventory-player {
-  background: white;
-  border: 1px solid #333;
-  padding: 6px 10px;
-  border-radius: 6px;
-  user-select: auto !important;
-  pointer-events: auto !important;
-  cursor: grab;
-}
-
-.inventory-player.offense {
-  background-color: #cce5ff;
-}
-
-.inventory-player.defense {
-  background-color: #f8d7da;
-}
-
 
 /* Throwing */
 .Warning{

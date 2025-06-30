@@ -16,6 +16,7 @@ export const Provider = ({ children }) => {
       const [sackTimeRemaining, setSackTimeRemaining] = useState(0);
       const sackTimerRef = useRef(null);
       const outcomeRef = useRef("");
+      const preSnapRef = useRef([]);
       const [completedYards, setCompletedYards] = useState(0)
       const [liveCountdown, setLiveCountdown] = useState(null);
       const [down, setDown] = useState(1)
@@ -32,6 +33,7 @@ export const Provider = ({ children }) => {
       const [outcome, setOutcome] = useState("")
       const [thrownBallLine, setThrownBallLine] = useState(null);
       const [firstDownStartY, setFirstDownStartY] = useState(null); 
+      const [preSnapPlayers, setPreSnapPlayers] = useState([]);
       const [currentYards, setCurrentYards] = useState(0); 
       const [inventory, setInventory] = useState({
         offense: teamData[offenseName].offensivePlayers,
@@ -121,7 +123,9 @@ export const Provider = ({ children }) => {
         outcomeRef,
         currentYards, setCurrentYards,
         firstDownStartY, setFirstDownStartY,
-        thrownBallLine, setThrownBallLine
+        thrownBallLine, setThrownBallLine,
+        preSnapPlayers, setPreSnapPlayers,
+        preSnapRef
       }}>
       {children}
     </AppContext.Provider>

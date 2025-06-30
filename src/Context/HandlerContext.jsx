@@ -16,8 +16,28 @@ export const HandlerProvider = ({ children }) => {
     setSelectedZoneId,
     setInventory,
     socket,
-    roomId
+    roomId,
+    preSnapPlayers
   } = useAppContext();
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleRemovePlayer = ({ playerId, isOffense, playerData }) => {
+      setPlayers(prev => prev.filter(p => p.id !== playerId));
+      setInventory(prev => ({
+        ...prev,
+        [isOffense ? "offense" : "defense"]: [...prev[isOffense ? "offense" : "defense"], playerData],
+      }));
+      setSelectedPlayerId(null);
+    };
+
+    socket.on("respawn_players", ({ players }) => {
+      setPlayers(players);
+    });
+
+    socket.on("remove_player", handleRemovePlayer);
+    return () => socket.off("remove_player", handleRemovePlayer); 
+  }, []);
 
   const placePlayers = (initialX, initialY, rect) => {
     if (!draggingId) return;
@@ -30,22 +50,6 @@ export const HandlerProvider = ({ children }) => {
     const normalizedX = dropX / rect.width;
     const normalizedY = dropY / rect.height;
 
-    console.log(
-      "props: " +
-        " dropX: " +
-        dropX +
-        " dropY: " +
-        dropY +
-        " rect.width: " +
-        rect.width +
-        " rect.height: " +
-        rect.height +
-        " normalizedX: " +
-        normalizedX +
-        " normalizedY: " +
-        normalizedY
-    );
-
     const half = rect.height / 2;
 
     // Enforce team side boundaries
@@ -54,6 +58,7 @@ export const HandlerProvider = ({ children }) => {
 
     let updatedPlayer = null;
     let updatedZone = null;
+    let updatedZoneEmit = null;
 
     setPlayers((prev) =>
       prev.map((p) => {
@@ -100,6 +105,16 @@ export const HandlerProvider = ({ children }) => {
             },
           };
 
+          updatedZoneEmit = {
+            playerId: p.id,
+            zoneType: newZone,
+            zoneCircle: {
+              ...p.zoneCircle,
+              x: dropX / rect.width,
+              y: dropY / rect.height,
+            },
+          };
+
           return {
             ...p,
             zone: newZone,
@@ -123,15 +138,15 @@ export const HandlerProvider = ({ children }) => {
     }
 
     // Emit updated zone info
-    if (updatedZone) {
+    if (updatedZoneEmit) {
       socket.emit("zone_area_assigned", {
-        playerId: updatedZone.playerId,
-        zoneType: updatedZone.zoneType,
-        zoneCircle: updatedZone.zoneCircle,
+        playerId: updatedZoneEmit.playerId,
+        zoneType: updatedZoneEmit.zoneType,
+        zoneCircle: updatedZoneEmit.zoneCircle,
         room: roomId,
       });
     }
-  };
+  }
 
   const handleMouseDown = (e, id) => {
     e.preventDefault();

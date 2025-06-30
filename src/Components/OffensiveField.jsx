@@ -44,8 +44,7 @@ function OffensiveField({ offsetX, offsetY, socket }) {
     setYardLine,
     down,
     distance,
-    isPlayerOne,
-    setQbPenalty,
+    preSnapPlayers,
     isOffense,
     readyToCatchIds,
     setReadyToCatchIds,
@@ -129,7 +128,6 @@ function OffensiveField({ offsetX, offsetY, socket }) {
 
     const handleCharacterPositionUpdated = ({ playerId, normalizedX, normalizedY, isOffense }) => {
       const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
-      console.log("character: " + (normalizedY * rect.height) - rect.height/2)
 
       const pixelX = normalizedX * rect.width;
       const pixelY = isOffense ? (normalizedY * rect.height) - (rect.height/2 - 15) : (normalizedY * rect.height) - 15;
@@ -161,6 +159,11 @@ function OffensiveField({ offsetX, offsetY, socket }) {
 
     const handleZoneAreUpdate = (data) => {
       const { playerId, zoneType, zoneCircle } = data;
+      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
+
+      const pixelX = zoneCircle.x * rect.width;
+      const pixelY = zoneCircle.y * rect.height;
+      console.log("Zone: " + pixelX + ", " + pixelY)
 
       setPlayers((prevPlayers) =>
         prevPlayers.map((player) => {
@@ -168,14 +171,17 @@ function OffensiveField({ offsetX, offsetY, socket }) {
             return {
               ...player,
               zone: zoneType,
-              zoneCircle: zoneCircle,
+              zoneCircle: {
+                ...zoneCircle,
+                x: pixelX,
+                y: pixelY,
+              },
             };
           }
           return player;
         })
       );
     };
-
 
     socket.on("zone_area_assigned", handleZoneAreUpdate)
     socket.on("zone_defender_position_update", handleZoneDefenderUpdate);
@@ -321,13 +327,7 @@ useEffect(() => {
     setSackTimeRemaining(0);
     setLiveCountdown(null);
     setRouteStarted(false);
-
-    setPlayers(prev =>
-      prev.filter(p =>
-        p.role === 'qb' ||
-        p.role === 'offensive-lineman' ||
-        p.role === 'defensive-lineman')
-    );
+    setPlayers(preSnapPlayers); 
 
     if (!["Touchdown!", "Intercepted"].includes(outcome)) {
       setInventory({
@@ -413,7 +413,6 @@ useEffect(() => {
       prev.map(p => (p.id === id ? { ...p, route: routeName } : p))
     );
     setSelectedPlayerId(null);
-    //console.log("Player and route: " + id + ", " + routeName)
     socket.emit("assign_route", { playerId: id, routeName, room: roomId });
   };
 
@@ -441,7 +440,6 @@ useEffect(() => {
               const dx = to.x - from.x;
               const dy = to.y - from.y;
               const distance = Math.sqrt(dx * dx + dy * dy);
-
               durations.push(distance / (p.speed * 1.25) * 1000); // in ms
             }
 
