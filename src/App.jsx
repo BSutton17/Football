@@ -4,8 +4,8 @@ import io from "socket.io-client";
 import Field from './Components/Field';
 import { useAppContext } from './Context/AppContext';
 
-//const socket = io.connect("https://football-server-63f55d8fa79f.herokuapp.com/")
-const socket = io.connect("http://localhost:3001/");
+const socket = io.connect("https://football-server-63f55d8fa79f.herokuapp.com/")
+//const socket = io.connect("http://localhost:3001/");
 function App() {
   const [room, setRoom] = useState("");      
   const [isJoining, setIsJoining] = useState(false); 
