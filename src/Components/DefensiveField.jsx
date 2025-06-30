@@ -26,7 +26,7 @@ function DefensiveField({ offsetX, offsetY, socket}) {
         setYardLine,
         setReadyToCatchIds,
         setRouteStarted,
-        firstDownStartY, 
+        fieldRef, 
         setFirstDownStartY,
         setInventory,
         setQbPenalty,
@@ -40,7 +40,7 @@ function DefensiveField({ offsetX, offsetY, socket}) {
         setRouteProgress,
         setCompletedYards,
         roomId,
-        switchSides,
+        setThrownBallLine,
         defenseName,
         offenseName
     } = useAppContext();
@@ -49,6 +49,7 @@ function DefensiveField({ offsetX, offsetY, socket}) {
     const aspectRatio = fieldSize.width / fieldSize.height;
     const height = fieldSize.height
     const width = fieldSize.width
+    const oneYardInPixels = fieldSize.height / 40;
     let cut = false
     
 
@@ -58,19 +59,26 @@ function DefensiveField({ offsetX, offsetY, socket}) {
    useEffect(() => {
   // Handle a new character placed on the field, adding or updating player info
   const handleCharacterPlaced = (data) => {
+    const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
+
+    // Convert from normalized to pixel positions
+    const pixelX = data.position.x * rect.width;
+    const pixelY = data.position.y * rect.height;
+
+    console.log("Normalized Position:", data.position);
+    console.log("Converted to Pixels:", pixelX, pixelY);
+
+    const newPlayer = {
+      ...data,
+      position: { x: pixelX, y: pixelY }, // Now correctly rendered
+    };
+
     setPlayers(prevPlayers => {
-      const playerId = data.id || data.playerId; // support both keys
+      const playerId = data.id || data.playerId;
       const filtered = prevPlayers.filter(p => p.id !== playerId);
-      const updatedPlayers = [...filtered, data];
-      return updatedPlayers;
+      return [...filtered, newPlayer];
     });
   };
-
-  const handleCharacterPositionUpdated = ({ playerId, position }) => {
-      setPlayers(prev =>
-        prev.map(p => p.id === playerId ? { ...p, position } : p)
-      );
-    };
 
   // Handle route started event - replace or update all players with new route data
   const handleRouteStarted = (data) => {
@@ -128,6 +136,7 @@ function DefensiveField({ offsetX, offsetY, socket}) {
   };
 
 socket.on("play_reset", (data) => {
+  const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
   console.log("[DEFENSE] play_reset received");
   setRouteProgress({});
   setSelectedPlayerId(null);
@@ -152,12 +161,12 @@ socket.on("play_reset", (data) => {
     defense: teamData[defenseName].defensivePlayers,
     OLine: teamData[offenseName].OLine,
     DLine: teamData[defenseName].DLine,
+    Qb: teamData[offenseName].Qb
   });
-
   setDistance(data.newDistance);
   setDown(data.newDown);
   setYardLine(data.newYardLine);
-  setFirstDownStartY(data.newFirstDownStartY);
+  setFirstDownStartY(yardsToPixels(data.newFirstDownStartY, rect.height / 40));
   if(data.newYardLine < 0){
     setOutcome("Safety")
   }  
@@ -170,8 +179,15 @@ socket.on("play_reset", (data) => {
   });
 });
 
+
+  socket.on("ball_thrown", (normalizedX, normalizedY) =>{
+    const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
+    console.log("receiver in defense: " + normalizedX, normalizedY)
+    setThrownBallLine({ x: normalizedX * rect.width, y: normalizedY * rect.height })
+  })
+
+
   // Register listeners
-  socket.on("character_position_updated", handleCharacterPositionUpdated);
   socket.on('character_placed', handleCharacterPlaced);
   socket.on('route_started', handleRouteStarted);
   socket.on('player_positions_update', handlePlayerPositionsUpdate); // Use singular - must match server emit
@@ -181,7 +197,6 @@ socket.on("play_reset", (data) => {
   socket.on("sack_timer_update", handleSackTimerUpdate);
 
   return () => {
-    socket.off("character_position_updated", handleCharacterPositionUpdated);
     socket.off('character_placed', handleCharacterPlaced);
     socket.off('route_started', handleRouteStarted);
     socket.off('player_positions_update', handlePlayerPositionsUpdate);
@@ -189,8 +204,13 @@ socket.on("play_reset", (data) => {
     socket.off('route_assigned', handleRouteAssigned);
     socket.off('play_outcome', handlePlayOutcome);
     socket.off('play_reset')
+    socket.off("ball_thrown")
   };
 }, [socket]);
+
+  function yardsToPixels(yards, mul) {
+    return yards * mul;
+  }
 
     //route starts
   useEffect(() => {
@@ -449,6 +469,7 @@ socket.on("play_reset", (data) => {
             isOffense={false}
             routeStarted={routeStarted}
             role={player.role}
+            fieldSize={fieldSize}
             />
 
             {/* Draw line to assigned offensive player in man coverage */}

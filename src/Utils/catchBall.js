@@ -1,29 +1,30 @@
 export const catchBall = (openness, qbPenalty) =>{
     const catchRate = Math.random() * (100 - 1) + 1
-    console.log("catchRate: " + catchRate)
+    const adjustedCatchRate = catchRate / (qbPenalty / 100)
+    console.log("Catch Rate: " + catchRate + " Adjusted Catch Rate: " + adjustedCatchRate)
     switch(openness){
         case "lime":
-            if(catchRate < 96){
+            if(adjustedCatchRate < 96){
                 return "Caught"
             }
             else{
                 return "Dropped"
             }
         case "yellow":
-            if(catchRate < 50){
+            if(adjustedCatchRate < 50){
                 return "Caught"
             }
-            else if(catchRate >= 51 && catchRate < 95){
+            else if(adjustedCatchRate >= 51 && adjustedCatchRate < 95){
                 return "Broken Up"
             }
             else {
                 return "Intercepted"
             }
         case "red":
-            if(catchRate < 25){
+            if(adjustedCatchRate < 25){
                 return "Caught"
             }
-            else if(catchRate >= 26 && catchRate < 75){
+            else if(adjustedCatchRate >= 26 && adjustedCatchRate < 75){
                 return "Broken Up"
             }
             else {

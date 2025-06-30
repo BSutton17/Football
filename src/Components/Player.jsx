@@ -24,8 +24,8 @@ export const Player = ({
     players,
     yardLine, 
     setCompletedYards,
-    completedYards,
-    qbPenalty,
+    inventory,
+    fieldSize,
     outcomeRef,
     socket,
     roomId,
@@ -50,7 +50,9 @@ export const Player = ({
     if (role === "CB" || role === "LB" || role === "S") {
       result = "Intercepted";
     } else if (isOffense) {
-      const catchResult = catchBall(openess);
+
+      console.log("QB: " + inventory.Qb + ", inventory" + inventory);
+      const catchResult = catchBall(openess, inventory.Qb);
 
       console.log(`[CATCH] Result: ${catchResult}`);
 
@@ -67,8 +69,16 @@ export const Player = ({
       }
     }
     const receiver = players.find(p => p.id === id);
+    const normalizedX = position.x / fieldSize.width;
+    const normalizedY = position.y / fieldSize.height;
 
-    setThrownBallLine({x: receiver.position.x, y: receiver.position.y});
+    setThrownBallLine({ x: receiver.position.x, y: receiver.position.y });
+    socket.emit("ball_thrown", {
+      normalizedX,
+      normalizedY,
+      roomId,
+    });
+
 
       // setTimeout(() => {
       //   setThrownBallLine(null);

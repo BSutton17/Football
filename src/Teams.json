@@ -22,7 +22,8 @@
       { "id": "D-1LB3", "role": "LB", "speed": 76, "reactionTime": 82, "blitzing": 85, "isBlitzing": false }
     ],
     "OLine": 88,
-    "DLine": 92
+    "DLine": 92,
+    "Qb": 92
   },
   "TeamTwo": {
     "offensivePlayers": [
@@ -47,7 +48,8 @@
       { "id": "D-2LB3", "role": "LB", "speed": 75, "reactionTime": 81, "blitzing": 84, "isBlitzing": false }
     ],
     "OLine": 85,
-    "DLine": 91
+    "DLine": 91,
+    "Qb": 88
   },
   "TeamThree": {
     "offensivePlayers": [
@@ -72,7 +74,8 @@
       { "id": "D-3LB3", "role": "LB", "speed": 75, "reactionTime": 80, "blitzing": 83, "isBlitzing": false }
     ],
     "OLine": 81,
-    "DLine": 86
+    "DLine": 86,
+    "Qb": 90
   },
   "test": {
     "offensivePlayers": [
@@ -82,6 +85,7 @@
       { "id": "D3CB1", "role": "CB", "speed": 99, "reactionTime": 87, "blitzing": 74, "isBlitzing": false }
     ],
     "OLine": 81,
-    "DLine": 86
+    "DLine": 86,
+    "Qb": 86 
   }
 }

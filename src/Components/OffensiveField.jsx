@@ -56,7 +56,7 @@ function OffensiveField({ offsetX, offsetY, socket }) {
     firstDownStartY, 
     setFirstDownStartY,
     thrownBallLine, 
-    setThrownBallLine
+    fieldRef
   } = useAppContext();
 
   const { handleMouseDown, handleTouchStart, handleDragOver, handleDrop } = useHandlerContext();
@@ -72,29 +72,32 @@ function OffensiveField({ offsetX, offsetY, socket }) {
   useEffect(() => {
     // Handle a new character placed on the field, adding or updating player info
     const handleCharacterPlaced = (data) => {
-      //console.log("OFFENSE");
-      //console.log("Received character placement data:", data);
+      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
 
-      setPlayers((prevPlayers) => {
+      // Convert from normalized to pixel positions
+      const pixelX = data.position.x * rect.width;
+      const pixelY = data.position.y * rect.height;
+
+      console.log("Normalized Position:", data.position);
+      console.log("Converted to Pixels:", pixelX, pixelY);
+
+      const newPlayer = {
+        ...data,
+        position: { x: pixelX, y: pixelY },
+      };
+
+      setPlayers(prevPlayers => {
         const playerId = data.id || data.playerId;
-        //console.log("Player ID to replace:", playerId);
-
-        const filtered = prevPlayers.filter((p) => p.id !== playerId);
-        //console.log("Remaining players after filter:", filtered.map((p) => p.id));
-
-        const updatedPlayers = [...filtered, data];
-        //console.log("Updated players list:", updatedPlayers.map((p) => p.id));
-
-        return updatedPlayers;
+        const filtered = prevPlayers.filter(p => p.id !== playerId);
+        return [...filtered, newPlayer];
       });
     };
 
-  socket.on("play_stopped", () => {
-    stopAllPlayerMovement();
-    setRouteStarted(false);
-    setOutcome(""); 
-  });
-
+    socket.on("play_stopped", () => {
+      stopAllPlayerMovement();
+      setRouteStarted(false);
+      setOutcome(""); 
+    });
 
     // Handle zone assignment from server
     const handleZoneAssigned = ({ playerId, zoneType, zoneCircle, assignedOffensiveId }) => {
@@ -122,13 +125,21 @@ function OffensiveField({ offsetX, offsetY, socket }) {
           return p;
         })
       );
-
-      //console.log("Zone assigned:", { playerId, zoneType, zoneCircle, assignedOffensiveId });
     };
 
-    const handleCharacterPositionUpdated = ({ playerId, position }) => {
+    const handleCharacterPositionUpdated = ({ playerId, normalizedX, normalizedY, isOffense }) => {
+      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
+      console.log("character: " + (normalizedY * rect.height) - rect.height/2)
+
+      const pixelX = normalizedX * rect.width;
+      const pixelY = isOffense ? (normalizedY * rect.height) - (rect.height/2 - 15) : (normalizedY * rect.height) - 15;
+
       setPlayers(prev =>
-        prev.map(p => p.id === playerId ? { ...p, position } : p)
+        prev.map(p =>
+          p.id === playerId
+            ? { ...p, position: { x: pixelX, y: pixelY } }
+            : p
+        )
       );
     };
 
@@ -187,6 +198,11 @@ function OffensiveField({ offsetX, offsetY, socket }) {
   function yardsToPixels(yards) {
     return yards * oneYardInPixels;
   }
+
+function pixelsToYards(pixels) {
+  return pixels / oneYardInPixels;
+}
+
 useEffect(() => {
   if (routeStarted) {
     players.forEach(player => {
@@ -244,6 +260,8 @@ useEffect(() => {
       return;
     } 
 
+    console.log("firstDownStartY at start: " + firstDownStartY)
+
     const newTotal = currentYards + completedYards;
 
     let newYardLine = yardLine;
@@ -251,7 +269,7 @@ useEffect(() => {
     let newDistance = distance;
     let negativeYards = 0;
     let newTotalYards;
-    let newFirstDownStartY = firstDownStartY
+    let newFirstDownStartY = firstDownStartY ?? (fieldSize.height / 4); 
     console.log(firstDownStartY)
 
       if (outcome.includes("yard") && newTotal >= distance) {
@@ -276,9 +294,6 @@ useEffect(() => {
       else if (outcome === "Sacked") {
         negativeYards = Math.floor(Math.random() * (10 - 5)) + 5;
         newYardLine = yardLine - negativeYards;
-        if(newYardLine < 0){
-          setOutcome("Safety")
-        }
         setYardLine(newYardLine);
         newFirstDownStartY = firstDownStartY - yardsToPixels(negativeYards)
         setFirstDownStartY(newFirstDownStartY);
@@ -305,7 +320,6 @@ useEffect(() => {
     setPaused(false);
     setSackTimeRemaining(0);
     setLiveCountdown(null);
-    setQbPenalty(0);
     setRouteStarted(false);
 
     setPlayers(prev =>
@@ -321,22 +335,20 @@ useEffect(() => {
         defense: teamData[defenseName].defensivePlayers,
         OLine: teamData[offenseName].OLine,
         DLine: teamData[defenseName].DLine,
+        Qb: teamData[offenseName].Qb
       });
     }
-    console.log("newFirstDownStartY before: " + newFirstDownStartY)
     
     //if (!["Touchdown!", "Intercepted"].includes(outcome)) {
       console.log("[OFFENSE] Emitting play_reset");
-      console.log("newFirstDownStartY during: " + newFirstDownStartY)
       socket.emit("play_reset", {
           newYardLine,
           newDown,
           newDistance,
-          newFirstDownStartY,
+          newFirstDownStartY: pixelsToYards(newFirstDownStartY),
           roomId
         });
      // }
-
 
     // Clear local outcome
     setOutcome("");
@@ -454,6 +466,11 @@ useEffect(() => {
       setReadyToCatchIds(new Set());
     }
   }, [routeStarted, setPlayers, fieldSize, offsetX, offsetY]);
+
+  useEffect(() => {
+  console.log(`[WATCH] firstDownStartY changed → ${firstDownStartY}`);
+}, [firstDownStartY]);
+
 
   const lastEmitTimeRef = useRef(0);
   // route running
@@ -685,6 +702,7 @@ useEffect(() => {
       // Stop all offensive and defensive movement
       stopAllPlayerMovement()
       setTimeout(()=>{
+        if(firstDownStartY > 0)
         handleOutcomeResult(outcome, firstDownStartY);
       }, 3000)
       

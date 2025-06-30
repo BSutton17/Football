@@ -20,7 +20,7 @@ export const Provider = ({ children }) => {
       const [liveCountdown, setLiveCountdown] = useState(null);
       const [down, setDown] = useState(1)
       const [distance, setDistance] = useState(10)
-      const [yardLine, setYardLine] = useState(15)
+      const [yardLine, setYardLine] = useState(25)
       const [qbPenalty, setQbPenalty] = useState(0)
       const [socket, setSocket] = useState()
       const [readyToCatchIds, setReadyToCatchIds] = useState(new Set());
@@ -31,13 +31,14 @@ export const Provider = ({ children }) => {
       const [defenseName, setDffenseName] = useState("TeamTwo")
       const [outcome, setOutcome] = useState("")
       const [thrownBallLine, setThrownBallLine] = useState(null);
-      const [firstDownStartY, setFirstDownStartY] = useState(0); 
+      const [firstDownStartY, setFirstDownStartY] = useState(null); 
       const [currentYards, setCurrentYards] = useState(0); 
       const [inventory, setInventory] = useState({
         offense: teamData[offenseName].offensivePlayers,
         defense: teamData[defenseName].defensivePlayers,
         OLine: teamData[offenseName].OLine,
         DLine: teamData[defenseName].DLine,
+        Qb: teamData[offenseName].Qb
       });
       
       // Update inventory automatically when offenseName changes
@@ -48,6 +49,7 @@ export const Provider = ({ children }) => {
             defense: teamData[offenseName].defensivePlayers,
             OLine: teamData[offenseName].OLine,
             DLine: teamData[offenseName].DLine,
+            Qb: teamData[offenseName].Qb
           });
         }
       }, [offenseName]);
@@ -65,10 +67,8 @@ export const Provider = ({ children }) => {
           defense: teamData[newOffenseName].defensivePlayers, // Both from same team after switch
           OLine: teamData[newOffenseName].OLine,
           DLine: teamData[newOffenseName].DLine,
+          Qb: teamData[newOffenseName].Qb
         });
-        console.log("switch sides outcome: " + outcome)
-        console.log(down)
-        console.log("100 - yardLine: " + (100 - yardLine))
         if(outcome == "Intercepted" || outcome == "Turnover on Downs"){
           setTimeout(()=>{
             setYardLine(100 - yardLine);

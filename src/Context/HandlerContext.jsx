@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useRef } from 'react';
+import React, { createContext, useContext, useRef, useEffect } from 'react';
 import { useAppContext } from './AppContext';
 
 const HandlerContext = createContext();
@@ -12,7 +12,7 @@ export const HandlerProvider = ({ children }) => {
     fieldRef,
     setSelectedPlayerId,
     fieldSize,
-    selectedZoneId,
+    isOffense,
     setSelectedZoneId,
     setInventory,
     socket,
@@ -20,25 +20,46 @@ export const HandlerProvider = ({ children }) => {
   } = useAppContext();
 
   const placePlayers = (initialX, initialY, rect) => {
-    if (!draggingId) return; // safety check
+    if (!draggingId) return;
 
+    // Calculate drop position relative to the field's bounding rect
     const dropX = initialX - rect.left;
-    let dropY = initialY - rect.top;
-    const half = fieldSize.height / 2;
+    const dropY = initialY - rect.top;
+
+    // Normalize drop position (relative to field width/height)
+    const normalizedX = dropX / rect.width;
+    const normalizedY = dropY / rect.height;
+
+    console.log(
+      "props: " +
+        " dropX: " +
+        dropX +
+        " dropY: " +
+        dropY +
+        " rect.width: " +
+        rect.width +
+        " rect.height: " +
+        rect.height +
+        " normalizedX: " +
+        normalizedX +
+        " normalizedY: " +
+        normalizedY
+    );
+
+    const half = rect.height / 2;
 
     // Enforce team side boundaries
-    if (draggingId.startsWith('O') && dropY < half) return;
-    if (draggingId.startsWith('D') && dropY > half) return;
+    if (draggingId.startsWith("O") && dropY < half) return;
+    if (draggingId.startsWith("D") && dropY > half) return;
 
     let updatedPlayer = null;
     let updatedZone = null;
 
     setPlayers((prev) =>
       prev.map((p) => {
-        // Move the dragged player only
         if (p.id === draggingId) {
           let newPosition;
-
+          // Update player position with normalized coords
           if (draggingId.startsWith('O')) {
             newPosition = { x: dropX, y: dropY - (half - half / 15) };
           } else if (draggingId.startsWith('D')) {
@@ -51,23 +72,22 @@ export const HandlerProvider = ({ children }) => {
           return updatedPlayer;
         }
 
-        // Handle zone circle drag only if the dragged id matches the zoneCircle.id
         if (p.zoneCircle && p.zoneCircle.id === draggingId) {
           const bottom = half;
           const flatThreshold = bottom * (2 / 3);
           const midThreshold = bottom * (1 / 3);
-          const leftBound = fieldSize.width / 3;
-          const rightBound = (fieldSize.width / 3) * 2;
+          const leftBound = rect.width / 3;
+          const rightBound = (rect.width / 3) * 2;
 
           let newZone = p.zone;
 
           if (dropY > flatThreshold) {
             const middleFlat = dropX >= leftBound && dropX <= rightBound;
-            newZone = middleFlat ? 'hook' : 'flat';
+            newZone = middleFlat ? "hook" : "flat";
           } else if (dropY > midThreshold) {
-            newZone = dropX < leftBound || dropX > rightBound ? 'cloud' : 'hook';
+            newZone = dropX < leftBound || dropX > rightBound ? "cloud" : "hook";
           } else {
-            newZone = 'deep';
+            newZone = "deep";
           }
 
           updatedZone = {
@@ -91,15 +111,18 @@ export const HandlerProvider = ({ children }) => {
       })
     );
 
-    // Emit socket updates after state changes
+    // Emit updated player position
     if (updatedPlayer) {
       socket.emit("update_character_position", {
         playerId: updatedPlayer.id,
-        position: updatedPlayer.position,
+        normalizedX: normalizedX,
+        normalizedY: normalizedY,
+        isOffense: isOffense,
         room: roomId,
       });
     }
 
+    // Emit updated zone info
     if (updatedZone) {
       socket.emit("zone_area_assigned", {
         playerId: updatedZone.playerId,
@@ -109,7 +132,6 @@ export const HandlerProvider = ({ children }) => {
       });
     }
   };
-
 
   const handleMouseDown = (e, id) => {
     e.preventDefault();
@@ -258,176 +280,169 @@ export const HandlerProvider = ({ children }) => {
     const rect = fieldRef.current.getBoundingClientRect();
     const playerData = JSON.parse(data);
     const x = e.clientX - rect.left;
-    handleDropOnField(playerData, x, height);
+    handleDropOnField(playerData, x, height, rect);
   };
 
-    const handleDropOnField = (playerData, x, y) => {
-      console.log("Y: " + y + ", height: " + fieldSize.height)
-      const role = playerData.role;
-      let newY;
+  const handleDropOnField = (playerData, x, y, rect) => {
+    const role = playerData.role;
 
-      switch (role) {
-        case "WR":
-          newY = y / 32;
-          break;
-        case "RB":
-          newY = y / 6;
-          break;
-        case "TE":
-          newY = y / 20;
-          break;
-        case "LB":
-        case "CB":
-          newY = y / 2.5;
-          break;
-        case "S":
-          newY = y / 6;
-          break;
-        default:
-          newY = y / 10;
-      }
+    const normalizedX = x / rect.width;
 
-      const isOffense = playerData.type == "offense"
+    let newY;
 
-      const newPlayer = {
-        ...playerData,
-        position: { x, y: newY },
-        isOffense,
-        route: null,
-        hasCut: false,
-      }
-      const newDPlayer = {
-        ...playerData,
-        zone: null,
-        isOffense,
-        route: null,
-        assignedOffensiveId: null,
-        hasCut: false,
-        position: { x, y: newY},
-      };
+    switch (role) {
+      case "WR":
+        newY = y / 32;
+        break;
+      case "RB":
+        newY = y / 6;
+        break;
+      case "TE":
+        newY = y / 20;
+        break;
+      case "LB":
+      case "CB":
+        newY = y / 2.5;
+        break;
+      case "S":
+        newY = y / 6;
+        break;
+      default:
+        newY = y / 10;
+    }
 
+    const normalizedY = newY / rect.height;
 
-      setPlayers((prev) => [...prev, isOffense ? newPlayer : newDPlayer]);
+    const isOffense = playerData.type === "offense";
 
-      setInventory((prev) => ({
-        ...prev,
-        [playerData.type]: prev[playerData.type].filter(
-          (p) => p.id !== playerData.id
-        ),
-      }));
+    const normalizedPosition = { x: normalizedX, y: normalizedY };
 
-      if (isOffense) {
-        socket.emit("place_character", {
-          ...playerData,
-          position: { x, y: newY },
-          isOffense,
-          room: roomId,
-        });
-      } else {
-        socket.emit("place_character", {
-          ...playerData,
-          position: { x, y: newY},
-          isOffense: false,
-          zone: null,
-          assignedOffensiveId: null,
-          room: roomId,
-        });
-      }
-
-
+    const newPlayer = {
+      ...playerData,
+      position: { x, y: newY},
+      isOffense,
+      route: null,
+      hasCut: false,
     };
 
-const handleDropOnFieldTouch = (playerData, x, y) => {
-  const role = playerData.role;
-  let newY;
+    const newDPlayer = {
+      ...playerData,
+      zone: null,
+      isOffense,
+      route: null,
+      assignedOffensiveId: null,
+      hasCut: false,
+      position: { x, y: newY},
+    };
 
-  switch (role) {
-    case "WR":
-      newY = y / 20;
-      break;
-    case "RB":
-      newY = y / 4;
-      break;
-    case "TE":
-      newY = y / 10;
-      break;
-    case "LB":
-    case "CB":
-      newY = y / 2.5;
-      break;
-    case "S":
-      newY = y / 5.5;
-    default:
-      newY = y / 10;
-  }
+    setPlayers((prev) => [...prev, isOffense ? newPlayer : newDPlayer]);
 
-  const isOffense = playerData.type === "offense";
+    setInventory((prev) => ({
+      ...prev,
+      [playerData.type]: prev[playerData.type].filter(
+        (p) => p.id !== playerData.id
+      ),
+    }));
 
-  setPlayers((prev) => {
-    const playerExists = prev.find((p) => p.id === playerData.id);
-    if (playerExists) {
-      // Update existing player immutably with new position object
-      return prev.map((p) =>
-        p.id === playerData.id
+    socket.emit("place_character", {
+      ...playerData,
+      position: normalizedPosition,
+      isOffense,
+      zone: isOffense ? undefined : null,
+      assignedOffensiveId: isOffense ? undefined : null,
+      room: roomId,
+    });
+  };
+
+  const handleDropOnFieldTouch = (playerData, x, y) => {
+    const role = playerData.role;
+
+    const normalizedX = x / fieldSize.width;
+
+    let newY;
+
+    switch (role) {
+      case "WR":
+        newY = y / 20;
+        break;
+      case "RB":
+        newY = y / 4;
+        break;
+      case "TE":
+        newY = y / 10;
+        break;
+      case "LB":
+      case "CB":
+        newY = y / 2.5;
+        break;
+      case "S":
+        newY = y / 5.5;
+        break;
+      default:
+        newY = y / 10;
+    }
+
+    const normalizedY = newY / fieldSize.height;
+
+    const isOffense = playerData.type === "offense";
+
+    const normalizedPosition = { x: normalizedX, y: normalizedY };
+
+    setPlayers((prev) => {
+      const playerExists = prev.find((p) => p.id === playerData.id);
+      if (playerExists) {
+        return prev.map((p) =>
+          p.id === playerData.id
+            ? {
+                ...p,
+                position: { x, y: newY},
+                route: null,
+                hasCut: false,
+                zone: isOffense ? p.zone : null,
+                assignedOffensiveId: isOffense ? p.assignedOffensiveId : null,
+              }
+            : p
+        );
+      } else {
+        const newPlayer = isOffense
           ? {
-              ...p,
-              position: isOffense ? { x, y: newY } : { x, y },
-              // Keep other props intact or update if needed
+              ...playerData,
+              position: { x, y: newY},
+              isOffense,
               route: null,
               hasCut: false,
-              zone: isOffense ? p.zone : null,
-              assignedOffensiveId: isOffense ? p.assignedOffensiveId : null,
             }
-          : p
-      );
-    } else {
-      // Add new player with fresh position object
-      const newPlayer = isOffense
-        ? {
-            ...playerData,
-            position: { x, y: newY },
-            isOffense,
-            route: null,
-            hasCut: false,
-          }
-        : {
-            ...playerData,
-            position: { x, y: newY },
-            zone: null,
-            isOffense,
-            route: null,
-            assignedOffensiveId: null,
-            hasCut: false,
-          };
+          : {
+              ...playerData,
+              position: { x, y: newY},
+              zone: null,
+              isOffense,
+              route: null,
+              assignedOffensiveId: null,
+              hasCut: false,
+            };
 
-      return [...prev, newPlayer];
-    }
-  });
+        return [...prev, newPlayer];
+      }
+    });
 
-  setInventory((prev) => ({
-    ...prev,
-    [playerData.type]: prev[playerData.type].filter((p) => p.id !== playerData.id),
-  }));
+    setInventory((prev) => ({
+      ...prev,
+      [playerData.type]: prev[playerData.type].filter(
+        (p) => p.id !== playerData.id
+      ),
+    }));
 
-  // Emit socket event with fresh position object
-  if (isOffense) {
     socket.emit("place_character", {
       ...playerData,
-      position: { x, y: newY },
+      position: normalizedPosition,
       isOffense,
+      zone: isOffense ? undefined : null,
+      assignedOffensiveId: isOffense ? undefined : null,
       room: roomId,
     });
-  } else {
-    socket.emit("place_character", {
-      ...playerData,
-      position: { x, y: newY },
-      isOffense: false,
-      zone: null,
-      assignedOffensiveId: null,
-      room: roomId,
-    });
-  }
-};
+  };
+
 
 
   let animationFrameId;
