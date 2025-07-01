@@ -212,17 +212,23 @@ function Field({ socket, room, name }) {
   }
 }
 
-  useEffect(()=>{
-    setYardLine(yardLine)
-  }, [yardLine])
+const handleEndOfPlay = () => {
+  if (outcome === "Sacked" || outcome === "Incomplete" || outcome === "Tackled") {
+    if (down < 4) {
+      setDown(prev => prev + 1);
+    } else {
+      setOutcome("Turnover on Downs");
+      setDown(1); // Reset to 1st down for next team
+    }
+  }
+}
 
-  useEffect(()=>{
-    setDistance(distance)
-  }, [distance])
+useEffect(() => {
+  if (outcome === "Sacked") {
+    handleEndOfPlay();
+  }
+}, [outcome]);
 
-  useEffect(()=>{
-    setDown(down)
-  }, [down])
 
   function formatDistance(distance){
     if(yardLine >= 90){
