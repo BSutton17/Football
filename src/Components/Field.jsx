@@ -231,6 +231,10 @@ useEffect(() => {
   if (outcome === "Sacked") {
     handleEndOfPlay();
   }
+  if(outcome === "Touchdown!"){
+    setDown(1)
+    setDistance(10)
+  }
 }, [outcome]);
 
 

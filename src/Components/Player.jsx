@@ -73,11 +73,11 @@ export const Player = ({
     const normalizedY = position.y / fieldSize.height;
 
     setThrownBallLine({ x: receiver.position.x, y: receiver.position.y });
-    // socket.emit("ball_thrown", {
-    //   normalizedX,
-    //   normalizedY,
-    //   roomId,
-    // });
+    socket.emit("ball_thrown", {
+      normalizedX,
+      normalizedY,
+      roomId,
+    });
 
 
       // setTimeout(() => {
