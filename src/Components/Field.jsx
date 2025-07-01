@@ -215,12 +215,16 @@ function Field({ socket, room, name }) {
 const handleEndOfPlay = () => {
   if (outcome === "Sacked" || outcome === "Incomplete" || outcome === "Tackled") {
     if (down < 4) {
-      setDown(prev => prev + 1);
+        setDown(prev => prev + 1);
     } else {
       setOutcome("Turnover on Downs");
       setDown(1); // Reset to 1st down for next team
     }
   }
+
+  setTimeout(()=>{
+    setOutcome("")
+  }, 3000)
 }
 
 useEffect(() => {

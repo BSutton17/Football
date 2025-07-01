@@ -24,7 +24,6 @@ export const HandlerProvider = ({ children }) => {
     if (!draggingId) return;
     if (!players.some(p => p.id === draggingId)) return;
 
-
     // Calculate drop position relative to the field's bounding rect
     const dropX = initialX - rect.left;
     const dropY = initialY - rect.top;
@@ -155,13 +154,6 @@ export const HandlerProvider = ({ children }) => {
   };
 
   const handleTouchEnd = () => {
-    if (touchedPlayerRef.current && !touchedPlayerRef.current.wasDragged) {
-      // Not a real drag — cancel interaction
-      touchedPlayerRef.current = null;
-      setDraggingId(null);
-      return;
-    }
-
     if (draggingId?.startsWith('D-') || draggingId?.startsWith('O')) {
       setSelectedPlayerId(draggingId);
     } else if (draggingId?.startsWith('DZ')) {
