@@ -21,14 +21,15 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 20vh;
-    height: 20vh;
+    width: 17vh;
+    height: 17vh;
     border-radius: 50%;  
     position: fixed;
-    bottom: 8vh;
+    bottom: 11vh;
     left: 50%;
     transform: translateX(-50%);
     background-color: #8da7eece;
+    z-index: 3;
   }
 /* Field */
 .field {
@@ -52,20 +53,6 @@ body {
 
 .bottom-half, .top-half {
   pointer-events: auto; /* enable dragging only here for now */
-}
-
-/* Add Player Button */
-.add-player-btn {
-  position: absolute;
-  bottom: 1vh;
-  left: 1vw;
-  padding: 0.5vh 1vw;
-  font-size: 1.5vh;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none; /* Disables iOS long press menu */
-  touch-action: none; /* Prevents default gestures like scrolling */
-  z-index: 10;
 }
 
 /* Player */
@@ -261,12 +248,16 @@ body {
     align-items: center;
     justify-content: center;
     width: 20vh;
-    height: 5vh;
+    height: 6vh;
+    margin-bottom: 1vh;
     border-radius: 20px;  
     position: fixed;
     bottom: 0;
     left: 50%;
     transform: translateX(-50%);
+    z-index: 8;
+    background-color: white;
+    color: black;
   }
 
   .inventory-player.offense {
@@ -280,6 +271,7 @@ body {
   .inventory-container{
     display: flex;
     justify-content: center;
+    flex-direction: column;
     width: 100vw;
   }
   

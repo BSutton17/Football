@@ -339,7 +339,8 @@ useEffect(() => {
         setDown(newDown);
       }
       else if(outcome === "Touchdown!") {
-        setYardLine(25);
+        newYardLine = 25;
+        setYardLine(newYardLine);
         newFirstDownStartY = fieldSize.height/4
         setFirstDownStartY(newFirstDownStartY);
         newDistance = 10

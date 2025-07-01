@@ -218,7 +218,7 @@ const handleEndOfPlay = () => {
         setDown(prev => prev + 1);
     } else {
       setOutcome("Turnover on Downs");
-      setDown(1); // Reset to 1st down for next team
+      setDown(1); 
     }
   }
 
@@ -330,18 +330,19 @@ useEffect(() => {
     });
   }
 
+const displayYardLine = (yardLine, isOffense) => {
+  if (isOffense) {
+    return yardLine <= 50 ? `< ${yardLine}` : `> ${50 - (yardLine - 50)}`;
+  } else {
+    return yardLine <= 50 ? `> ${yardLine}` : `< ${50 + (50 - yardLine)}`;
+  }
+};
+
 
   return (
     <>
     <div className='info'>
-      <h2>
-        Yard Line:{' '}
-        {typeof yardLine === 'number' && !isNaN(yardLine)
-          ? yardLine <= 50
-            ? `< ${yardLine}`
-            : `> ${50 - (yardLine - 50)}`
-          : 'Loading...'}
-      </h2>
+      <h2>Yard Line: {displayYardLine(yardLine, isOffense)}</h2>
       <h2>{formatDown(down)} & {formatDistance(distance)}</h2>
     </div>
     <div className='result'>

@@ -78,11 +78,6 @@ export const Player = ({
       normalizedY,
       roomId,
     });
-
-
-      // setTimeout(() => {
-      //   setThrownBallLine(null);
-      // }, 3000); 
     
     outcomeRef.current = result;
     sackTimerRef.current = null
