@@ -492,7 +492,7 @@ socket.on("play_reset", (data) => {
               );
             })()}
 
-            {player.isBlitzing && outcome === "" && !routeStarted && (
+            {!isOffense && player.isBlitzing && outcome === "" && !routeStarted && (
               <svg className="man-svg">
                 <defs>
                   <marker
