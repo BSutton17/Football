@@ -22,7 +22,7 @@ export const HandlerProvider = ({ children }) => {
 
   const placePlayers = (initialX, initialY, rect) => {
     if (!draggingId) return;
-    if (!players.some(p => p.id === draggingId)) return;
+    if (!players.some(p => p.id === draggingId) && isOffense) return;
 
     // Calculate drop position relative to the field's bounding rect
     const dropX = initialX - rect.left;
