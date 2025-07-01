@@ -204,13 +204,6 @@ export const HandlerProvider = ({ children }) => {
   const handleTouchMove = (e) => {
     e.preventDefault();
     if (!draggingId || !fieldRef.current) return;
-    if (
-    touchedPlayerRef.current &&
-    !touchedPlayerRef.current.wasDragged &&
-    !players.some(p => p.id === touchedPlayerRef.current.id)
-  ) {
-    return;
-  }
 
 
     const touch = e.touches[0];
