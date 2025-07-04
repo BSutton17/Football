@@ -166,11 +166,13 @@ export const HandlerProvider = ({ children }) => {
       // Check if this was a NEW player (not on field yet)
       const isExistingPlayer = players.some(p => p.id === touchedPlayerRef.current.id);
 
-      if (!isExistingPlayer) {
+      if (!isExistingPlayer && !draggingId?.startsWith('DZ')) {
         handleDropOnFieldTouch(
           touchedPlayerRef.current,
           x - rect.left,
-          y - rect.top
+          fieldSize.height, // Adjust y for touch
+          y - rect.top, // yValue fallback if needed by role logic
+          rect
         );
       }
     }
@@ -318,7 +320,7 @@ export const HandlerProvider = ({ children }) => {
     });
   };
 
-  const handleDropOnFieldTouch = (playerData, x, y) => {
+  const handleDropOnFieldTouch = (playerData, x, y, yValue, rect) => {
     const role = playerData.role;
 
     const normalizedX = x / fieldSize.width;
@@ -336,17 +338,15 @@ export const HandlerProvider = ({ children }) => {
         newY = y / 10;
         break;
       case "LB":
-      case "CB":
-        newY = y / 2.5;
-        break;
+      case "CB": 
       case "S":
-        newY = y / 5.5;
+        newY = yValue;
         break;
       default:
         newY = y / 10;
     }
 
-    const normalizedY = newY / fieldSize.height;
+    const normalizedY = newY / rect.height;
 
     const isOffense = playerData.type === "offense";
 
@@ -390,13 +390,15 @@ export const HandlerProvider = ({ children }) => {
       }
     });
 
+    console.log("playerData.type: " + playerData.type);
+    if(!draggingId?.startsWith('DZ')){
     setInventory((prev) => ({
       ...prev,
       [playerData.type]: prev[playerData.type].filter(
         (p) => p.id !== playerData.id
       ),
     }));
-
+  }
     socket.emit("place_character", {
       ...playerData,
       position: normalizedPosition,
@@ -406,8 +408,6 @@ export const HandlerProvider = ({ children }) => {
       room: roomId,
     });
   };
-
-
 
   let animationFrameId;
 

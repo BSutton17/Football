@@ -762,7 +762,8 @@ useEffect(() => {
               id={player.id}
               position={player.position}
               onMouseDown={isOffense ? (e) => handleMouseDown(e, player.id) : null}
-              onTouchStart={isOffense ? (e) => handleTouchStart(e, player.id) : null}
+              onTouchStart={isOffense ? (e) => handleTouchStart(e, player) : null}
+
               isOffense={true}
               bgColor={readyToCatch ? color : 'offense'}
               openess={color}
