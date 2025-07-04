@@ -8,29 +8,119 @@ body {
   margin: 0;
   background-color: black;
   text-align: center;
-  overflow: hidden; /* Prevent scrollbars */
+  overflow: hidden;
 }
 
-.roomID{
+.roomID {
   position: fixed;
-  top: 0;
+  bottom: 0;
   left: 0;
 }
 
-  .hike{
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 17vh;
-    height: 17vh;
-    border-radius: 50%;  
-    position: fixed;
-    bottom: 11vh;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: #8da7eece;
-    z-index: 3;
-  }
+/* Scoreboard Header */
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(to right, #1e3c72, #2a5298);
+  color: white;
+  padding: 1vh 2vw;
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 1000;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  border-bottom: 2px solid #fff;
+  position: fixed;
+  left: 0;
+  top: 0;
+}
+
+.scoreboard-box {
+  display: flex;
+  flex-direction: column;
+  font-size: 2vh;
+  font-weight: bold;
+}
+
+.yard-line {
+  font-size: 1.8vh;
+  text-shadow: 0 0 5px black;
+}
+
+.down-distance {
+  font-size: 2.2vh;
+  color: #fbd34c;
+  text-shadow: 0 0 5px black;
+}
+
+.clock-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-right: 5vw;;
+  font-size: 2vh;
+}
+
+.quarter {
+  font-size: 2.2vh;
+  color: #00ffcc;
+}
+
+.clock-time {
+  font-size: 2.6vh;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+/* Countdown and Outcome */
+.countdown-timer {
+  position: fixed;
+  top: 6vh;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 5vh;
+  font-weight: bold;
+  z-index: 1000;
+  font-family: 'Orbitron', sans-serif;
+  text-shadow: 2px 2px 8px black;
+}
+
+.score{
+  display: inline;
+  font-size: 200%;
+}
+
+.scoreboard-outcome {
+  position: fixed;
+  top: 14vh;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 4.5vh;
+  font-weight: bold;
+  color: #00ffcc;
+  text-shadow: 2px 2px 8px black;
+  z-index: 1000;
+  font-family: 'Impact', sans-serif;
+  letter-spacing: 1px;
+}
+
+/* Hike Button */
+.hike {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 17vh;
+  height: 17vh;
+  border-radius: 50%;
+  position: fixed;
+  bottom: 11vh;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #8da7eece;
+  z-index: 3;
+}
+
 /* Field */
 .field {
   width: 60vw;
@@ -41,18 +131,17 @@ body {
   position: relative;
 }
 
-/* Halves */
 .half {
   width: 100%;
   height: 50%;
   position: relative;
   text-align: center;
   font-weight: bold;
-  pointer-events: auto; /* disable interaction */
+  pointer-events: auto;
 }
 
 .bottom-half, .top-half {
-  pointer-events: auto; /* enable dragging only here for now */
+  pointer-events: auto;
 }
 
 /* Player */
@@ -72,10 +161,7 @@ body {
   cursor: grab;
   user-select: none;
   z-index: 4;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-touch-callout: none; /* Disables iOS long press menu */
-  touch-action: none; /* Prevents default gestures like scrolling */
+  touch-action: none;
   transform: translate(-50%, -50%);
 }
 
@@ -86,44 +172,35 @@ body {
   background-color: #dc143c;
 }
 
-.yellow{
-  background-color: yellow;
-}
-
-.lime {
-  background-color: lime;
-}
-
-.red{
-  background-color: red;
-}
+.yellow { background-color: yellow; }
+.lime { background-color: lime; }
+.red { background-color: red; }
 
 .offense, .defense {
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
 /* Routes */
 .route-btn, .zone-btn {
   position: absolute;
   width: 100px;
   height: 35px !important;
-  border-radius: 50%; 
+  border-radius: 50%;
   border: none;
   z-index: 4;
   cursor: pointer;
-  top: -10px; 
-  left: 50%; 
-  transform: translate(-50%, -50%); 
+  top: -10px;
+  left: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
-  justify-content:center;
+  justify-content: center;
   border: 1px solid purple;
 }
 
-#comeback{
-  font-size: 10px;
-}
+#comeback { font-size: 10px; }
 
 .route-btn {
   background-color: rgb(0, 168, 154);
@@ -135,25 +212,19 @@ body {
   color: white;
 }
 
-.route-btn:hover {
-  background-color: rgb(0, 128, 128);
-}
-
-.zone-btn:hover {
-  background-color: rgb(100, 0, 0);
-}
+.route-btn:hover { background-color: rgb(0, 128, 128); }
+.zone-btn:hover { background-color: rgb(100, 0, 0); }
 
 .route-svg {
   position: absolute;
-  width: 15vw;     /* Responsive width */
-  height: 60vh;   /* Keeps aspect ratio */
+  width: 15vw;
+  height: 60vh;
   pointer-events: none;
   left: 0;
   top: 0;
   z-index: 3;
   overflow: visible;
 }
-
 
 .route-arrow {
   position: absolute;
@@ -181,113 +252,107 @@ body {
   font-size: 20px;
 }
 
-.zone-svg, .man-svg, .thrown-line-svg{
+.zone-svg, .man-svg, .thrown-line-svg {
   width: 100%;
   height: 100%;
   position: absolute;
   top: 0;
   left: 0;
-  pointer-events: none; /* important! */
+  pointer-events: none;
   z-index: 3;
-  }
+}
 
-  .man-svg{
-    overflow: visible;
-  }
+.man-svg, .thrown-line-svg {
+  overflow: visible;
+}
 
-  .thrown-line-svg{
-    z-index: 100;
-    overflow: visible;
-  }
+.thrown-line-svg {
+  z-index: 100;
+}
 
-  .zone-svg ellipse,
-  .zone-svg line {
-    pointer-events: auto; /* enable pointer events on interactive elements */
-    cursor: grab;
-  }
+.zone-svg ellipse, .zone-svg line {
+  pointer-events: auto;
+  cursor: grab;
+}
 
-  /* Inventory */
-  .offense-inventory,
-  .defense-inventory {
-    display: flex;
-    flex-wrap: wrap;
-    padding: 8px;
-    min-height: 15vh;
-    justify-content: center;
-    gap: 8px;
-    border-top: 2px solid #ccc;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100vw;
-    z-index: 5;
-    background-color: #f9f9f9;
-  }
+/* Inventory */
+.offense-inventory, .defense-inventory {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 8px;
+  min-height: 15vh;
+  justify-content: center;
+  gap: 8px;
+  border-top: 2px solid #ccc;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100vw;
+  z-index: 5;
+}
 
-  /* Re-add background color per team */
-  .offense-inventory {
-    background-color: #8da7ee93;
-  }
+.offense-inventory {
+  background-color: #8da7ee93;
+}
 
-  .defense-inventory {
-    background-color: #ee8d8d93;
-  }
+.defense-inventory {
+  background-color: #ee8d8d93;
+}
 
-  .x-out {
-    position: relative;
-    top: 0vh;
-    right: 3vw;
-    cursor: pointer;
-    font-size: 18px;
-    color: white;
-    z-index: 10;
-  }
+.x-out {
+  position: relative;
+  top: 0vh;
+  right: 3vw;
+  cursor: pointer;
+  font-size: 18px;
+  color: white;
+  z-index: 10;
+}
 
-  .show-inv{
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20vh;
-    height: 6vh;
-    margin-bottom: 1vh;
-    border-radius: 20px;  
-    position: fixed;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 8;
-    background-color: white;
-    color: black;
-  }
+.show-inv {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20vh;
+  height: 6vh;
+  margin-bottom: 1vh;
+  border-radius: 20px;
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 8;
+  background-color: white;
+  color: black;
+}
 
-  .inventory-player.offense {
-    background-color: #cce5ff;
-  }
+.inventory-player.offense {
+  background-color: #cce5ff;
+}
 
-  .inventory-player.defense {
-    background-color: #f8d7da;
-  }
+.inventory-player.defense {
+  background-color: #f8d7da;
+}
 
-  .inventory-container{
-    display: flex;
-    justify-content: center;
-    flex-direction: column;
-    width: 100vw;
-  }
-  
-  .inventory-menu {
-    position: relative;
-    width: 110vh;
-    height: 4vh;
-    border-bottom: 3px solid white;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    right: 1.2vw
-  }
+.inventory-container {
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  width: 100vw;
+}
 
+.inventory-menu {
+  position: relative;
+  width: 110vh;
+  height: 4vh;
+  border-bottom: 3px solid white;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  right: 1.2vw;
+}
 
-  .remove-player-button {
+.remove-player-button {
   position: fixed;
   top: 8vh;
   left: 50%;
@@ -301,20 +366,12 @@ body {
   z-index: 999;
 }
 
-/* Throwing */
-.Warning{
-  color: rgb(220, 184, 1)
-}
+/* Throwing (legacy) */
+.Warning { color: rgb(220, 184, 1); }
+.danger { color: red; }
+.black { color: white; }
 
-.danger{
-  color: red
-}
-
-.black{
-  color: white;
-}
-
-.black, .Warning, .danger, .outcome{
+.black, .Warning, .danger, .outcome {
   position: fixed;
   top: -5%;
   left: 50%;
@@ -324,66 +381,62 @@ body {
     -1px -1px 0 black,
      1px -1px 0 black,
     -1px  1px 0 black,
-     1px  1px 0 black; /* fake outline by layering shadows */
+     1px  1px 0 black;
   font-weight: bold;
 }
 
-.outcome{
+.outcome {
   text-shadow:
     -1px -1px 0 black,
      1px -1px 0 black,
     -1px  1px 0 black,
-     1px  1px 0 black; /* fake outline by layering shadows */
+     1px  1px 0 black;
   font-weight: bold;
 }
 
-
-.line-of-scrimage{
+/* Markers */
+.line-of-scrimage {
   width: 100%;
   height: 5px;
   background-color: rgba(47, 47, 216, 0.664);
   z-index: 1;
 }
 
-.first-down{
+.first-down {
   width: 100%;
   height: 2.5px;
   background-color: rgba(233, 199, 5, 0.466);
   z-index: 1;
 }
 
-.hide{
+/* Hide */
+.hide {
   visibility: hidden;
 }
 
+/* Legacy info box (now unused) */
 .info {
   position: fixed;
   top: 0;
   right: 0;
   color: white;
 }
-
 .info h2 {
-  margin: 4px 0; 
-  line-height: 1.2; 
+  margin: 4px 0;
+  line-height: 1.2;
 }
-
-
 
 /* Phones */
 @media only screen and (max-width: 600px) {
   .route-btn {
-    width: 15vw;  
+    width: 15vw;
     height: 7vw;
   }
   .field {
-  width: 95vw;
-  height: 85vh;
-  background-color: #28aa28;
-  width: 95vw;
-  height: 80vh;
-  border: 0.3vh solid green;
-  position: relative;
-}
-
+    width: 95vw;
+    height: 80vh;
+    background-color: #28aa28;
+    border: 0.3vh solid green;
+    position: relative;
+  }
 }

@@ -50,12 +50,12 @@ export const Player = ({
     if (role === "CB" || role === "LB" || role === "S") {
       result = "Intercepted";
     } else if (isOffense) {
-
       console.log("QB: " + inventory.Qb + ", inventory" + inventory);
       const catchResult = catchBall(openess, inventory.Qb);
 
       console.log(`[CATCH] Result: ${catchResult}`);
-
+      
+     // setOutcome(catchResult)
       if (catchResult === "Caught") {
         const yards = calculateTotalAndYAC(openess, route, yardLine);
         if (yards === "Touchdown!") {
@@ -66,8 +66,10 @@ export const Player = ({
         }
       } else {
         result = catchResult;
-      }
+      } // only here
     }
+
+    setOutcome(result);
     const receiver = players.find(p => p.id === id);
     const normalizedX = position.x / fieldSize.width;
     const normalizedY = position.y / fieldSize.height;
@@ -81,7 +83,7 @@ export const Player = ({
     
     outcomeRef.current = result;
     sackTimerRef.current = null
-    setOutcome(result);
+    
 
     if (result !== "") {
       console.log(`[CATCH] Sending outcome to defense: ${result}`);

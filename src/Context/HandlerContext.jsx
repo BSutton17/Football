@@ -17,7 +17,7 @@ export const HandlerProvider = ({ children }) => {
     setInventory,
     socket,
     roomId,
-    preSnapPlayers
+    players
   } = useAppContext();
 
   const placePlayers = (initialX, initialY, rect) => {

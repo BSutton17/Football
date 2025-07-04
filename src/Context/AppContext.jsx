@@ -35,7 +35,9 @@ export const Provider = ({ children }) => {
       const [firstDownStartY, setFirstDownStartY] = useState(null); 
       const [preSnapPlayers, setPreSnapPlayers] = useState([]);
       const [currentYards, setCurrentYards] = useState(0); 
-      const [inventory, setInventory] = useState({
+      const [score, setScore] = useState(0);
+      const [otherScore, setOtherScore] = useState(0);
+          const [inventory, setInventory] = useState({
         offense: teamData[offenseName].offensivePlayers,
         defense: teamData[defenseName].defensivePlayers,
         OLine: teamData[offenseName].OLine,
@@ -56,17 +58,37 @@ export const Provider = ({ children }) => {
         }
       }, [offenseName]);
       
+      // Score updates based on outcome
+      useEffect(() => {
+        if (outcome === "Touchdown!") {
+          if(isOffense){
+            setScore(prev => prev + 7);
+          }
+          else{
+            setOtherScore(prev => prev + 7);
+          }
+        }
+      }, [outcome]);
       // Switch sides function — swap offense and defense teams & reset field state
       const switchSides = (outcome, yardLine, height) => {
+        setTimeout(() => {
+          preSnapRef.current = players.filter(p =>
+              p.role === 'qb' ||
+              p.role === 'offensive-lineman' ||
+              p.role === 'defensive-lineman'
+            )
+        }, 50);
+
         const newOffenseName = defenseName;
         const newDefenseName = offenseName;
 
         setOffenseName(newOffenseName);
         setDffenseName(newDefenseName);
+
         setIsOffense(prev => !prev);
         setInventory({
           offense: teamData[newOffenseName].offensivePlayers,
-          defense: teamData[newOffenseName].defensivePlayers, // Both from same team after switch
+          defense: teamData[newDefenseName].defensivePlayers, // Both from same team after switch
           OLine: teamData[newOffenseName].OLine,
           DLine: teamData[newOffenseName].DLine,
           Qb: teamData[newOffenseName].Qb
@@ -89,6 +111,7 @@ export const Provider = ({ children }) => {
         setFirstDownStartY(height/4)
         }, 100)
       };
+
     
   return (
     <AppContext.Provider value={{ 
@@ -125,7 +148,9 @@ export const Provider = ({ children }) => {
         firstDownStartY, setFirstDownStartY,
         thrownBallLine, setThrownBallLine,
         preSnapPlayers, setPreSnapPlayers,
-        preSnapRef
+        preSnapRef,
+        score, setScore,
+        otherScore, setOtherScore
       }}>
       {children}
     </AppContext.Provider>

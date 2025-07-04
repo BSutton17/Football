@@ -39,10 +39,21 @@ function Field({ socket, room, name }) {
     setThrownBallLine,
     preSnapPlayers, 
     setPreSnapPlayers,
+    score,
+    otherScore
   } = useAppContext();
 
   const { handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd } = useHandlerContext();
   const oneYardInPixels = fieldSize.height / 40;
+  const [gameClock, setGameClock] = useState(300000); // 5 minutes in ms
+  const [quarter, setQuarter] = useState(1);
+  const gameClockRef = useRef(gameClock);
+  const gameIntervalRef = useRef(null);
+
+  useEffect(() => {
+    gameClockRef.current = gameClock;
+  }, [gameClock]);
+
 
   // Show offense inventory if player is currently on offense, else defense inventory
   const inventoryToShow = isOffense ? inventory.offense : inventory.defense;
@@ -51,6 +62,7 @@ function Field({ socket, room, name }) {
   // Calculate offsets based on field size
   // These offsets are used to position players and buttons relative to the field size
   const aspectRatio = fieldSize.width / fieldSize.height;
+  
 
   let offsetX, offsetY;
 
@@ -100,60 +112,84 @@ function Field({ socket, room, name }) {
   }, [draggingId, handleMouseUp]);
 
   const startRoute = () => {
-  const rect = fieldRef.current.getBoundingClientRect();
+    const rect = fieldRef.current.getBoundingClientRect();
 
-  // Save local pre-snap state (absolute positions)
-  setPreSnapPlayers(players.map(p => ({
-    ...p,
-    position: { ...p.position },
-    route: null
-  })));
-
-  // Emit normalized pre-snap state to others
-  socket.emit("pre_snap_players", {
-    players: players.map(p => ({
+    // Save local pre-snap state (absolute positions)
+    setPreSnapPlayers(players.map(p => ({
       ...p,
-      position: {
-        x: p.position.x / rect.width,
-        y: p.position.y / rect.height
-      },
-      zoneCircle: null,
+      position: { ...p.position },
       route: null
-    })),
-    room: roomId
-  });
+    })));
+
+    // Emit normalized pre-snap state to others
+    socket.emit("pre_snap_players", {
+      players: players.map(p => ({
+        ...p,
+        position: {
+          x: p.position.x / rect.width,
+          y: p.position.y / rect.height
+        },
+        zoneCircle: null,
+        route: null
+      })),
+      room: roomId
+    });
 
     setRouteStarted(true);
-    setThrownBallLine(null)
+    setThrownBallLine(null);
 
     const interval = setInterval(() => {
-        setRouteProgress((prev) => {
+      setRouteProgress((prev) => {
         const updated = { ...prev };
         let done = true;
 
         players.forEach((player) => {
-            if (!player.route) return;
+          if (!player.route) return;
 
-            const current = prev[player.id] ?? 0;
-            const duration = player.routeDuration ?? 3000; // fallback to 3 seconds
-            const increment = 100 / (duration / 100); // progress per 100ms
+          const current = prev[player.id] ?? 0;
+          const duration = player.routeDuration ?? 3000; // fallback to 3 seconds
+          const increment = 100 / (duration / 100); // progress per 100ms
 
-            if (current < 100) {
+          if (current < 100) {
             done = false;
             updated[player.id] = Math.min(current + increment, 100); // cap at 100
-            } else {
+          } else {
             updated[player.id] = 100;
-            }
+          }
         });
 
         if (done) clearInterval(interval);
         return updated;
-        });
+      });
     }, 100);
 
-    socket.emit("route_started", {routeStarted: true, roomId});
-    };
+    socket.emit("route_started", { routeStarted: true, roomId });
 
+    // Start or resume game clock
+    if (!gameIntervalRef.current) {
+      gameIntervalRef.current = setInterval(() => {
+        gameClockRef.current -= 1000;
+        setGameClock(gameClockRef.current);
+
+        if (gameClockRef.current <= 0) {
+          clearInterval(gameIntervalRef.current);
+          gameIntervalRef.current = null;
+
+          // Advance quarter or end game
+          setQuarter((prev) => {
+            if (prev < 4) {
+              setGameClock(300000);
+              gameClockRef.current = 300000;
+              return prev + 1;
+            } else {
+              setOutcome("Game Over");
+              return prev;
+            }
+          });
+        }
+      }, 1000);
+    }
+  }
     const outcomeRef = useRef(outcome);
     
     // Keep the ref updated with the latest outcome
@@ -189,53 +225,56 @@ function Field({ socket, room, name }) {
 
     const displayDangerLevel = () =>{
       if(liveCountdown / 1000 > 1.5) {
-        return "black"
+        return "white"
       }
       else if(liveCountdown / 1000 <= 1.5 && liveCountdown / 1000 > 0.5){
-        return "Warning"
+        return "yellow"
       }
       else{
-        //setQbPenalty(10)
-        return "danger"
+        return "red"
       }
     }
 
-  function formatDown(down) {
+  const formatDown = (down)=> {
   switch (down) {
     case 1: return "1st";
     case 2: return "2nd";
     case 3: return "3rd";
     case 4: return "4th";
-    case 5: 
-        setOutcome("Turnover on Downs")
-        break;
   }
-}
+  }
 
-const handleEndOfPlay = () => {
-  if (outcome === "Sacked" || outcome === "Incomplete" || outcome === "Tackled") {
-    if (down < 4) {
-        setDown(prev => prev + 1);
-    } else {
-      setOutcome("Turnover on Downs");
-      setDown(1); 
+  const handleEndOfPlay = () => {
+    if (outcome === "Sacked") {
+      if (down < 4) {
+          setDown(prev => prev + 1);
+      } else {
+        setOutcome("Turnover on Downs");
+        setDown(1); 
+      }
     }
-  }
 
-  setTimeout(()=>{
-    setOutcome("")
-  }, 3000)
-}
+    // Pause game clock
+      if (gameIntervalRef.current) {
+        clearInterval(gameIntervalRef.current);
+        gameIntervalRef.current = null;
+      }
 
-useEffect(() => {
-  if (outcome === "Sacked") {
-    handleEndOfPlay();
+    setTimeout(()=>{
+      setOutcome("")
+    }, 3000)
   }
-  if(outcome === "Touchdown!"){
-    setDown(1)
-    setDistance(10)
-  }
-}, [outcome]);
+  
+  useEffect(() => {
+    if (outcome === "Sacked" || outcome === "Dropped" || outcome === "Broken Up") {
+      handleEndOfPlay();
+    }
+    if(outcome === "Touchdown!"){
+      setDown(1)
+      setDistance(10)
+      handleEndOfPlay();
+    }
+  }, [outcome]);
 
 
   function formatDistance(distance){
@@ -247,109 +286,181 @@ useEffect(() => {
     }
   }
 
-  function renderYardLines() {
+function renderYardLines() {
+  return Array.from({ length: 41 }).flatMap((_, i) => {
+    const top = i * oneYardInPixels;
+    const offset = yardLine % 5;
+    const isFiveYardLine = ((i % 5) - offset) === 0;
+    const isTenYardLine = (((i + 5) % 10) - offset) === 0;
 
-    return Array.from({ length: 41 }).flatMap((_, i) => {
-      const top = i * oneYardInPixels;
-      const offset = yardLine % 5;
-      const isFiveYardLine = ((i % 5) - offset) === 0;
+    // Calculate absolute yard number accounting for offset and base yardLine
+    const yardNumber = 100 - (i + 5) - 50
 
-      if (isFiveYardLine) {
-        // Full width line every 5 yards
-        return (
-          <div
-            key={`yard-line-full-${i}`}
-            style={{
-              position: 'absolute',
-              top: `${top}px`,
-              left: 0,
-              width: '100%',
-              height: '2px',
-              backgroundColor: 'white',
-              zIndex: 1,
-            }}
-          />
-        );
-      } else {
-        // Four small ticks on opposite sides: two near edges, two closer to middle
-        return [
-          // Left edge tick
-          <div
-            key={`yard-line-tick-left-edge-${i}`}
-            style={{
-              position: 'absolute',
-              top: `${top}px`,
-              left: '0%',
-              width: '3%',
-              height: '2px',
-              backgroundColor: 'white',
-              zIndex: 1,
-            }}
-          />,
-          // Right edge tick
-          <div
-            key={`yard-line-tick-right-edge-${i}`}
-            style={{
-              position: 'absolute',
-              top: `${top}px`,
-              right: '0%',
-              width: '3%',
-              height: '2px',
-              backgroundColor: 'white',
-              zIndex: 1,
-            }}
-          />,
-          // Left inner tick (closer to middle)
-          <div
-            key={`yard-line-tick-left-inner-${i}`}
-            style={{
-              position: 'absolute',
-              top: `${top}px`,
-              left: '30%',  // adjust percentage to position closer to middle
-              width: '3%',
-              height: '2px',
-              backgroundColor: 'white',
-              zIndex: 1,
-            }}
-          />,
-          // Right inner tick (closer to middle)
-          <div
-            key={`yard-line-tick-right-inner-${i}`}
-            style={{
-              position: 'absolute',
-              top: `${top}px`,
-              right: '30%',  // adjust percentage to position closer to middle
-              width: '3%',
-              height: '2px',
-              backgroundColor: 'white',
-              zIndex: 1,
-            }}
-          />,
-        ];
-      }
-    });
-  }
+    const lines = [];
 
-const displayYardLine = (yardLine, isOffense) => {
-  if (isOffense) {
-    return yardLine <= 50 ? `< ${yardLine}` : `> ${50 - (yardLine - 50)}`;
-  } else {
-    return yardLine <= 50 ? `> ${yardLine}` : `< ${50 + (50 - yardLine)}`;
-  }
-};
+    if (isFiveYardLine) {
+      // Full width line every 5 yards
+      lines.push(
+        <div
+          key={`yard-line-full-${i}`}
+          style={{
+            position: 'absolute',
+            top: `${top}px`,
+            left: 0,
+            width: '100%',
+            height: '2px',
+            backgroundColor: 'white',
+            zIndex: 1,
+          }}
+        />
+      );
+    } else {
+      // Four small ticks on opposite sides: two near edges, two closer to middle
+      lines.push(
+        // Left edge tick
+        <div
+          key={`yard-line-tick-left-edge-${i}`}
+          style={{
+            position: 'absolute',
+            top: `${top}px`,
+            left: '0%',
+            width: '3%',
+            height: '2px',
+            backgroundColor: 'white',
+            zIndex: 1,
+          }}
+        />,
+        // Right edge tick
+        <div
+          key={`yard-line-tick-right-edge-${i}`}
+          style={{
+            position: 'absolute',
+            top: `${top}px`,
+            right: '0%',
+            width: '3%',
+            height: '2px',
+            backgroundColor: 'white',
+            zIndex: 1,
+          }}
+        />,
+        // Left inner tick (closer to middle)
+        <div
+          key={`yard-line-tick-left-inner-${i}`}
+          style={{
+            position: 'absolute',
+            top: `${top}px`,
+            left: '30%', // adjust percentage to position closer to middle
+            width: '3%',
+            height: '2px',
+            backgroundColor: 'white',
+            zIndex: 1,
+          }}
+        />,
+        // Right inner tick (closer to middle)
+        <div
+          key={`yard-line-tick-right-inner-${i}`}
+          style={{
+            position: 'absolute',
+            top: `${top}px`,
+            right: '30%', // adjust percentage to position closer to middle
+            width: '3%',
+            height: '2px',
+            backgroundColor: 'white',
+            zIndex: 1,
+          }}
+        />
+      );
+    }
+
+    // If this is a 10-yard line, render the yard number labels on both sides
+    if (isTenYardLine) {
+      lines.push(
+        <div
+          key={`yard-line-number-left-${i}`}
+          style={{
+            position: 'absolute',
+            top: `calc(${top}px - 2.3vh)`, // slightly above the line
+            left: '5px',
+            color: 'white',
+            fontSize: '150%',
+            fontWeight: 'bold',
+            userSelect: 'none',
+            rotate: '90deg',
+            zIndex: 2,
+          }}
+        >
+          {yardNumber}
+        </div>,
+        <div
+          key={`yard-line-number-right-${i}`}
+          style={{
+            position: 'absolute',
+            top: `calc(${top}px - 2.3vh)`,
+            right: '5px',
+            color: 'white',
+            fontSize: '150%',
+            fontWeight: 'bold',
+            userSelect: 'none',
+            rotate: '-90deg',
+            zIndex: 2,
+          }}
+        >
+          {yardNumber}
+        </div>
+      );
+    }
+
+    return lines;
+  });
+}
+
+
+  const displayYardLine = (yardLine, isOffense) => {
+    if (isOffense) {
+      return yardLine <= 50 ? `< ${yardLine}` : `> ${50 - (yardLine - 50)}`;
+    } else {
+      return yardLine <= 50 ? `> ${yardLine}` : `< ${50 + (50 - yardLine)}`;
+    }
+  };
+
+  const formatTime = (ms) => {
+    const totalSeconds = Math.max(Math.floor(ms / 1000), 0);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+  return () => {
+    if (gameIntervalRef.current) {
+      clearInterval(gameIntervalRef.current);
+    }
+  };
+  }, []);
 
 
   return (
     <>
-    <div className='info'>
-      <h2>Yard Line: {displayYardLine(yardLine, isOffense)}</h2>
-      <h2>{formatDown(down)} & {formatDistance(distance)}</h2>
+    <div className="game-header">
+      <div className="scoreboard-box">
+        <span className="yard-line">{displayYardLine(yardLine, isOffense)}</span>
+        <div className="down-distance">{formatDown(down)} & {formatDistance(distance)}</div>
+      </div>
+      <div className='score'>
+        <div>{score} - {otherScore}</div>
+      </div>
+      <div className="clock-box">
+        <span className="quarter">Q{quarter}</span>
+        <span className="clock-time">{formatTime(gameClock)}</span>
+      </div>
     </div>
     <div className='result'>
     {routeStarted && liveCountdown !== null && (
-      <div className={displayDangerLevel()}><h1>{(liveCountdown / 1000).toFixed(2)}</h1></div>
+      <div className="countdown-timer">
+        <span style={{ color: displayDangerLevel() }}>{(liveCountdown / 1000).toFixed(2)}</span>
+      </div>
     )}
-    <h1 className='outcome'>{outcome}</h1>
+    <h1 className="scoreboard-outcome">{outcome}</h1>
     </div>
     <div
       className="field"
@@ -376,7 +487,12 @@ const displayYardLine = (yardLine, isOffense) => {
     </div>
     <button className={isOffense ? 'hike' : "hide"} onClick={() => startRoute()}>Hike!</button>
     <h3 className='roomID'>{roomId}</h3>
-
+    <div className='clock-display'>
+      <div className='clock-box'>
+        <span>Q{quarter}</span>
+        <span>{formatTime(gameClock)}</span>
+      </div>
+    </div>
     {selectedPlayerId && (
     <button
       className="remove-player-button"

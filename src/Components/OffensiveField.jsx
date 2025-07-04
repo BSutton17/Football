@@ -259,30 +259,21 @@ useEffect(() => {
     if (outcome === "Intercepted") {
       setTimeout(() => {
         switchSides(outcome, yardLine, fieldSize.height);
-        preSnapRef.current = players.filter(p =>
-        p.role === 'qb' ||
-        p.role === 'offensive-lineman' ||
-        p.role === 'defensive-lineman'
-      );
-
       }, 3000);
     }
-    else if (["Touchdown!", "Turnover on Downs", "Safety"].includes(outcome)) {
-        setTimeout(() => {
-          switchSides(outcome, yardLine, fieldSize.height);
-        }, 3000);
-        preSnapRef.current = players.filter(p =>
-        p.role === 'qb' ||
-        p.role === 'offensive-lineman' ||
-        p.role === 'defensive-lineman'
-      );
-      }
+    else if (["Touchdown!", "Intercepted", "Turnover on Downs", "Safety"].includes(outcome)) {
+    console.log("[TOUCHDOWN wec OUTCOME EFFECT] Valid switch condition. Calling switchSides() in 3 seconds...");
+    setTimeout(() => {
+      console.log("[TOUCHDOWN wec SWITCH SIDES] Executing switchSides with outcome:", outcome);
+      switchSides(outcome, yardLine, fieldSize.height);
+    }, 3000);
+  }
     }
   }, [outcome, yardLine]);
 
   // reset
   const handleOutcomeResult = (outcomeValue, firstDownStartY) => {
-    if (!isOffense || !outcomeValue === ""){
+    if (!outcomeValue === ""){
       return;
     } 
 

@@ -1,5 +1,6 @@
 {
   "TeamOne": {
+    "score": 0,
     "offensivePlayers": [
       { "id": "O-1WR1", "role": "WR", "speed": 91, "routeRunning": 87 },
       { "id": "O-1WR2", "role": "WR", "speed": 92, "routeRunning": 90 },
@@ -26,6 +27,7 @@
     "Qb": 92
   },
   "TeamTwo": {
+    "score": 0,
     "offensivePlayers": [
       { "id": "O-2WR1", "role": "WR", "speed": 92, "routeRunning": 91 },
       { "id": "O-2WR2", "role": "WR", "speed": 87, "routeRunning": 88 },
@@ -52,6 +54,7 @@
     "Qb": 88
   },
   "TeamThree": {
+    "score": 0,
     "offensivePlayers": [
       { "id": "O3WR1", "role": "WR", "speed": 88, "routeRunning": 90 },
       { "id": "O3WR2", "role": "WR", "speed": 87, "routeRunning": 88 },
@@ -78,6 +81,7 @@
     "Qb": 90
   },
   "test": {
+    "score": 0,
     "offensivePlayers": [
       { "id": "O3WR1", "role": "WR", "speed": 99, "routeRunning": 90 }
     ],
