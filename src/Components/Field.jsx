@@ -286,133 +286,138 @@ function Field({ socket, room, name }) {
     }
   }
 
-function renderYardLines() {
-  return Array.from({ length: 41 }).flatMap((_, i) => {
-    const top = i * oneYardInPixels;
-    const offset = yardLine % 5;
-    const isFiveYardLine = ((i % 5) - offset) === 0;
-    const isTenYardLine = (((i + 5) % 10) - offset) === 0;
+  function renderYardLines() {
+    return Array.from({ length: 41 }).flatMap((_, i) => {
+      const top = i * oneYardInPixels;
+      const offset = yardLine % 5;
+      const isFiveYardLine = ((i % 5) - offset) === 0;
 
-    // Calculate absolute yard number accounting for offset and base yardLine
-    const yardNumber = 100 - (i + 5) - 50
+      // Calculate absolute yard number accounting for offset and base yardLine
+      const yardNumber = yardLine <= 50
+  ? yardLine - i + 20
+  : 100 -(yardLine + i + 20);
 
-    const lines = [];
+      const isTenYardLine =yardNumber % 10 === 0;
 
-    if (isFiveYardLine) {
-      // Full width line every 5 yards
-      lines.push(
-        <div
-          key={`yard-line-full-${i}`}
-          style={{
-            position: 'absolute',
-            top: `${top}px`,
-            left: 0,
-            width: '100%',
-            height: '2px',
-            backgroundColor: 'white',
-            zIndex: 1,
-          }}
-        />
-      );
-    } else {
-      // Four small ticks on opposite sides: two near edges, two closer to middle
-      lines.push(
-        // Left edge tick
-        <div
-          key={`yard-line-tick-left-edge-${i}`}
-          style={{
-            position: 'absolute',
-            top: `${top}px`,
-            left: '0%',
-            width: '3%',
-            height: '2px',
-            backgroundColor: 'white',
-            zIndex: 1,
-          }}
-        />,
-        // Right edge tick
-        <div
-          key={`yard-line-tick-right-edge-${i}`}
-          style={{
-            position: 'absolute',
-            top: `${top}px`,
-            right: '0%',
-            width: '3%',
-            height: '2px',
-            backgroundColor: 'white',
-            zIndex: 1,
-          }}
-        />,
-        // Left inner tick (closer to middle)
-        <div
-          key={`yard-line-tick-left-inner-${i}`}
-          style={{
-            position: 'absolute',
-            top: `${top}px`,
-            left: '30%', // adjust percentage to position closer to middle
-            width: '3%',
-            height: '2px',
-            backgroundColor: 'white',
-            zIndex: 1,
-          }}
-        />,
-        // Right inner tick (closer to middle)
-        <div
-          key={`yard-line-tick-right-inner-${i}`}
-          style={{
-            position: 'absolute',
-            top: `${top}px`,
-            right: '30%', // adjust percentage to position closer to middle
-            width: '3%',
-            height: '2px',
-            backgroundColor: 'white',
-            zIndex: 1,
-          }}
-        />
-      );
-    }
 
-    // If this is a 10-yard line, render the yard number labels on both sides
-    if (isTenYardLine) {
-      lines.push(
-        <div
-          key={`yard-line-number-left-${i}`}
-          style={{
-            position: 'absolute',
-            top: `calc(${top}px - 2.3vh)`, // slightly above the line
-            left: '5px',
-            color: 'white',
-            fontSize: '150%',
-            fontWeight: 'bold',
-            userSelect: 'none',
-            rotate: '90deg',
-            zIndex: 2,
-          }}
-        >
-          {yardNumber}
-        </div>,
-        <div
-          key={`yard-line-number-right-${i}`}
-          style={{
-            position: 'absolute',
-            top: `calc(${top}px - 2.3vh)`,
-            right: '5px',
-            color: 'white',
-            fontSize: '150%',
-            fontWeight: 'bold',
-            userSelect: 'none',
-            rotate: '-90deg',
-            zIndex: 2,
-          }}
-        >
-          {yardNumber}
-        </div>
-      );
-    }
 
-    return lines;
-  });
-}
+      const lines = [];
+
+      if (isFiveYardLine) {
+        // Full width line every 5 yards
+        lines.push(
+          <div
+            key={`yard-line-full-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              left: 0,
+              width: '100%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />
+        );
+      } else {
+        // Four small ticks on opposite sides: two near edges, two closer to middle
+        lines.push(
+          // Left edge tick
+          <div
+            key={`yard-line-tick-left-edge-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              left: '0%',
+              width: '3%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />,
+          // Right edge tick
+          <div
+            key={`yard-line-tick-right-edge-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              right: '0%',
+              width: '3%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />,
+          // Left inner tick (closer to middle)
+          <div
+            key={`yard-line-tick-left-inner-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              left: '30%', // adjust percentage to position closer to middle
+              width: '3%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />,
+          // Right inner tick (closer to middle)
+          <div
+            key={`yard-line-tick-right-inner-${i}`}
+            style={{
+              position: 'absolute',
+              top: `${top}px`,
+              right: '30%', // adjust percentage to position closer to middle
+              width: '3%',
+              height: '2px',
+              backgroundColor: 'white',
+              zIndex: 1,
+            }}
+          />
+        );
+      }
+
+      // If this is a 10-yard line, render the yard number labels on both sides
+      // if (isTenYardLine) {
+      //   lines.push(
+      //     <div
+      //       key={`yard-line-number-left-${i}`}
+      //       style={{
+      //         position: 'absolute',
+      //         top: `calc(${top}px - 2.3vh)`, // slightly above the line
+      //         left: '5px',
+      //         color: 'white',
+      //         fontSize: '150%',
+      //         fontWeight: 'bold',
+      //         userSelect: 'none',
+      //         rotate: '90deg',
+      //         zIndex: 2,
+      //       }}
+      //     >
+      //       {yardNumber}
+      //     </div>,
+      //     <div
+      //       key={`yard-line-number-right-${i}`}
+      //       style={{
+      //         position: 'absolute',
+      //         top: `calc(${top}px - 2.3vh)`,
+      //         right: '5px',
+      //         color: 'white',
+      //         fontSize: '150%',
+      //         fontWeight: 'bold',
+      //         userSelect: 'none',
+      //         rotate: '-90deg',
+      //         zIndex: 2,
+      //       }}
+      //     >
+      //       {yardNumber}
+      //     </div>
+      //   );
+      // }
+
+      return lines;
+    });
+  }
 
 
   const displayYardLine = (yardLine, isOffense) => {
