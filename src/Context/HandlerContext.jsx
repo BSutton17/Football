@@ -17,7 +17,8 @@ export const HandlerProvider = ({ children }) => {
     setInventory,
     socket,
     roomId,
-    players
+    players,
+    isSetClicked
   } = useAppContext();
 
   const placePlayers = (initialX, initialY, rect) => {
@@ -130,11 +131,11 @@ export const HandlerProvider = ({ children }) => {
   }
 
   const handleMouseDown = (e, id) => {
+    if (isOffense && isSetClicked) return; // disable drag
     e.preventDefault();
     setDraggingId(id);
     setSelectedPlayerId(null);
     setSelectedZoneId(null);
-    console.log("draggingId: " + draggingId)
   };
 
   const handleMouseMove = (e) => {
@@ -182,6 +183,7 @@ export const HandlerProvider = ({ children }) => {
   };
 
   const handleTouchStart = (e, id) => {
+    if (isOffense && isSetClicked) return; // disable drag
     e.preventDefault();
     setDraggingId(id);
     setSelectedPlayerId(null);
@@ -332,7 +334,7 @@ export const HandlerProvider = ({ children }) => {
         newY = y / 20;
         break;
       case "RB":
-        newY = y / 4;
+        newY = y / 6;
         break;
       case "TE":
         newY = y / 10;

@@ -30,30 +30,63 @@ function Field({ socket, room, name }) {
     distance,
     yardLine,
     roomId, 
-    selectedPlayerId ,
+    selectedPlayerId,
     isOffense, 
     setOutcome,
-    setYardLine,
     setDistance,
     setDown,
     setThrownBallLine,
-    preSnapPlayers, 
+    setCompletedYards, 
     setPreSnapPlayers,
     score,
-    otherScore
+    otherScore,
+    gameClockRef,
+    gameIntervalRef,
+    gameClock, 
+    setGameClock,
+    quarter, 
+    setQuarter,
+    setButtonEnabled, setSetButtonEnabled,
+    postSetCountdown, setPostSetCountdown,
+    isSetClicked, setIsSetClicked
   } = useAppContext();
 
   const { handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd } = useHandlerContext();
   const oneYardInPixels = fieldSize.height / 40;
-  const [gameClock, setGameClock] = useState(300000); // 5 minutes in ms
-  const [quarter, setQuarter] = useState(1);
-  const gameClockRef = useRef(gameClock);
-  const gameIntervalRef = useRef(null);
+  const lineOfScrimmageY = fieldSize.height / 2
 
   useEffect(() => {
     gameClockRef.current = gameClock;
   }, [gameClock]);
 
+  useEffect(() => {
+    setSetButtonEnabled(false);
+    setIsSetClicked(false);
+    setPostSetCountdown(null);
+
+    const delay = down === 1 ? 20000 : 10000; // ms
+    const timeout = setTimeout(() => {
+      setSetButtonEnabled(true);
+    }, delay);
+
+    return () => clearTimeout(timeout);
+  }, [down]);
+
+  useEffect(() => {
+    if (!isSetClicked || postSetCountdown === null) return;
+
+    const interval = setInterval(() => {
+      setPostSetCountdown(prev => {
+        if (prev <= 1000) {
+          clearInterval(interval);
+          return null;
+        }
+        return prev - 1000;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isSetClicked, postSetCountdown]);
 
   // Show offense inventory if player is currently on offense, else defense inventory
   const inventoryToShow = isOffense ? inventory.offense : inventory.defense;
@@ -75,6 +108,29 @@ function Field({ socket, room, name }) {
     offsetX = fieldSize.width / 15;
     offsetY = fieldSize.height / 10;
   }
+
+  const handleSetClick = () => {
+    setIsSetClicked(true);
+    setSetButtonEnabled(false);
+    setPostSetCountdown(10000); 
+    socket.emit("offense_set", { roomId }); 
+  };
+    
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleStopClock = () => {
+    if (gameIntervalRef.current) {
+      clearInterval(gameIntervalRef.current);
+      gameIntervalRef.current = null;
+      }
+  };
+    
+  socket.off("stop_clock", handleStopClock);
+  socket.on("stop_clock", handleStopClock);
+    
+  return () => socket.off("stop_clock", handleStopClock);
+  }, [socket]);
 
   const sackTimeRef = useRef(sackTimeRemaining);
 
@@ -135,8 +191,61 @@ function Field({ socket, room, name }) {
       room: roomId
     });
 
-    setRouteStarted(true);
+  const runRB = players.find(p => p.role === "RB" && p.route === "run");
+if (runRB) {
+  
+  setRouteStarted(true);
+  setThrownBallLine(null);
+  const angleDeg = runRB.runAngle ?? 90;
+  const angleRad = (angleDeg * Math.PI) / 180;
+  const boxHeight = oneYardInPixels * 9;
+  const boxTop = lineOfScrimmageY - oneYardInPixels * 6;
+  const boxBottom = boxTop + boxHeight;
+  const horizontalOffset = Math.sin(angleRad) * boxHeight;
+  const boxCenterX = runRB.position.x + horizontalOffset;
+  const boxLeft = boxCenterX - window.innerWidth * 0.15;
+  const boxRight = boxCenterX + window.innerWidth * 0.15;
+
+  console.log("📦 Tackle Box:");
+  console.log("  Top:", boxTop);
+  console.log("  Bottom:", boxBottom);
+  console.log("  Left:", boxLeft);
+  console.log("  Right:", boxRight);
+
+  const isOffenseInBox = (player) => {
+    const inBox = player.position.x >= boxLeft && player.position.x <= boxRight;
+    return inBox;
+  };
+
+  const isDefenseInBox = (player) => {
+    const inBox =
+      player.position.x >= boxLeft &&
+      player.position.x <= boxRight &&
+      player.position.y >= boxTop &&
+      player.position.y <= boxBottom;
+    return inBox;
+  };
+
+  const offensivePlayersInBox = players.filter((p) => p.isOffense && isOffenseInBox(p)).length - 2;
+  const defensivePlayersInBox = players.filter((p) => !p.isOffense && isDefenseInBox(p)).length;
+
+  const rbSpeed = runRB.speed ?? 5;
+  const rbStrength = runRB.strength ?? 5;
+  const pushFactor = 1;
+  const statBonus = rbSpeed * 0.02 + rbStrength * 0.03;
+
+  const rawYards = (offensivePlayersInBox - defensivePlayersInBox) * pushFactor + statBonus;
+  const yardsGained = Math.round(rawYards);
+  setCompletedYards(yardsGained); 
+
+  setTimeout(() => {
+      setOutcome(`${yardsGained} yard run`);
+    }, 1000 + (250 * yardsGained));
+  }
+
+  else{
     setThrownBallLine(null);
+    setRouteStarted(true);
 
     const interval = setInterval(() => {
       setRouteProgress((prev) => {
@@ -164,7 +273,7 @@ function Field({ socket, room, name }) {
     }, 100);
 
     socket.emit("route_started", { routeStarted: true, roomId });
-
+  }
     // Start or resume game clock
     if (!gameIntervalRef.current) {
       gameIntervalRef.current = setInterval(() => {
@@ -189,6 +298,7 @@ function Field({ socket, room, name }) {
         }
       }, 1000);
     }
+  
   }
     const outcomeRef = useRef(outcome);
     
@@ -241,6 +351,7 @@ function Field({ socket, room, name }) {
     case 2: return "2nd";
     case 3: return "3rd";
     case 4: return "4th";
+    case 5: setOutcome("Turnover on Downs");
   }
   }
 
@@ -255,9 +366,10 @@ function Field({ socket, room, name }) {
     }
 
     // Pause game clock
-      if (gameIntervalRef.current) {
+      if (gameIntervalRef.current && outcome !== "Sacked") {
         clearInterval(gameIntervalRef.current);
         gameIntervalRef.current = null;
+        socket.emit("stop_clock", { roomId });
       }
 
     setTimeout(()=>{
@@ -293,13 +405,12 @@ function Field({ socket, room, name }) {
       const isFiveYardLine = ((i % 5) - offset) === 0;
 
       // Calculate absolute yard number accounting for offset and base yardLine
-      const yardNumber = yardLine <= 50
-  ? yardLine - i + 20
-  : 100 -(yardLine + i + 20);
+     const yardNumber = yardLine - i + 20
+     const newYardNumber = yardNumber <= 50
+    ? yardLine - i + 20
+    : 100 -(yardLine - i + 20);
 
-      const isTenYardLine =yardNumber % 10 === 0;
-
-
+      const isTenYardLine = newYardNumber % 10 === 0 && newYardNumber !== 0;
 
       const lines = [];
 
@@ -377,43 +488,43 @@ function Field({ socket, room, name }) {
         );
       }
 
-      // If this is a 10-yard line, render the yard number labels on both sides
-      // if (isTenYardLine) {
-      //   lines.push(
-      //     <div
-      //       key={`yard-line-number-left-${i}`}
-      //       style={{
-      //         position: 'absolute',
-      //         top: `calc(${top}px - 2.3vh)`, // slightly above the line
-      //         left: '5px',
-      //         color: 'white',
-      //         fontSize: '150%',
-      //         fontWeight: 'bold',
-      //         userSelect: 'none',
-      //         rotate: '90deg',
-      //         zIndex: 2,
-      //       }}
-      //     >
-      //       {yardNumber}
-      //     </div>,
-      //     <div
-      //       key={`yard-line-number-right-${i}`}
-      //       style={{
-      //         position: 'absolute',
-      //         top: `calc(${top}px - 2.3vh)`,
-      //         right: '5px',
-      //         color: 'white',
-      //         fontSize: '150%',
-      //         fontWeight: 'bold',
-      //         userSelect: 'none',
-      //         rotate: '-90deg',
-      //         zIndex: 2,
-      //       }}
-      //     >
-      //       {yardNumber}
-      //     </div>
-      //   );
-      // }
+      //If this is a 10-yard line, render the yard number labels on both sides
+      if (isTenYardLine) {
+        lines.push(
+          <div
+            key={`yard-line-number-left-${i}`}
+            style={{
+              position: 'absolute',
+              top: `calc(${top}px - 2.5vh)`, // slightly above the line
+              left: '5px',
+              color: 'white',
+              fontSize: '150%',
+              fontWeight: 'bold',
+              userSelect: 'none',
+              rotate: '90deg',
+              zIndex: 2,
+            }}
+          >
+            {newYardNumber}
+          </div>,
+          <div
+            key={`yard-line-number-right-${i}`}
+            style={{
+              position: 'absolute',
+              top: `calc(${top}px - 2.5vh)`,
+              right: '5px',
+              color: 'white',
+              fontSize: '150%',
+              fontWeight: 'bold',
+              userSelect: 'none',
+              rotate: '-90deg',
+              zIndex: 2,
+            }}
+          >
+            {newYardNumber}
+          </div>
+        );
+      }
 
       return lines;
     });
@@ -442,7 +553,6 @@ function Field({ socket, room, name }) {
     }
   };
   }, []);
-
 
   return (
     <>
@@ -490,7 +600,27 @@ function Field({ socket, room, name }) {
       />
       <PlayerInventory className="player-inventory"players={inventoryToShow} type={inventoryType} socket={socket} />
     </div>
-    <button className={isOffense ? 'hike' : "hide"} onClick={() => startRoute()}>Hike!</button>
+    {isOffense && !isSetClicked && (
+      <button
+        className='set'
+        disabled={!setButtonEnabled}
+        onClick={handleSetClick}
+      >
+        {setButtonEnabled !== null && setButtonEnabled > 0
+          ? `Set (${Math.ceil(setButtonEnabled / 1000)})`
+          : "Set"}
+      </button>
+    )}
+
+    <button
+      className={isOffense && isSetClicked ? 'hike' : 'hide'}
+      disabled={postSetCountdown !== null}
+      onClick={startRoute}
+    >
+      {postSetCountdown !== null && postSetCountdown > 0
+        ? `Hike (${Math.ceil(postSetCountdown / 1000)})`
+        : "Hike!"}
+    </button>
     <h3 className='roomID'>{roomId}</h3>
     <div className='clock-display'>
       <div className='clock-box'>

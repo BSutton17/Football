@@ -31,6 +31,13 @@ export const Provider = ({ children }) => {
       const [offenseName, setOffenseName] = useState("TeamOne")
       const [defenseName, setDffenseName] = useState("TeamTwo")
       const [outcome, setOutcome] = useState("")
+      const [gameClock, setGameClock] = useState(300000); // 5 minutes in ms
+      const [quarter, setQuarter] = useState(1);
+      const gameClockRef = useRef(gameClock);
+      const gameIntervalRef = useRef(null);
+      const [setButtonEnabled, setSetButtonEnabled] = useState(false);
+      const [postSetCountdown, setPostSetCountdown] = useState(null); // 10s countdown after Set
+      const [isSetClicked, setIsSetClicked] = useState(false);
       const [thrownBallLine, setThrownBallLine] = useState(null);
       const [firstDownStartY, setFirstDownStartY] = useState(null); 
       const [preSnapPlayers, setPreSnapPlayers] = useState([]);
@@ -150,7 +157,14 @@ export const Provider = ({ children }) => {
         preSnapPlayers, setPreSnapPlayers,
         preSnapRef,
         score, setScore,
-        otherScore, setOtherScore
+        otherScore, setOtherScore,
+        gameClockRef,
+        gameIntervalRef,
+        gameClock, setGameClock,
+        quarter, setQuarter,
+        setButtonEnabled, setSetButtonEnabled,
+        postSetCountdown, setPostSetCountdown,
+        isSetClicked, setIsSetClicked
       }}>
       {children}
     </AppContext.Provider>

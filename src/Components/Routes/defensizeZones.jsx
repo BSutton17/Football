@@ -135,7 +135,7 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
       >
         Zone
       </button>
-
+      
       <button
         className="zone-btn"
         onClick={() => {
@@ -153,7 +153,19 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
                   return newTime;
                 });
 
-                return { ...p, isBlitzing: updatedBlitzing };
+                const updatedPlayer = {
+                  ...p,
+                  isBlitzing: updatedBlitzing,
+                };
+
+                // If starting blitz, clear zone and man assignments
+                if (updatedBlitzing) {
+                  updatedPlayer.zone = null;
+                  updatedPlayer.zoneCircle = null;
+                  updatedPlayer.assignedOffensiveId = null;
+                }
+
+                return updatedPlayer;
               }
               return p;
             });

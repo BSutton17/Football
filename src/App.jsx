@@ -48,6 +48,7 @@ function App() {
     const newRoom = Math.floor(Math.random() * (9999 - 1000 + 1) + 1000);
     const strRoom = String(newRoom);
     setRoomId(strRoom)
+    console.log(strRoom)
 
     // Simulate typing room ID character by character
     setRoom("");

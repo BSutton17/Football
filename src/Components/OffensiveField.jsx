@@ -3,14 +3,13 @@ import Player from './Player';
 import '../App.css';
 import { useAppContext } from '../Context/AppContext';
 import { useHandlerContext } from '../Context/HandlerContext';
-import { calculateAllOpenness } from '../Utils/calculator';
+import { calculateAllOpenness, calculateRunYardage } from '../Utils/calculator';
 import { getRoutePath, getRouteWaypoints } from '../Utils/routeUtils';
 import teamData  from '../Teams.json'
 import ReceiverRoutes from './Routes/receiverRoutes';
 import TightEndRoutes from './Routes/tightEndRoutes';
 import RunningBackRoutes from './Routes/runningBackRoutes';
 import EndZoneGraphics from './EndZoneGraphics'
-
 function OffensiveField({ offsetX, offsetY, socket }) {
   const {
     players,
@@ -36,9 +35,6 @@ function OffensiveField({ offsetX, offsetY, socket }) {
     yardLine,
     setRouteProgress,
     setOpeness,
-    setInventory,
-    offenseName, 
-    preSnapRef,
     setDown,
     setDistance,
     setYardLine,
@@ -250,26 +246,30 @@ useEffect(() => {
     }
   }, [fieldSize.height]);
 
-  const prevOutcomeRef = useRef(null);
+// Create a ref to keep track of the previous outcome value.
+// This helps prevent reacting to the same outcome multiple times.
+const prevOutcomeRef = useRef(null);
+useEffect(() => {
+  // If there is a new, non-empty outcome and it is different from the last one...
+  if (outcome && outcome !== prevOutcomeRef.current) {
+    // Update the ref so we don't re-trigger on this same outcome again
+    prevOutcomeRef.current = outcome;
 
-  useEffect(() => {
-    if (outcome && outcome !== prevOutcomeRef.current) {
-      prevOutcomeRef.current = outcome;
-
-    if (outcome === "Intercepted") {
+    // Check if the outcome is one that should cause a side switch
+    if (["Touchdown!", "Intercepted", "Turnover on Downs", "Safety"].includes(outcome)) {
+      console.log("[TOUCHDOWN OUTCOME EFFECT] Valid switch condition. Calling switchSides() in 3 seconds...");
+      
+      // Wait 3 seconds before executing the switchSides logic
       setTimeout(() => {
+        console.log("[TOUCHDOWN SWITCH SIDES] Executing switchSides with outcome:", outcome);
         switchSides(outcome, yardLine, fieldSize.height);
       }, 3000);
     }
-    else if (["Touchdown!", "Intercepted", "Turnover on Downs", "Safety"].includes(outcome)) {
-    console.log("[TOUCHDOWN wec OUTCOME EFFECT] Valid switch condition. Calling switchSides() in 3 seconds...");
-    setTimeout(() => {
-      console.log("[TOUCHDOWN wec SWITCH SIDES] Executing switchSides with outcome:", outcome);
-      switchSides(outcome, yardLine, fieldSize.height);
-    }, 3000);
-  }
+    else{
+      console.log("[TOUCHDOWN OUTCOME EFFECT] Outcome is not a switch condition. Not switching sides.");
     }
-  }, [outcome, yardLine]);
+  }
+}, [outcome, yardLine]);
 
   // reset
   const handleOutcomeResult = (outcomeValue, firstDownStartY) => {
@@ -451,8 +451,7 @@ useEffect(() => {
               fieldSize,
               p.position,
               p.route,
-              offsetX,
-              offsetY
+              p
             )
             let durations = [];
 
@@ -722,164 +721,222 @@ useEffect(() => {
       // Stop all offensive and defensive movement
       stopAllPlayerMovement()
       setTimeout(()=>{
-        if(firstDownStartY > 0)
-        handleOutcomeResult(outcome, firstDownStartY);
+      if(firstDownStartY > 0 && isOffense)
+      handleOutcomeResult(outcome, firstDownStartY);
       }, 3000)
       
       setTimeout(()=>{
           setRouteStarted(false);
       }, 100)
-
-      //socket.emit("route_started", { routeStarted: false, roomId });
     }
   }, [outcome, routeStarted]);
 
+  const runRouteExists = offensivePlayers.some(p => p.route === "run");
+
   return (
     <>
-      <EndZoneGraphics oneYardInPixels={oneYardInPixels} yardLine={yardLine}/>
-    <div
-      className={distance < 20 && yardLine < 90 ? "first-down" : "hide"}
-      style={{ top: `${firstDownStartY}px`, position: 'absolute' }}
-    ></div>
+      <EndZoneGraphics oneYardInPixels={oneYardInPixels} yardLine={yardLine} />
 
-    <div
-      className="line-of-scrimage"
-      style={{ top: `${lineOfScrimmageY}px`, position: 'absolute' }}
-    ></div>
-    <div className="half bottom-half"     
-      onDragOver={(e)=>handleDragOver(e)}
-      onDrop={(e) => handleDrop(e,fieldSize?.height)}
-    >
-      {offensivePlayers.map(player => {
-        const openness = opennessScores[player.id];
-        let color = 'yellow';
-        if (openness <= 3) color = 'lime';
-        else if (openness >= 8) color = 'red';
-        const readyToCatch = readyToCatchIds.has(player.id);
-        return (
-          <React.Fragment key={player.id}>
-            <Player
-              id={player.id}
-              position={player.position}
-              onMouseDown={isOffense ? (e) => handleMouseDown(e, player.id) : null}
-              onTouchStart={isOffense ? (e) => handleTouchStart(e, player) : null}
+      <div
+        className={distance < 20 && yardLine < 90 ? "first-down" : "hide"}
+        style={{ top: `${firstDownStartY}px`, position: 'absolute' }}
+      ></div>
 
-              isOffense={true}
-              bgColor={readyToCatch ? color : 'offense'}
-              openess={color}
-              routeStarted={routeStarted}
-              route={player.route}
-              role={player.role}
-            />
+      <div
+        className="line-of-scrimage"
+        style={{ top: `${lineOfScrimmageY}px`, position: 'absolute' }}
+      ></div>
 
-            {outcome !== "" && (() => {
-              
-              if(!thrownBallLine) return;
-              return (
-                <svg
-                  className="thrown-line-svg"
+      <div
+        className="half bottom-half"
+        onDragOver={(e) => handleDragOver(e)}
+        onDrop={(e) => handleDrop(e, fieldSize?.height)}
+      >
+        {offensivePlayers.map(player => {
+          const openness = opennessScores[player.id];
+          let color = 'yellow';
+          if (openness <= 3) color = 'lime';
+          else if (openness >= 8) color = 'red';
+          const readyToCatch = readyToCatchIds.has(player.id);
+
+          return (
+            <React.Fragment key={player.id}>
+              <Player
+                id={player.id}
+                position={player.position}
+                onMouseDown={isOffense ? (e) => handleMouseDown(e, player.id) : null}
+                onTouchStart={isOffense ? (e) => handleTouchStart(e, player.id) : null}
+                isOffense={true}
+                bgColor={readyToCatch ? color : 'offense'}
+                openess={color}
+                routeStarted={routeStarted}
+                route={player.route}
+                role={player.role}
+              />
+
+              {!routeStarted && isOffense && (player.role == "WR" || player.role == "TE" || player.role == "RB") && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `calc(${player.position.x}px - 1vw`,
+                    top: player.position.y + 10,
+                    color: 'white',
+                    fontSize: '75%',
+                    fontWeight: 'bold',
+                    userSelect: 'none',
+                    pointerEvents: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
                 >
-                  <line
-                    x1={fieldSize.width / 2}
-                    y1={fieldSize.height / 6}
-                    x2={thrownBallLine.x}
-                    y2={thrownBallLine.y}
-                    stroke="white"
+                  {player.role?.toUpperCase()}
+                </div>
+              )}
+
+              {outcome !== "" && (() => {
+                if (!thrownBallLine) return;
+                return (
+                  <svg className="thrown-line-svg">
+                    <line
+                      x1={fieldSize.width / 2}
+                      y1={fieldSize.height / 6}
+                      x2={thrownBallLine.x}
+                      y2={thrownBallLine.y}
+                      stroke="white"
+                      strokeWidth="5"
+                      strokeDasharray="6, 9"
+                    />
+                  </svg>
+                );
+              })()}
+
+              {isOffense && player.route && outcome == "" && !routeStarted && (
+                <svg className="route-svg">
+                  <defs>
+                    {/* Default yellow arrow */}
+                    <marker
+                      id="arrow-yellow"
+                      markerWidth="4"
+                      markerHeight="4"
+                      refX="2"
+                      refY="2"
+                      orient="auto"
+                      markerUnits="strokeWidth"
+                    >
+                      <path d="M0,0 L4,2 L0,4 Z" fill={
+                      runRouteExists
+                        ? player.route === "run"
+                          ? "red"
+                          : "gray"
+                        : "yellow"
+                    } />
+                    </marker>
+
+                    {/* Red arrow for run route */}
+                    <marker
+                      id="arrow-red"
+                      markerWidth="4"
+                      markerHeight="4"
+                      refX="2"
+                      refY="2"
+                      orient="auto"
+                      markerUnits="strokeWidth"
+                    >
+                      <path d="M0,0 L4,2 L0,4 Z" fill="red" />
+                    </marker>
+                  </defs>
+                  {player.route === "run" ? (
+                    <path
+                      d={(() => {
+                        const length = oneYardInPixels * 4;
+                        const angleDeg = player.runAngle ?? 60;
+                        const angleRad = angleDeg * (Math.PI / 180);
+                        const endX = player.position.x + Math.sin(angleRad) * length;
+                        const endY = player.position.y - Math.cos(angleRad) * length;
+                        return `M${player.position.x},${player.position.y} L${endX},${endY}`;
+                      })()}
+                      stroke="red"
+                      strokeWidth="5"
+                      fill="none"
+                      markerEnd="url(#arrow-red)"
+                    />
+                  ) : (
+                  <path
+                    d={getRoutePath(
+                      fieldSize,
+                      player.position.x,
+                      player.position.y,
+                      player.route,
+                      offsetX,
+                      offsetY
+                    )}
+                    stroke={
+                      runRouteExists
+                        ? player.route === "run"
+                          ? "red"
+                          : "gray"
+                        : "yellow"
+                    }
                     strokeWidth="5"
-                    strokeDasharray="6, 9"
+                    fill="none"
+                    markerEnd={
+                      runRouteExists
+                        ? player.route === "run"
+                          ? "url(#arrow-red)"
+                          : "url(#arrow-yellow)"
+                        : "url(#arrow-yellow)"
+                    }
+                  />
+                  )}
+                </svg>
+              )}
+
+              {player.isBlocking && (
+                <svg className="route-svg">
+                  <path
+                    d={getRoutePath(fieldSize, player.position.x, player.position.y, 'block', offsetX, offsetY)}
+                    stroke="gray"
+                    strokeWidth="4"
+                    fill="none"
                   />
                 </svg>
-              );
-            })()}
+              )}
 
-
-            {/* Show route only if ball not snapped yet */}
-            {isOffense && player.route && outcome == "" && !routeStarted && (
-              <svg className="route-svg">
-                <defs>
-                  <marker
-                    id="arrow"
-                    markerWidth="4"
-                    markerHeight="4"
-                    refX="2"
-                    refY="2"
-                    orient="auto"
-                    markerUnits="strokeWidth"
-                  >
-                    <path d="M0,0 L4,2 L0,4 Z" fill="yellow" />
-                  </marker>
-                </defs>
-
-                {/* Route outline */}
-                <path
-                  d={getRoutePath(
-                    fieldSize,
-                    player.position.x,
-                    player.position.y,
-                    player.route,
-                    offsetX,
-                    offsetY
-                  )}
-                  stroke="yellow"
-                  strokeWidth="5"
-                  fill="none"
-                  markerEnd="url(#arrow)"
+              {isOffense && selectedPlayerId === player.id && !routeStarted && player.role == "WR" && (
+                <ReceiverRoutes
+                  player={player}
+                  assignRoute={assignRoute}
+                  offsetX={offsetX}
+                  offsetY={offsetY}
+                  fieldSize={fieldSize}
                 />
-              </svg>
-            )}
-            {player.isBlocking && (
-              <svg className="route-svg">
-                <path
-                  d={getRoutePath(fieldSize, player.position.x, player.position.y, 'block', offsetX, offsetY)}
-                  stroke="gray"
-                  strokeWidth="4"
-                  fill="none"
+              )}
+
+              {isOffense && selectedPlayerId === player.id && !routeStarted && player.role == "TE" && (
+                <TightEndRoutes
+                  player={player}
+                  assignRoute={assignRoute}
+                  offsetX={offsetX}
+                  offsetY={offsetY}
+                  fieldSize={fieldSize}
                 />
-              </svg>
-            )}
+              )}
 
-            {/* Route assignment buttons */}
-            {isOffense && selectedPlayerId === player.id && !routeStarted && player.role == "WR" && (
-              <>
-              <ReceiverRoutes
-                player={player}
-                assignRoute={assignRoute}
-                offsetX={offsetX}
-                offsetY={offsetY}
-                fieldSize={fieldSize}
-              />
-              </>
-            )}
-
-            {isOffense && selectedPlayerId === player.id   && !routeStarted && player.role == "TE" && (
-              <>
-              <TightEndRoutes
-                player={player}
-                assignRoute={assignRoute}
-                offsetX={offsetX}
-                offsetY={offsetY}
-                fieldSize={fieldSize}
-              />
-              </>
-            )}
-
-            {isOffense && selectedPlayerId === player.id  && !routeStarted && player.role == "RB" && (
-              <>
-              <RunningBackRoutes
-                player={player}
-                assignRoute={assignRoute}
-                offsetX={offsetX}
-                offsetY={offsetY}
-                fieldSize={fieldSize}
-              />
-              </>
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
+              {isOffense && selectedPlayerId === player.id && !routeStarted && player.role == "RB" && (
+                <RunningBackRoutes
+                  player={player}
+                  assignRoute={assignRoute}
+                  offsetX={offsetX}
+                  offsetY={offsetY}
+                  fieldSize={fieldSize}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
     </>
   );
+
 }
 
 export default OffensiveField;

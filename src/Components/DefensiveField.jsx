@@ -1,5 +1,5 @@
 // DefensiveField.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useEffect, useRef } from 'react';
 import Player from './Player';
 import '../App.css';
@@ -43,11 +43,16 @@ function DefensiveField({ offsetX, offsetY, socket}) {
         roomId,
         preSnapRef,
         setThrownBallLine,
-        defenseName,
-        offenseName
+        gameClockRef,
+        gameIntervalRef,
+        gameClock, 
+        setGameClock,
+        quarter, 
+        setQuarter
     } = useAppContext();
 
     const { handleMouseDown, handleTouchStart, handleDragOver, handleDrop } = useHandlerContext();
+    const [defensiveMessage, setDefensiveMessage] = useState("")
     const aspectRatio = fieldSize.width / fieldSize.height;
     const height = fieldSize.height
     const width = fieldSize.width
@@ -82,6 +87,28 @@ function DefensiveField({ offsetX, offsetY, socket}) {
   // Handle route started event - replace or update all players with new route data
   const handleRouteStarted = (data) => {
     setRouteStarted(data)
+    if (!gameIntervalRef.current) {
+          gameIntervalRef.current = setInterval(() => {
+            gameClockRef.current -= 1000;
+            setGameClock(gameClockRef.current);
+    
+            if (gameClockRef.current <= 0) {
+              clearInterval(gameIntervalRef.current);
+              gameIntervalRef.current = null;
+    
+              setQuarter((prev) => {
+                if (prev < 4) {
+                  setGameClock(300000);
+                  gameClockRef.current = 300000;
+                  return prev + 1;
+                } else {
+                  setOutcome("Game Over");
+                  return prev;
+                }
+              });
+            }
+          }, 1000);
+        }
   };
 
   // Handle incremental player positions update for animation
@@ -152,6 +179,16 @@ socket.on("play_reset", (data) => {
   setYardLine(data.newYardLine);
   setFirstDownStartY(yardsToPixels(data.newFirstDownStartY, rect.height / 40));
 
+  if(data.outcome === "Touchdown!" || data.outcome === "Safety!" || data.outcome === "Turnover on Downs" || data.outcome === "Intercepted"){
+    setTimeout(() => {
+    preSnapRef.current = players.filter(p =>
+      p.role === 'qb' ||
+      p.role === 'offensive-lineman' ||
+      p.role === 'defensive-lineman'
+      )
+    }, 50);
+  }
+
   console.log("[DEFENSE] Play reset with update:", {
     yardLine: data.newYardLine,
     down: data.newDown,
@@ -182,12 +219,19 @@ socket.on("play_reset", (data) => {
 
   })
 
+  const handleOffenseSet = () => {
+    console.log("defensiveMessage: " + defensiveMessage)
+    setDefensiveMessage("10 seconds remaining");
+    setTimeout(() => setDefensiveMessage(""), 10000);
+  };
+
   const handleRemovePlayer = (playerId) => {
     setPlayers(prev => prev.filter(p => p.id !== playerId));
   };
 
     // Register listeners
   socket.on("player_removed", handleRemovePlayer);
+  socket.on("offense_set", handleOffenseSet);  
   socket.on('character_placed', handleCharacterPlaced);
   socket.on('route_started', handleRouteStarted);
   socket.on('player_positions_update', handlePlayerPositionsUpdate); // Use singular - must match server emit
@@ -197,6 +241,7 @@ socket.on("play_reset", (data) => {
   socket.on("sack_timer_update", handleSackTimerUpdate);
 
   return () => {
+    socket.off("offense_set", handleOffenseSet)
     socket.off('character_placed', handleCharacterPlaced);
     socket.off('route_started', handleRouteStarted);
     socket.off('player_positions_update', handlePlayerPositionsUpdate);
@@ -213,28 +258,37 @@ socket.on("play_reset", (data) => {
   }
 
     //route starts
-  useEffect(() => {
-    if (!routeStarted) return;
-    
-    const now = performance.now();
+useEffect(() => {
+  if (!routeStarted) return;
 
-    setPlayers(prevPlayers =>
-      prevPlayers.map(p => {
-        if (p.zone === 'man' && p.assignedOffensiveId) {
-          const target = prevPlayers.find(op => op.id === p.assignedOffensiveId);
-          if (target) {
-            const dx = target.position.x - p.position.x;
-            const dy = target.position.y - p.position.y;
-            const distance = Math.hypot(dx, dy);
-          } else {
+  const moveSpeed = 2; // pixels per update (tweak as needed)
+
+  setPlayers(prevPlayers =>
+    prevPlayers.map(p => {
+      if (p.zone === 'man' && p.assignedOffensiveId) {
+        const target = prevPlayers.find(op => op.id === p.assignedOffensiveId);
+        if (target) {
+          const dx = target.position.x - p.position.x;
+          const dy = target.position.y - p.position.y;
+          const distance = Math.hypot(dx, dy);
+
+          if (distance > 1) {
+            const ratio = moveSpeed / distance;
+            return {
+              ...p,
+              position: {
+                x: p.position.x + dx * ratio,
+                y: p.position.y + dy * ratio,
+              }
+            };
           }
         }
+      }
 
-        return p;
-      })
-    );
-  }, [routeStarted, setPlayers]);
-
+      return p;
+    })
+  );
+}, [routeStarted, setPlayers]);
 
     useEffect(() => {
       const timer = setTimeout(() => {
@@ -450,6 +504,7 @@ socket.on("play_reset", (data) => {
       onDragOver={(e)=>handleDragOver(e)}
       onDrop={(e) => handleDrop(e, fieldSize?.height)}
     >
+      <div className="defense-alert">{defensiveMessage}</div>
       {players.filter(p => p.isOffense === false).map((player) => (
         <React.Fragment key={player.id}>
             <Player
@@ -462,6 +517,26 @@ socket.on("play_reset", (data) => {
             role={player.role}
             fieldSize={fieldSize}
             />
+
+            {/* Position label BELOW the circle */}
+            {!routeStarted && !isOffense && (player.role == "LB" || player.role == "S" || player.role == "CB") && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `calc(${player.position.x}px - 1vw`,
+                    top: player.position.y + 10,
+                    color: 'white',
+                    fontSize: '75%',
+                    fontWeight: 'bold',
+                    userSelect: 'none',
+                    pointerEvents: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {player.role?.toUpperCase()}
+                </div>
+              )
+            }
 
             {/* Draw line to assigned offensive player in man coverage */}
             {!isOffense && player.zone === 'man' &&

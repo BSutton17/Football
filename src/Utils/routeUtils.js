@@ -1,6 +1,6 @@
 // routeUtils.js
 
-  export function getRouteWaypoints(fieldSize, startPos, route) {
+  export function getRouteWaypoints(fieldSize, startPos, route, player) {
     const direction = fieldSize.width / 2;
     const centerX = fieldSize.width;
     const forwardDist = fieldSize.height / 4;
@@ -163,6 +163,21 @@
           { x: startPos.x > direction ? (centerX / 2) * 1.75 : centerX / 12, y: startPos.y - (forwardDist / 1.2) },
           { x: startPos.x > direction ? (centerX / 2) * 1.75 : centerX / 12, y: startPos.y - (forwardDist / 1.2) - (fieldSize.height / 2) },
         ];
+        case "run": {
+          const angleDeg = player.runAngle ?? 90; 
+          const angleRad = (angleDeg * Math.PI) / 180;
+
+          const runDistance = fieldSize.height / 4; 
+          const dx = Math.sin(angleRad) * runDistance;
+          const dy = Math.cos(angleRad) * runDistance;
+
+          const targetX = startPos.x + dx;
+          const targetY = startPos.y - dy;
+          console.log(`Run target: (${targetX}, ${targetY})`);
+
+          return [{ x: targetX, y: targetY }];
+        }
+
 
       default:
         return [startPos];
@@ -303,6 +318,12 @@
          const thirdx = x > direction ? (centerX / 2) * 1.75 : centerX / 12
          const thirdy = y - (forwardDist / 1.2) * 2.5 
           return `M${x},${startY} L${firstx},${firsty} L${secondx},${secondy} L${thirdx},${thirdy}`
+      }
+
+      case "run" :{
+        const endY = y - offsetY - 10;
+        const interpY = startY + (endY - startY) * pct;
+        return `M${startX},${startY} L${startX},${interpY}`;
       }
       default:
         

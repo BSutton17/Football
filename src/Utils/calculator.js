@@ -284,3 +284,34 @@ function getRandomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
+export function calculateRunYardage({ runRB, offensivePlayers, defensivePlayers, lineOfScrimmageY, oneYardInPixels }) {
+  const angleDeg = runRB.runAngle ?? 90;
+  const angleRad = angleDeg * (Math.PI / 180);
+  const boxHeight = oneYardInPixels * 8;
+  const boxTop = lineOfScrimmageY - oneYardInPixels * 6;
+  const boxBottom = boxTop + boxHeight;
+
+  const horizontalOffset = Math.sin(angleRad) * boxHeight;
+  const boxCenterX = runRB.position.x + horizontalOffset;
+  const boxLeft = boxCenterX - window.innerWidth * 0.15;
+  const boxRight = boxCenterX + window.innerWidth * 0.15;
+
+  const isInBox = (player) =>
+    player.position.y >= boxTop &&
+    player.position.y <= boxBottom &&
+    player.position.x >= boxLeft &&
+    player.position.x <= boxRight;
+
+  const offenseInBox = offensivePlayers.filter(p => isInBox(p)).length;
+  const defenseInBox = defensivePlayers.filter(p => isInBox(p)).length;
+
+  const baseYards = 2;
+  const pushFactor = 1;
+  const rbSpeed = runRB.speed ?? 5;
+  const rbStrength = runRB.strength ?? 5;
+  const statBonus = rbSpeed * 0.2 + rbStrength * 0.3;
+
+  const yards = baseYards + (offenseInBox - defenseInBox) * pushFactor + statBonus;
+
+  return Math.max(0, Math.min(20, Math.round(yards)));
+}

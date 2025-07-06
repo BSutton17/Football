@@ -8,8 +8,8 @@
       { "id": "O-1WR4", "role": "WR", "speed": 89, "routeRunning": 85 },
       { "id": "O-1TE1", "role": "TE", "speed": 75, "routeRunning": 77, "blocking": 88, "isBlocking": false },
       { "id": "O-1TE2", "role": "TE", "speed": 74, "routeRunning": 78, "blocking": 85, "isBlocking": false },
-      { "id": "O-1RB1", "role": "RB", "speed": 85, "routeRunning": 82, "blocking": 79, "isBlocking": false },
-      { "id": "O-1RB2", "role": "RB", "speed": 83, "routeRunning": 80, "blocking": 76, "isBlocking": false }
+      { "id": "O-1RB1", "role": "RB", "strength": 85, "speed": 85, "routeRunning": 82, "blocking": 79, "isBlocking": false },
+      { "id": "O-1RB2", "role": "RB", "strength": 91, "speed": 83, "routeRunning": 80, "blocking": 76, "isBlocking": false }
     ],
     "defensivePlayers": [
       { "id": "D-1CB1", "role": "CB", "speed": 93, "reactionTime": 88, "blitzing": 72, "isBlitzing": false },
@@ -35,8 +35,8 @@
       { "id": "O-2WR4", "role": "WR", "speed": 86, "routeRunning": 87 },
       { "id": "O-2TE1", "role": "TE", "speed": 76, "routeRunning": 79, "blocking": 87, "isBlocking": false },
       { "id": "O-2TE2", "role": "TE", "speed": 74, "routeRunning": 77, "blocking": 84, "isBlocking": false },
-      { "id": "O-2RB1", "role": "RB", "speed": 84, "routeRunning": 81, "blocking": 78, "isBlocking": false },
-      { "id": "O-2RB2", "role": "RB", "speed": 82, "routeRunning": 79, "blocking": 75, "isBlocking": false }
+      { "id": "O-2RB1", "role": "RB", "strength": 85, "speed": 84, "routeRunning": 81, "blocking": 78, "isBlocking": false },
+      { "id": "O-2RB2", "role": "RB", "strength": 91, "speed": 82, "routeRunning": 79, "blocking": 75, "isBlocking": false }
     ],
     "defensivePlayers": [
       { "id": "D-2CB1", "role": "CB", "speed": 90, "reactionTime": 95, "blitzing": 75, "isBlitzing": false },
@@ -62,8 +62,8 @@
       { "id": "O3WR4", "role": "WR", "speed": 86, "routeRunning": 87 },
       { "id": "O3TE1", "role": "TE", "speed": 75, "routeRunning": 80, "blocking": 89, "isBlocking": false },
       { "id": "O3TE2", "role": "TE", "speed": 73, "routeRunning": 78, "blocking": 86, "isBlocking": false },
-      { "id": "O3RB1", "role": "RB", "speed": 83, "routeRunning": 82, "blocking": 77, "isBlocking": false },
-      { "id": "O3RB2", "role": "RB", "speed": 81, "routeRunning": 79, "blocking": 74, "isBlocking": false }
+      { "id": "O3RB1", "role": "RB", "strength": 85, "speed": 83, "routeRunning": 82, "blocking": 77, "isBlocking": false },
+      { "id": "O3RB2", "role": "RB", "strength": 90, "speed": 81, "routeRunning": 79, "blocking": 74, "isBlocking": false }
     ],
     "defensivePlayers": [
       { "id": "D-3CB1", "role": "CB", "speed": 92, "reactionTime": 87, "blitzing": 73, "isBlitzing": false },
