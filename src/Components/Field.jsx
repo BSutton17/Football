@@ -52,6 +52,7 @@ function Field({ socket, room, name }) {
   } = useAppContext();
 
   const { handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd } = useHandlerContext();
+  const [isRunPlay, setIsRunPlay] = useState(false)
   const oneYardInPixels = fieldSize.height / 40;
   const lineOfScrimmageY = fieldSize.height / 2
 
@@ -192,6 +193,7 @@ function Field({ socket, room, name }) {
     });
 
   const runRB = players.find(p => p.role === "RB" && p.route === "run");
+  setIsRunPlay(runRB)
 if (runRB) {
   
   setRouteStarted(true);
@@ -570,7 +572,7 @@ if (runRB) {
       </div>
     </div>
     <div className='result'>
-    {routeStarted && liveCountdown !== null && (
+    {routeStarted && liveCountdown !== null && !isRunPlay &&(
       <div className="countdown-timer">
         <span style={{ color: displayDangerLevel() }}>{(liveCountdown / 1000).toFixed(2)}</span>
       </div>
