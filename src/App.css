@@ -230,11 +230,11 @@ body {
 .more-routes{
   position: fixed;
   bottom: 0;
-  left: 0;
+  right: 0;
   margin-bottom: 5vh;
-  margin-left: 2.5vw;
-  width: 20vw;
-  height: 5vh;
+  margin-right: 2.5vw;
+  width: 30vw;
+  height: 7.5vh;
   font-size: 100%;
   background-color: rgba(179, 10, 179, 0.702);
   color: white;
