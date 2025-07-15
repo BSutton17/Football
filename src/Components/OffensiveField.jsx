@@ -47,14 +47,21 @@ function OffensiveField({ offsetX, offsetY, socket }) {
     switchSides,
     roomId,
     currentYards, 
-    setPreSnapPlayers,
+    isRunPlay,
     firstDownStartY, 
     setFirstDownStartY,
     thrownBallLine, 
-    fieldRef
+    fieldRef,
+    moreRoutes, 
+    setMoreRoutes,
+    isGoalToGo, 
+    setIsGoalToGo
   } = useAppContext();
 
   const { handleMouseDown, handleTouchStart, handleDragOver, handleDrop } = useHandlerContext();
+  const [showThrowAwayButton, setShowThrowAwayButton] = useState(false);
+const [throwAwayPosition, setThrowAwayPosition] = useState({ top: 0, left: 0 });
+
 
   // Refs
   const animationFrameId = useRef(null);
@@ -285,7 +292,6 @@ useEffect(() => {
     let newDown = down;
     let newDistance = distance;
     let negativeYards = 0;
-    let newTotalYards;
     let newFirstDownStartY = firstDownStartY ?? (fieldSize.height / 4); 
     console.log(firstDownStartY)
 
@@ -309,7 +315,7 @@ useEffect(() => {
         setDown(newDown);
       }
       else if (outcome === "Sacked") {
-        negativeYards = Math.floor(Math.random() * (10 - 5)) + 5;
+        negativeYards = Math.floor(Math.random() * (8 - 5)) + 5;
         newYardLine = yardLine - negativeYards;
         setYardLine(newYardLine);
         newFirstDownStartY = firstDownStartY - yardsToPixels(negativeYards)
@@ -346,6 +352,7 @@ useEffect(() => {
         newDown = down + 1
         setDown(newDown);
       }
+
     
     // Reset state
     //setCurrentYards(newTotalYards || 0);
@@ -357,7 +364,9 @@ useEffect(() => {
     setPaused(false);
     setSackTimeRemaining(0);
     setLiveCountdown(null);
+    setShowThrowAwayButton(false)
     setRouteStarted(false);
+
     if(outcome !== "Intercepted") {
       setPlayers(preSnapPlayers); 
     }
@@ -698,7 +707,7 @@ useEffect(() => {
 
   sackTimerRef.current = setTimeout(() => {
     console.log("Outcome as far as timer is concered: " + outcome.current)
-    if (outcomeRef.current === "") {
+    if (outcomeRef.current === "" && !runRouteExists) {
       console.log("Sacked in offensiveField")
       setRouteStarted(false);
       socket.emit("route_started", { routeStarted: false, roomId });
@@ -729,9 +738,36 @@ useEffect(() => {
           setRouteStarted(false);
       }, 100)
     }
-  }, [outcome, routeStarted]);
+  }, [outcome, routeStarted, down]);
 
   const runRouteExists = offensivePlayers.some(p => p.route === "run");
+  useEffect(() => {
+  if (!routeStarted || outcomeRef.current !== "" || showThrowAwayButton) return;
+
+  // Show throw away if <= 1 second left
+  if (liveCountdown <= 1000 && liveCountdown > 0) {
+    const randTop = Math.random() * 80 + 10; 
+    const randLeft = Math.random() * 80 + 10;  
+    const delay = Math.random() * (500 - 50) + 50;
+    setThrowAwayPosition({ top: `${randTop}%`, left: `${randLeft}%` });
+    setTimeout(()=>{
+      setShowThrowAwayButton(true);
+    }, delay)
+  } else {
+    setShowThrowAwayButton(false);
+  }
+
+}, [liveCountdown, routeStarted]);
+
+  const handleThrowAway = () => {
+  setShowThrowAwayButton(false);
+  setOutcome("Thrown Away");
+  socket.emit("play_outcome", {
+    outcome: "Thrown Away",
+    yardLine,
+    roomId,
+  });
+};
 
   return (
     <>
@@ -752,6 +788,26 @@ useEffect(() => {
         onDragOver={(e) => handleDragOver(e)}
         onDrop={(e) => handleDrop(e, fieldSize?.height)}
       >
+        {showThrowAwayButton && !isRunPlay && (
+        <button
+          style={{
+            position: 'absolute',
+            top: throwAwayPosition.top,
+            left: throwAwayPosition.left,
+            zIndex: 1000,
+            backgroundColor: 'orange',
+            color: 'black',
+            padding: '10px',
+            fontWeight: 'bold',
+            borderRadius: '8px',
+            border: '2px solid white',
+          }}
+          onClick={handleThrowAway}
+        >
+          THROW AWAY!
+        </button>
+      )}
+
         {offensivePlayers.map(player => {
           const openness = opennessScores[player.id];
           let color = 'yellow';
@@ -902,23 +958,32 @@ useEffect(() => {
               )}
 
               {isOffense && selectedPlayerId === player.id && !routeStarted && player.role == "WR" && (
+                <>
                 <ReceiverRoutes
                   player={player}
                   assignRoute={assignRoute}
                   offsetX={offsetX}
                   offsetY={offsetY}
                   fieldSize={fieldSize}
+                  moreRoutes={moreRoutes}
                 />
+               <button className='more-routes' onClick={() => setMoreRoutes(!moreRoutes)}>More Routes</button>
+                </>
+                
               )}
 
               {isOffense && selectedPlayerId === player.id && !routeStarted && player.role == "TE" && (
+                <>
                 <TightEndRoutes
                   player={player}
                   assignRoute={assignRoute}
                   offsetX={offsetX}
                   offsetY={offsetY}
                   fieldSize={fieldSize}
+                  moreRoutes={moreRoutes}
                 />
+                <button className='more-routes' onClick={() => setMoreRoutes(!moreRoutes)}>More Routes</button>
+                </>
               )}
 
               {isOffense && selectedPlayerId === player.id && !routeStarted && player.role == "RB" && (

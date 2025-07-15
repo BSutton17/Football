@@ -131,6 +131,7 @@ export const HandlerProvider = ({ children }) => {
   }
 
   const handleMouseDown = (e, id) => {
+    console.log("can clikc: " + !isSetClicked)
     if (isOffense && isSetClicked) return; // disable drag
     e.preventDefault();
     setDraggingId(id);

@@ -3,6 +3,7 @@ import './App.css';
 import io from "socket.io-client";
 import Field from './Components/Field';
 import { useAppContext } from './Context/AppContext';
+import Kickoff from './Kicking/kickoff'
 
 const socket = io.connect("https://football-server-63f55d8fa79f.herokuapp.com/")
 //const socket = io.connect("http://localhost:3001/");
@@ -80,7 +81,7 @@ function App() {
       ) : (
         <div>
           <Field socket={socket} room={room} />
-          {/* <button onClick={logout}>Leave Game</button> */}
+          {/* <Kickoff /> */}
         </div>
       )}
     </div>

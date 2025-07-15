@@ -68,6 +68,106 @@
             y: startPos.y - forwardDist,
           },
         ];
+      case "speed out":
+      return [
+        {
+          x: startPos.x - 1,
+          y: startPos.y,
+        },
+        {
+          x: startPos.x > direction ? centerX : 0,
+          y: startPos.y - forwardDist / 5,
+        },
+      ];
+
+    case "Double Move":
+      return [
+        {
+          x: startPos.x,
+          y: startPos.y - forwardDist / 2,
+        },
+        {
+          x: startPos.x < direction
+            ? startPos.x + centerX / 20
+            : startPos.x - centerX / 20,
+          y: startPos.y - forwardDist / 2,
+        },
+        {
+          x: startPos.x < direction
+            ? startPos.x + centerX / 20
+            : startPos.x - centerX / 20,
+          y: startPos.y - forwardDist / 2 - fieldSize.height / 2,
+        },
+      ];
+
+    case "Deep Cross":
+      return [
+        {
+          x: startPos.x,
+          y: startPos.y - forwardDist / 1.5,
+        },
+        {
+            x: startPos.x < direction
+            ? startPos.x + centerX / 10
+            : startPos.x - centerX / 10,
+          y: startPos.y - forwardDist / 2,
+          },
+        {
+          x: startPos.x < direction ? centerX : 0, y: startPos.y - forwardDist
+        },
+      ];
+
+    case "drag":
+      return [
+        {
+          x: startPos.x < direction
+            ? startPos.x + centerX / 64
+            : startPos.x - centerX / 64,
+          y: startPos.y - forwardDist / 3.5,
+        },
+        {
+          x: startPos.x < direction ? centerX  : 0,
+          y: startPos.y - forwardDist / 3.5,
+        },
+      ];
+
+    case "return":
+      return [
+        {
+          x: startPos.x - 1,
+          y: startPos.y,
+        },
+        {
+          x: startPos.x > direction
+            ? startPos.x + centerX / 24
+            : startPos.x - centerX / 24,
+          y: startPos.y - forwardDist / 2.5,
+        },
+        {
+          x: startPos.x < direction ? centerX  : 0,
+          y: startPos.y - forwardDist / 2.5,
+        },
+      ];
+
+    case "fade":
+      return [{x: startPos.x > direction ? startPos.x + 50 : startPos.x - 50, y: startPos.y - fieldSize.height / 2 }];
+    case "zig":
+      return [
+        {
+          x: startPos.x - 1,
+          y: startPos.y,
+        },
+        {
+          x: startPos.x < direction
+            ? startPos.x + centerX / 16
+            : startPos.x - centerX / 16,
+          y: startPos.y - forwardDist / 3.5,
+        },
+        {
+          x: startPos.x > direction ? centerX  : 0,
+          y: startPos.y - forwardDist / 2.5,
+        },
+      ];
 
       // TE routes
       case "shallow":
@@ -247,6 +347,60 @@
         const horizontalX = x < direction ? x - 75 : x + 75;
         return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY}`;
       }
+      case "speed out": {
+      const shortY = y - forwardDist / 5;
+      const horizontalX = x < direction ? x -75 : x +75;
+      return `M${x},${startY + 6} L${horizontalX},${shortY}`;
+    }
+
+    case "Double Move": {
+      const firstY = y - forwardDist / 2;
+      const cutX = x < direction ? x + 25 : x - 25;
+      const secondY = firstY - 100;
+      return `M${x},${startY} L${x},${firstY} L${cutX},${firstY} L${cutX},${secondY}`;
+    }
+
+    case "Deep Cross": {
+      const forwardY = y - forwardDist / 1.5;
+      const horizontalX = x > direction ? x - 50 : x + 50;
+      const horizontalXTwo = x > direction ? x - 150 : x + 150;
+      return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY - 50} L${horizontalXTwo},${forwardY - 50}`;
+    }
+
+    case "drag": {
+      const forwardY = y - forwardDist / 3.5;
+      const horizontalX = x < direction ? x + 10 : x - 10;
+      const horizontalXCross = x < direction ? x + 100 : x - 100;
+      return `M${x},${startY} L${horizontalX},${forwardY} L${horizontalXCross},${forwardY}`;
+    }
+
+    case "return": {
+      const forwardY = y - forwardDist / 2.5;
+      const horizontalX = x > direction ? x + 25 : x - 25;
+      const horizontalXCross = x < direction ? x + 125 : x - 125;
+      return `M${x},${startY + 6} L${horizontalX},${forwardY} L${horizontalXCross},${forwardY}`;
+    }
+
+    case "fade": {
+      const firstY = y - forwardDist / 6;
+      const horizontalX = x > direction ? x + 10 : x - 10;
+      const horizontalXTwo = x > direction ? x + 25 : x - 25;
+      const secondY = firstY - 150;
+      return `M${x},${startY} L${horizontalX},${firstY} L${horizontalXTwo},${secondY}`;
+    }
+
+    case "flat": {
+      const forwardY = y - forwardDist / 2;
+      const horizontalX = x < direction ? x - 75 : x + 75;
+      return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY}`;
+    }
+
+    case "zig": {
+      const forwardY = y - forwardDist / 3.5;
+      const horizontalX = x < direction ? x + 45 : x - 45;
+      const horizontalXCross = x > direction ? x + 70 : x - 70;
+      return `M${x},${startY + 6} L${horizontalX},${forwardY} L${horizontalXCross},${forwardY}`;
+    }
 
       //TE
       case "shallow": {

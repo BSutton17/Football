@@ -135,7 +135,7 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
       >
         Zone
       </button>
-      
+
       <button
         className="zone-btn"
         onClick={() => {

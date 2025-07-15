@@ -180,13 +180,7 @@ socket.on("play_reset", (data) => {
   setFirstDownStartY(yardsToPixels(data.newFirstDownStartY, rect.height / 40));
 
   if(data.outcome === "Touchdown!" || data.outcome === "Safety!" || data.outcome === "Turnover on Downs" || data.outcome === "Intercepted"){
-    setTimeout(() => {
-    preSnapRef.current = players.filter(p =>
-      p.role === 'qb' ||
-      p.role === 'offensive-lineman' ||
-      p.role === 'defensive-lineman'
-      )
-    }, 50);
+    setPlayers([])
   }
 
   console.log("[DEFENSE] Play reset with update:", {
@@ -199,7 +193,7 @@ socket.on("play_reset", (data) => {
 
   socket.on("ball_thrown", (normalizedX, normalizedY) =>{
     const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
-    console.log("receiver in defense: " + normalizedX, normalizedY)
+    if(outcome !== "Sacked")
     setThrownBallLine({ x: normalizedX * rect.width, y: normalizedY * rect.height })
   })
 
@@ -221,7 +215,7 @@ socket.on("play_reset", (data) => {
 
   const handleOffenseSet = () => {
     console.log("defensiveMessage: " + defensiveMessage)
-    setDefensiveMessage("10 seconds remaining");
+    setDefensiveMessage("Offense is Set");
     setTimeout(() => setDefensiveMessage(""), 10000);
   };
 

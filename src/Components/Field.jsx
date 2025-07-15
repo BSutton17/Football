@@ -48,11 +48,12 @@ function Field({ socket, room, name }) {
     setQuarter,
     setButtonEnabled, setSetButtonEnabled,
     postSetCountdown, setPostSetCountdown,
-    isSetClicked, setIsSetClicked
+    isSetClicked, setIsSetClicked,
+    isGoalToGo, 
+    isRunPlay, setIsRunPlay
   } = useAppContext();
 
   const { handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd } = useHandlerContext();
-  const [isRunPlay, setIsRunPlay] = useState(false)
   const oneYardInPixels = fieldSize.height / 40;
   const lineOfScrimmageY = fieldSize.height / 2
 
@@ -64,14 +65,13 @@ function Field({ socket, room, name }) {
     setSetButtonEnabled(false);
     setIsSetClicked(false);
     setPostSetCountdown(null);
-
-    const delay = down === 1 ? 20000 : 10000; // ms
+    const delay = down === 1 ? 10000 : 0; // ms
     const timeout = setTimeout(() => {
       setSetButtonEnabled(true);
     }, delay);
 
     return () => clearTimeout(timeout);
-  }, [down]);
+  }, [down, yardLine]);
 
   useEffect(() => {
     if (!isSetClicked || postSetCountdown === null) return;
@@ -115,7 +115,15 @@ function Field({ socket, room, name }) {
     setSetButtonEnabled(false);
     setPostSetCountdown(10000); 
     socket.emit("offense_set", { roomId }); 
+
+    // ✅ Stop game clock
+    if (gameIntervalRef.current) {
+      clearInterval(gameIntervalRef.current);
+      gameIntervalRef.current = null;
+      socket.emit("stop_clock", { roomId });
+    }
   };
+
     
   useEffect(() => {
     if (!socket) return;
@@ -195,9 +203,6 @@ function Field({ socket, room, name }) {
   const runRB = players.find(p => p.role === "RB" && p.route === "run");
   setIsRunPlay(runRB)
 if (runRB) {
-  
-  setRouteStarted(true);
-  setThrownBallLine(null);
   const angleDeg = runRB.runAngle ?? 90;
   const angleRad = (angleDeg * Math.PI) / 180;
   const boxHeight = oneYardInPixels * 9;
@@ -233,19 +238,23 @@ if (runRB) {
 
   const rbSpeed = runRB.speed ?? 5;
   const rbStrength = runRB.strength ?? 5;
-  const pushFactor = 1;
-  const statBonus = rbSpeed * 0.02 + rbStrength * 0.03;
+  const pushFactor = 3;
+  const statBonus = (rbSpeed * 0.02 + rbStrength * 0.03) + getRandomInt(-1, 1);
 
-  const rawYards = (offensivePlayersInBox - defensivePlayersInBox) * pushFactor + statBonus;
+  const rawYards = (((offensivePlayersInBox - defensivePlayersInBox) * pushFactor) + statBonus) + getRandomInt(-2, 2);
+  console.log("Raw Yards Gained: " + rawYards);
   const yardsGained = Math.round(rawYards);
   setCompletedYards(yardsGained); 
 
   setTimeout(() => {
+    if(yardsGained > 100 - yardLine){
+      setOutcome("Touchdown!");
+    }
+    else { 
       setOutcome(`${yardsGained} yard run`);
+    }
     }, 1000 + (250 * yardsGained));
   }
-
-  else{
     setThrownBallLine(null);
     setRouteStarted(true);
 
@@ -275,7 +284,6 @@ if (runRB) {
     }, 100);
 
     socket.emit("route_started", { routeStarted: true, roomId });
-  }
     // Start or resume game clock
     if (!gameIntervalRef.current) {
       gameIntervalRef.current = setInterval(() => {
@@ -302,6 +310,11 @@ if (runRB) {
     }
   
   }
+  function getRandomInt(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min + 1) + min);
+}
     const outcomeRef = useRef(outcome);
     
     // Keep the ref updated with the latest outcome
@@ -353,34 +366,34 @@ if (runRB) {
     case 2: return "2nd";
     case 3: return "3rd";
     case 4: return "4th";
-    case 5: setOutcome("Turnover on Downs");
+    default:
+        setOutcome("Turnover on Downs");
   }
   }
 
   const handleEndOfPlay = () => {
-    if (outcome === "Sacked") {
-      if (down < 4) {
-          setDown(prev => prev + 1);
-      } else {
-        setOutcome("Turnover on Downs");
-        setDown(1); 
-      }
+
+    // STOP CLOCK unless it's a run, sack, or catch
+    const shouldStopClock = !(
+      outcome === "Sacked" ||
+      outcome.endsWith("yard run") ||
+      outcome.endsWith("yard catch")
+    );
+
+    if (gameIntervalRef.current && shouldStopClock) {
+      clearInterval(gameIntervalRef.current);
+      gameIntervalRef.current = null;
+      socket.emit("stop_clock", { roomId });
     }
 
-    // Pause game clock
-      if (gameIntervalRef.current && outcome !== "Sacked") {
-        clearInterval(gameIntervalRef.current);
-        gameIntervalRef.current = null;
-        socket.emit("stop_clock", { roomId });
-      }
+    setTimeout(() => {
+      setOutcome("");
+    }, 3000);
+  };
 
-    setTimeout(()=>{
-      setOutcome("")
-    }, 3000)
-  }
   
   useEffect(() => {
-    if (outcome === "Sacked" || outcome === "Dropped" || outcome === "Broken Up") {
+    if (outcome === "Sacked" || outcome === "Dropped" || outcome === "Broken Up" || outcome === "Thrown Away") {
       handleEndOfPlay();
     }
     if(outcome === "Touchdown!"){
@@ -390,14 +403,8 @@ if (runRB) {
     }
   }, [outcome]);
 
-
-  function formatDistance(distance){
-    if(yardLine >= 90){
-      return "goal"
-    }
-    else{
-      return distance
-    }
+  function formatDistance(distance) {
+    return isGoalToGo ? "goal" : distance;
   }
 
   function renderYardLines() {
@@ -608,9 +615,7 @@ if (runRB) {
         disabled={!setButtonEnabled}
         onClick={handleSetClick}
       >
-        {setButtonEnabled !== null && setButtonEnabled > 0
-          ? `Set (${Math.ceil(setButtonEnabled / 1000)})`
-          : "Set"}
+        Set!
       </button>
     )}
 

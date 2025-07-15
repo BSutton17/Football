@@ -9,7 +9,8 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
     isOffense,
     setPlayers,
     socket,
-    roomId
+    roomId,
+    isSetClicked
   } = useAppContext();
 
   const handleRouteClick = (route) => {
@@ -192,7 +193,7 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
         
       )}
 
-      {player.route === "run" && (
+      {player.route === "run" && !isSetClicked && (
         <div
           style={{
             position: "absolute",

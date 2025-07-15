@@ -35,6 +35,7 @@ export const Provider = ({ children }) => {
       const [quarter, setQuarter] = useState(1);
       const gameClockRef = useRef(gameClock);
       const gameIntervalRef = useRef(null);
+      const [isGoalToGo, setIsGoalToGo] = useState(false);
       const [setButtonEnabled, setSetButtonEnabled] = useState(false);
       const [postSetCountdown, setPostSetCountdown] = useState(null); // 10s countdown after Set
       const [isSetClicked, setIsSetClicked] = useState(false);
@@ -43,6 +44,8 @@ export const Provider = ({ children }) => {
       const [preSnapPlayers, setPreSnapPlayers] = useState([]);
       const [currentYards, setCurrentYards] = useState(0); 
       const [score, setScore] = useState(0);
+      const [moreRoutes, setMoreRoutes] = useState(false);
+      const [isRunPlay, setIsRunPlay] = useState(false)
       const [otherScore, setOtherScore] = useState(0);
           const [inventory, setInventory] = useState({
         offense: teamData[offenseName].offensivePlayers,
@@ -164,7 +167,10 @@ export const Provider = ({ children }) => {
         quarter, setQuarter,
         setButtonEnabled, setSetButtonEnabled,
         postSetCountdown, setPostSetCountdown,
-        isSetClicked, setIsSetClicked
+        isSetClicked, setIsSetClicked,
+        isGoalToGo, setIsGoalToGo,
+        isRunPlay, setIsRunPlay,
+        moreRoutes, setMoreRoutes
       }}>
       {children}
     </AppContext.Provider>

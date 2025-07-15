@@ -198,6 +198,8 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
       easeOfYac = getRandomInt(1, 8);
       break;
     case 'go':
+    case 'Double Move':
+    case 'fade':
       averageYards = 25;
       easeOfYac = getRandomInt(1, 28);
       break;
@@ -207,6 +209,7 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
       easeOfYac = getRandomInt(1, 15);
       break;
     case 'post':
+    case 'Deep Cross':
       averageYards = 18;
       easeOfYac = getRandomInt(1, 15);
       break;
@@ -238,7 +241,11 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
       easeOfYac = getRandomInt(1, 6);
       break;
     case 'flat':
+    case 'speed out':
     case 'rb flat':
+    case 'zig':
+    case 'return':
+    case 'drag':
       averageYards = 3;
       easeOfYac = getRandomInt(1, 8);
       break;
@@ -260,8 +267,7 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
   // total yards = average yards - coverage penalty + yac potential
   let totalYards = averageYards + (coveragePenalty * yacPotential);
 
-  console.log("totalYards: " + totalYards + ", yards to go: " + (100 - yardLine))
-  if((route == "go" &&  openness == "lime") || totalYards > 100 - yardLine) {
+  if(((route == "go" || route == "fade" || route == "Double Move") &&  openness == "lime") || totalYards > 100 - yardLine) {
     return "Touchdown!"
   }
   

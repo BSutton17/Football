@@ -1,9 +1,11 @@
 // ReceiverRoutes.jsx
 import React from 'react';
 
-const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) => {
+const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, moreRoutes }) => {
   return (
     <div className="route-buttons">
+      {!moreRoutes ? (
+      <>
       <button
         className="route-btn"
         onClick={() => assignRoute(player.id, 'corner')}
@@ -78,8 +80,8 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
       </button>
       <button
         className="route-btn"
-        id="comeback"
-        onClick={() => assignRoute(player.id, 'comeback')}
+        id="smaller"
+        onClick={() => assignRoute(player.id, 'smaller')}
         style={{
           left:
             player.position.x < fieldSize.width / 2
@@ -88,7 +90,7 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
           top: player.position.y + offsetY,
         }}
       >
-        Comeback
+        smaller
       </button>
       <button
         className="route-btn"
@@ -103,6 +105,112 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize }) =>
       >
         Out
       </button>
+      </>
+      ) : (
+      <>
+      <button
+        className="route-btn"
+        id="smaller"
+        onClick={() => assignRoute(player.id, 'speed out')}
+        style={{
+          left:
+            player.position.x < fieldSize.width / 2
+              ? player.position.x - offsetX
+              : player.position.x + offsetX,
+          top: player.position.y - offsetY,
+        }}
+      >
+        Speed Out
+      </button>
+      <button
+        className="route-btn"
+        id="smaller"
+        onClick={() => assignRoute(player.id, 'Double Move')}
+        style={{
+          left: player.position.x,
+          top: player.position.y - offsetY,
+        }}
+      >
+        Double Move
+      </button>
+      <button
+        className="route-btn"
+        id="smaller"
+        onClick={() => assignRoute(player.id, 'Deep Cross')}
+        style={{
+          left:
+            player.position.x > fieldSize.width / 2
+              ? player.position.x - offsetX
+              : player.position.x + offsetX,
+          top: player.position.y - offsetY,
+        }}
+      >
+        Deep Cross
+      </button>
+      <button
+        className="route-btn"
+        onClick={() => assignRoute(player.id, 'drag')}
+        style={{
+          left:
+            player.position.x > fieldSize.width / 2
+              ? player.position.x - offsetX
+              : player.position.x + offsetX,
+          top: player.position.y,
+        }}
+      >
+        Drag
+      </button>
+      <button
+        className="route-btn"
+        onClick={() => assignRoute(player.id, 'return')}
+        style={{
+          left:
+            player.position.x > fieldSize.width / 2
+              ? player.position.x - offsetX
+              : player.position.x + offsetX,
+          top: player.position.y + offsetY,
+        }}
+      >
+        Return
+      </button>
+      <button
+        className="route-btn"
+        onClick={() => assignRoute(player.id, 'fade')}
+        style={{
+          left: player.position.x,
+          top: player.position.y + offsetY,
+        }}
+      >
+        Fade
+      </button>
+      <button
+        className="route-btn"
+        onClick={() => assignRoute(player.id, 'flat')}
+        style={{
+          left:
+            player.position.x < fieldSize.width / 2
+              ? player.position.x - offsetX
+              : player.position.x + offsetX,
+          top: player.position.y + offsetY,
+        }}
+      >
+        Flat
+      </button>
+      <button
+        className="route-btn"
+        onClick={() => assignRoute(player.id, 'zig')}
+        style={{
+          left:
+            player.position.x < fieldSize.width / 2
+              ? player.position.x - offsetX
+              : player.position.x + offsetX,
+          top: player.position.y,
+        }}
+      >
+        Zig
+      </button>
+      </>
+      )}
     </div>
   );
 };
