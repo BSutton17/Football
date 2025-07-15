@@ -81,7 +81,7 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
       <button
         className="route-btn"
         id="smaller"
-        onClick={() => assignRoute(player.id, 'smaller')}
+        onClick={() => assignRoute(player.id, 'comeback')}
         style={{
           left:
             player.position.x < fieldSize.width / 2
@@ -90,7 +90,7 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
           top: player.position.y + offsetY,
         }}
       >
-        smaller
+        Comeback
       </button>
       <button
         className="route-btn"

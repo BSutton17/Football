@@ -262,8 +262,13 @@ useEffect(() => {
       if (p.zone === 'man' && p.assignedOffensiveId) {
         const target = prevPlayers.find(op => op.id === p.assignedOffensiveId);
         if (target) {
-          const dx = target.position.x - p.position.x;
-          const dy = target.position.y - p.position.y;
+        const nextWaypoint = target.route?.[target.currentWaypointIndex];
+        const waypointX = nextWaypoint ? nextWaypoint.x * fieldSize.width : target.position.x;
+        const waypointY = nextWaypoint ? nextWaypoint.y * fieldSize.height : target.position.y;
+
+        const dx = waypointX - p.position.x;
+        const dy = waypointY - p.position.y;
+
           const distance = Math.hypot(dx, dy);
 
           if (distance > 1) {

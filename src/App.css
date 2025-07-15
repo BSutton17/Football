@@ -238,6 +238,7 @@ body {
   font-size: 100%;
   background-color: rgba(179, 10, 179, 0.702);
   color: white;
+  z-index: 2;
 }
 .route-svg {
   position: absolute;
@@ -479,37 +480,52 @@ body {
   font-size: 2rem;
   margin-bottom: 20px;
 }
-
+.kickoff-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: #111;
+  flex-direction: column;
+  user-select: none;
+  cursor: pointer;
+}
 .arrow-wrapper {
-  position: relative;
-  width: 100px;
-  height: 100px;
-}
-
-.arrow {
-  width: 0;
-  height: 0;
-  border-left: 20px solid transparent;
-  border-right: 20px solid transparent;
-  border-bottom: 60px solid red;
-  margin: 0 auto;
-  transition: transform 0.1s ease;
-}
-
-.health-bar {
-  width: 120px;
-  height: 10px;
-  background: #444;
-  border-radius: 5px;
-  overflow: hidden;
+  width: 60px;
+  height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transform-origin: center center;
   margin-top: 20px;
 }
 
-.health-fill {
-  height: 100%;
-  background: limegreen;
-  transition: width 0.1s;
+.arrow-fill-container {
+  position: relative;
+  width: 60px;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
+
+.arrow-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background-color: red;
+  z-index: 0;
+  transition: height 0.1s ease-out;
+}
+
+.arrow-icon {
+  font-size: 5rem;
+  color: white;
+  z-index: 1;
+  position: relative;
+}
+
 
 /* Phones */
 @media only screen and (max-width: 600px) {

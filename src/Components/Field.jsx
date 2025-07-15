@@ -121,6 +121,9 @@ function Field({ socket, room, name }) {
       clearInterval(gameIntervalRef.current);
       gameIntervalRef.current = null;
       socket.emit("stop_clock", { roomId });
+      setTimeout(()=>{
+        startClock()
+      }, 10000)
     }
   };
 
@@ -132,6 +135,9 @@ function Field({ socket, room, name }) {
     if (gameIntervalRef.current) {
       clearInterval(gameIntervalRef.current);
       gameIntervalRef.current = null;
+      setTimeout(()=>{
+        startClock()
+      }, 10000)
       }
   };
     
@@ -285,6 +291,10 @@ if (runRB) {
 
     socket.emit("route_started", { routeStarted: true, roomId });
     // Start or resume game clock
+    startClock()
+  }
+
+  const startClock = () =>{
     if (!gameIntervalRef.current) {
       gameIntervalRef.current = setInterval(() => {
         gameClockRef.current -= 1000;
@@ -308,7 +318,6 @@ if (runRB) {
         }
       }, 1000);
     }
-  
   }
   function getRandomInt(min, max) {
   min = Math.ceil(min);

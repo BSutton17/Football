@@ -2,7 +2,7 @@
   "TeamOne": {
     "score": 0,
     "offensivePlayers": [
-      { "id": "O-1WR1", "role": "WR", "speed": 91, "routeRunning": 87 },
+      { "id": "O-1WR1", "role": "WR", "speed": 91, "routeRunning": 91 },
       { "id": "O-1WR2", "role": "WR", "speed": 92, "routeRunning": 90 },
       { "id": "O-1WR3", "role": "WR", "speed": 87, "routeRunning": 88 },
       { "id": "O-1WR4", "role": "WR", "speed": 89, "routeRunning": 85 },
@@ -39,7 +39,7 @@
       { "id": "O-2RB2", "role": "RB", "strength": 91, "speed": 82, "routeRunning": 79, "blocking": 75, "isBlocking": false }
     ],
     "defensivePlayers": [
-      { "id": "D-2CB1", "role": "CB", "speed": 90, "reactionTime": 95, "blitzing": 75, "isBlitzing": false },
+      { "id": "D-2CB1", "role": "CB", "speed": 90, "reactionTime": 90, "blitzing": 75, "isBlitzing": false },
       { "id": "D-2CB2", "role": "CB", "speed": 89, "reactionTime": 85, "blitzing": 70, "isBlitzing": false },
       { "id": "D-2CB3", "role": "CB", "speed": 88, "reactionTime": 86, "blitzing": 72, "isBlitzing": false },
       { "id": "D-2S1", "role": "S", "speed": 85, "reactionTime": 89, "blitzing": 84, "isBlitzing": false },

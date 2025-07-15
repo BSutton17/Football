@@ -106,11 +106,11 @@
           x: startPos.x,
           y: startPos.y - forwardDist / 1.5,
         },
-        {
+       {
             x: startPos.x < direction
             ? startPos.x + centerX / 10
             : startPos.x - centerX / 10,
-          y: startPos.y - forwardDist / 2,
+          y: startPos.y - forwardDist,
           },
         {
           x: startPos.x < direction ? centerX : 0, y: startPos.y - forwardDist
@@ -252,17 +252,25 @@
           },
           { x: startPos.x > direction ? centerX : 0, y: startPos.y - (forwardDist / 1.2) },
         ];
-
         case "wheel":
           return [
           {
-            x:
-              startPos.x > direction? startPos.x + centerX / 12: startPos.x - centerX / 5,
-             y: startPos.y - (forwardDist / 1.3),
+          x: startPos.x > direction
+            ? startPos.x + centerX / 10
+            : startPos.x - centerX / 10,
+          y: startPos.y,
           },
-          { x: startPos.x > direction ? (centerX / 2) * 1.75 : centerX / 12, y: startPos.y - (forwardDist / 1.2) },
-          { x: startPos.x > direction ? (centerX / 2) * 1.75 : centerX / 12, y: startPos.y - (forwardDist / 1.2) - (fieldSize.height / 2) },
-        ];
+          {
+            x: startPos.x > direction
+            ? startPos.x + centerX / 4
+            : startPos.x - centerX / 4,
+          y: startPos.y - (forwardDist / 4),
+          },
+          {  x: startPos.x > direction
+            ? startPos.x + centerX / 4
+            : startPos.x - centerX / 4, y: startPos.y - fieldSize.height / 2 },
+          ];
+
         case "run": {
           const angleDeg = player.runAngle ?? 90; 
           const angleRad = (angleDeg * Math.PI) / 180;
@@ -465,13 +473,11 @@
       }
 
       case "wheel": {
-         const firstx = x > direction? x + centerX / 12: x - centerX / 5
-         const firsty = y - (forwardDist / 1.3)
-         const secondx = x > direction ? (centerX / 2) * 1.75 : centerX / 12
-         const secondy = y - (forwardDist / 1.2) 
-         const thirdx = x > direction ? (centerX / 2) * 1.75 : centerX / 12
-         const thirdy = y - (forwardDist / 1.2) * 2.5 
-          return `M${x},${startY} L${firstx},${firsty} L${secondx},${secondy} L${thirdx},${thirdy}`
+        const forwardY = y - forwardDist / 2.5;
+        const forwardYTwo = y - forwardDist;
+        const horizontalX = x < direction ? x - 75 : x + 75;
+        const horizontalXTwo = x < direction ? x - 125 : x + 125;
+        return `M${x},${startY + 8} L${horizontalX},${startY} L${horizontalXTwo},${forwardY} L${horizontalXTwo},${forwardYTwo}`;
       }
 
       case "run" :{
