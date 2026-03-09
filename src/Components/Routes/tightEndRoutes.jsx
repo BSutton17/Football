@@ -2,7 +2,7 @@
 import React from 'react';
 import { useAppContext } from '../../Context/AppContext';
 
-const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, moreRoutes }) => {
+const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, moreRoutes }) => {
   const { setSackTimeRemaining, setSelectedPlayerId, setPlayers, socket, roomId } = useAppContext();
 
   const handleRouteClick = (route) => {
@@ -291,4 +291,4 @@ const tightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
   );
 };
 
-export default tightEndRoutes;
+export default TightEndRoutes;

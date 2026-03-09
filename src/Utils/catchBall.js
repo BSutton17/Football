@@ -1,7 +1,6 @@
 export const catchBall = (openness, qbPenalty) =>{
     const catchRate = Math.random() * (100 - 1) + 1
     const adjustedCatchRate = catchRate / (qbPenalty / 100)
-    console.log("Catch Rate: " + catchRate + " Adjusted Catch Rate: " + adjustedCatchRate)
     switch(openness){
         case "lime":
             if(adjustedCatchRate < 99){
@@ -31,10 +30,4 @@ export const catchBall = (openness, qbPenalty) =>{
                 return "Intercepted"
             }
     }
-}
-
-function getRandomInt(min, max) {
-  min = Math.ceil(min);
-  max = Math.floor(max);
-  return Math.floor(Math.random() * (max - min + 1) + min);
 }

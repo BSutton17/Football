@@ -269,15 +269,17 @@ body {
 
 /* Defense */
 .defense-alert{
-  position: fixed;
-  top: 0;
+  position: absolute;
+  top: 1vh;
   left: 50%;
   transform: translateX(-50%);
   font-size: 2.5vh;
   font-weight: bold;
   color: #eb0e0e;
   text-shadow: 2px 2px 8px black;
-  z-index: 1000;
+  z-index: 6;
+  pointer-events: none;
+  white-space: nowrap;
 }
 .selection-indicator {
   position: absolute;

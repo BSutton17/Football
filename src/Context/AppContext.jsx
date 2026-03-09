@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
-const AppContext = createContext();
+const AppContext = createContext({});
 import teamData from '../Teams.json'
 
 export const Provider = ({ children }) => {
@@ -17,6 +17,8 @@ export const Provider = ({ children }) => {
       const sackTimerRef = useRef(null);
       const outcomeRef = useRef("");
       const preSnapRef = useRef([]);
+      const [kickoffActive, setKickoffActive] = useState(false)
+      const [kickoffResult, setKickoffResult] = useState()
       const [completedYards, setCompletedYards] = useState(0)
       const [liveCountdown, setLiveCountdown] = useState(null);
       const [down, setDown] = useState(1)
@@ -40,12 +42,13 @@ export const Provider = ({ children }) => {
       const [postSetCountdown, setPostSetCountdown] = useState(null); // 10s countdown after Set
       const [isSetClicked, setIsSetClicked] = useState(false);
       const [thrownBallLine, setThrownBallLine] = useState(null);
-      const [firstDownStartY, setFirstDownStartY] = useState(null); 
+      const [firstDownStartY, setFirstDownStartY] = useState(0); 
       const [preSnapPlayers, setPreSnapPlayers] = useState([]);
       const [currentYards, setCurrentYards] = useState(0); 
       const [score, setScore] = useState(0);
       const [moreRoutes, setMoreRoutes] = useState(false);
       const [isRunPlay, setIsRunPlay] = useState(false)
+      const [activePlayId, setActivePlayId] = useState(null)
       const [otherScore, setOtherScore] = useState(0);
           const [inventory, setInventory] = useState({
         offense: teamData[offenseName].offensivePlayers,
@@ -78,15 +81,16 @@ export const Provider = ({ children }) => {
             setOtherScore(prev => prev + 7);
           }
         }
-      }, [outcome]);
+      }, [outcome, isOffense]);
+      
       // Switch sides function — swap offense and defense teams & reset field state
       const switchSides = (outcome, yardLine, height) => {
         setTimeout(() => {
           preSnapRef.current = players.filter(p =>
-              p.role === 'qb' ||
-              p.role === 'offensive-lineman' ||
-              p.role === 'defensive-lineman'
-            )
+            p.role === 'qb' ||
+            p.role === 'offensive-lineman' ||
+            p.role === 'defensive-lineman'
+          );
         }, 50);
 
         const newOffenseName = defenseName;
@@ -94,36 +98,35 @@ export const Provider = ({ children }) => {
 
         setOffenseName(newOffenseName);
         setDffenseName(newDefenseName);
-
         setIsOffense(prev => !prev);
+
         setInventory({
           offense: teamData[newOffenseName].offensivePlayers,
-          defense: teamData[newDefenseName].defensivePlayers, // Both from same team after switch
+          defense: teamData[newDefenseName].defensivePlayers,
           OLine: teamData[newOffenseName].OLine,
-          DLine: teamData[newOffenseName].DLine,
+          DLine: teamData[newDefenseName].DLine,
           Qb: teamData[newOffenseName].Qb
         });
-        if(outcome == "Intercepted" || outcome == "Turnover on Downs"){
-          setTimeout(()=>{
-            setYardLine(100 - yardLine);
-          }, 50)
-        }
-        else if(outcome == "Touchdown!"){
-          setYardLine(25);
-        }
-        else if(outcome == "Safety"){
+
+        if (outcome === "Intercepted") {
+          setTimeout(() => {
+            const flippedYardLine = 100 - yardLine;
+            setYardLine(flippedYardLine);
+          }, 50);
+        } else if (outcome === "Touchdown!") {
+          setKickoffActive(true);
+        } else if (outcome === "Safety") {
           setYardLine(35);
         }
-        
-        setTimeout(()=>{
-        setDown(1);
-        setDistance(10);
-        setFirstDownStartY(height/4)
-        }, 100)
+
+        setTimeout(() => {
+          setDown(1);
+          setDistance(10);
+          setFirstDownStartY(height / 4);
+        }, 100);
       };
 
-    
-  return (
+   return (
     <AppContext.Provider value={{ 
         players, setPlayers, 
         draggingId, setDraggingId, 
@@ -170,11 +173,15 @@ export const Provider = ({ children }) => {
         isSetClicked, setIsSetClicked,
         isGoalToGo, setIsGoalToGo,
         isRunPlay, setIsRunPlay,
-        moreRoutes, setMoreRoutes
+        activePlayId, setActivePlayId,
+        moreRoutes, setMoreRoutes,
+        kickoffResult, setKickoffResult,
+        kickoffActive, setKickoffActive
       }}>
       {children}
     </AppContext.Provider>
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAppContext = () => useContext(AppContext);

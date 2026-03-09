@@ -1,7 +1,21 @@
-import React, { createContext, useContext, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useRef } from 'react';
 import { useAppContext } from './AppContext';
 
-const HandlerContext = createContext();
+const noop = () => {};
+
+const defaultHandlerContextValue = {
+  handleMouseDown: noop,
+  handleMouseMove: noop,
+  handleMouseUp: noop,
+  handleTouchStart: noop,
+  handleTouchMove: noop,
+  handleTouchEnd: noop,
+  handleDragOver: noop,
+  handleDrop: noop,
+  handleTouchStartCustom: noop,
+};
+
+const HandlerContext = createContext(defaultHandlerContextValue);
 
 export const HandlerProvider = ({ children }) => {
   const touchedPlayerRef = useRef(null);
@@ -11,7 +25,6 @@ export const HandlerProvider = ({ children }) => {
     setDraggingId,
     fieldRef,
     setSelectedPlayerId,
-    fieldSize,
     isOffense,
     setSelectedZoneId,
     setInventory,
@@ -21,16 +34,29 @@ export const HandlerProvider = ({ children }) => {
     isSetClicked
   } = useAppContext();
 
+  const getRoleDropY = (role, dropY, yValue) => {
+    switch (role) {
+      case 'WR':
+        return dropY / 32;
+      case 'RB':
+        return dropY / 6;
+      case 'TE':
+        return dropY / 20;
+      case 'LB':
+      case 'CB':
+      case 'S':
+        return yValue;
+      default:
+        return dropY / 10;
+    }
+  };
+
   const placePlayers = (initialX, initialY, rect) => {
     if (!draggingId) return;
 
     // Calculate drop position relative to the field's bounding rect
     const dropX = initialX - rect.left;
     const dropY = initialY - rect.top;
-
-    // Normalize drop position (relative to field width/height)
-    const normalizedX = dropX / rect.width;
-    const normalizedY = dropY / rect.height;
 
     const half = rect.height / 2;
 
@@ -39,8 +65,19 @@ export const HandlerProvider = ({ children }) => {
     if (draggingId.startsWith("D") && dropY > half) return;
 
     let updatedPlayer = null;
+    let emittedPlayerPosition = null;
     let updatedZone = null;
     let updatedZoneEmit = null;
+
+    if (!draggingId?.startsWith('DZ')) {
+      if (draggingId.startsWith('O')) {
+        emittedPlayerPosition = { x: dropX, y: dropY - (half - half / 15) };
+      } else if (draggingId.startsWith('D')) {
+        emittedPlayerPosition = { x: dropX, y: dropY - half / 15 };
+      } else {
+        emittedPlayerPosition = { x: dropX, y: dropY };
+      }
+    }
 
     setPlayers((prev) =>
       prev.map((p) => {
@@ -112,8 +149,8 @@ export const HandlerProvider = ({ children }) => {
     if (updatedPlayer) {
       socket.emit("update_character_position", {
         playerId: updatedPlayer.id,
-        normalizedX: normalizedX,
-        normalizedY: normalizedY,
+        normalizedX: (emittedPlayerPosition?.x ?? updatedPlayer.position.x) / rect.width,
+        normalizedY: (emittedPlayerPosition?.y ?? updatedPlayer.position.y) / rect.height,
         isOffense: isOffense,
         room: roomId,
       });
@@ -131,7 +168,6 @@ export const HandlerProvider = ({ children }) => {
   }
 
   const handleMouseDown = (e, id) => {
-    console.log("can clikc: " + !isSetClicked)
     if (isOffense && isSetClicked) return; // disable drag
     e.preventDefault();
     setDraggingId(id);
@@ -169,11 +205,13 @@ export const HandlerProvider = ({ children }) => {
       const isExistingPlayer = players.some(p => p.id === touchedPlayerRef.current.id);
 
       if (!isExistingPlayer && !draggingId?.startsWith('DZ')) {
+        const dropX = x - rect.left;
+        const dropY = y - rect.top;
         handleDropOnFieldTouch(
           touchedPlayerRef.current,
-          x - rect.left,
-          fieldSize.height, // Adjust y for touch
-          y - rect.top, // yValue fallback if needed by role logic
+          dropX,
+          dropY,
+          dropY,
           rect
         );
       }
@@ -258,27 +296,7 @@ export const HandlerProvider = ({ children }) => {
     const role = playerData.role;
 
     const normalizedX = x / rect.width;
-
-    let newY;
-
-    switch (role) {
-      case "WR":
-        newY = y / 32;
-        break;
-      case "RB":
-        newY = y / 6;
-        break;
-      case "TE":
-        newY = y / 20;
-        break;
-      case "LB":
-      case "CB":
-      case "S":
-        newY = yValue;
-        break;
-      default:
-        newY = y / 10;
-    }
+    const newY = getRoleDropY(role, y, yValue);
 
     const normalizedY = newY / rect.height;
 
@@ -326,28 +344,8 @@ export const HandlerProvider = ({ children }) => {
   const handleDropOnFieldTouch = (playerData, x, y, yValue, rect) => {
     const role = playerData.role;
 
-    const normalizedX = x / fieldSize.width;
-
-    let newY;
-
-    switch (role) {
-      case "WR":
-        newY = y / 20;
-        break;
-      case "RB":
-        newY = y / 6;
-        break;
-      case "TE":
-        newY = y / 10;
-        break;
-      case "LB":
-      case "CB": 
-      case "S":
-        newY = yValue;
-        break;
-      default:
-        newY = y / 10;
-    }
+    const normalizedX = x / rect.width;
+    const newY = getRoleDropY(role, y, yValue);
 
     const normalizedY = newY / rect.height;
 
@@ -392,8 +390,6 @@ export const HandlerProvider = ({ children }) => {
         return [...prev, newPlayer];
       }
     });
-
-    console.log("playerData.type: " + playerData.type);
     if(!draggingId?.startsWith('DZ')){
     setInventory((prev) => ({
       ...prev,
@@ -412,16 +408,6 @@ export const HandlerProvider = ({ children }) => {
     });
   };
 
-  let animationFrameId;
-
-  const startAnimation = () => {
-    animationFrameId = requestAnimationFrame(animate);
-  };
-
-  const stopAnimation = () => {
-    if (animationFrameId) cancelAnimationFrame(animationFrameId);
-  };
-
   return (
     <HandlerContext.Provider
       value={{
@@ -431,8 +417,6 @@ export const HandlerProvider = ({ children }) => {
         handleTouchStart,
         handleTouchMove,
         handleTouchEnd,
-        startAnimation,
-        stopAnimation,
         handleDragOver,
         handleDrop,
         handleTouchStartCustom,
@@ -443,4 +427,5 @@ export const HandlerProvider = ({ children }) => {
   );
 };
 
-export const useHandlerContext = () => useContext(HandlerContext);
+// eslint-disable-next-line react-refresh/only-export-components
+export const useHandlerContext = () => useContext(HandlerContext) || defaultHandlerContextValue;

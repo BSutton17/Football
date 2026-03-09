@@ -11,6 +11,7 @@ function distance(pos1, pos2) {
 }
 
 let dotProduct;
+
 /**
  * Calculate openness scores for all offensive players based on defender positions,
  * WR velocity (calculated locally), and coverage thresholds.
@@ -24,145 +25,284 @@ let dotProduct;
 export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSize, deltaTime = 1) {
   const opennessScores = {};
 
-    // Skip linemen: only include WRs, TEs, RBs, etc.
-  // Skip linemen: only include WRs, TEs, RBs, etc.
-  const filteredOffense = offensivePlayers.filter(p =>
-    p.role !== 'offensive-lineman' && p.role !== 'qb'
+  const filteredOffense = offensivePlayers.filter(
+    (player) => player.role !== 'offensive-lineman' && player.role !== 'qb'
   );
 
-  // Skip defensive linemen
-  const filteredDefense = defensivePlayers.filter(p =>
-    p.role !== 'defensive-lineman' && !p.isBlitzing
+  const filteredDefense = defensivePlayers.filter(
+    (player) => player.role !== 'defensive-lineman' && !player.isBlitzing
   );
 
-  // Reference baseline height: 524
-  const fieldHeight = fieldSize.height;
+  const fieldHeight = Math.max(fieldSize.height || 524, 1);
+  const fieldWidth = Math.max(fieldSize.width || 320, 1);
   const scale = fieldHeight / 524;
 
   const losOffset = 262 * scale;
-  const closeCoverageThreshold = 17.5 * scale;
-  const doubleCoverageThreshold = 25 * scale;
-  const opennessScale = 200 * scale;
+  const closeCoverageThreshold = 18 * scale;
+  const mediumCoverageThreshold = 42 * scale;
+  const wideCoverageThreshold = 72 * scale;
+  const laneContestThreshold = 14 * scale;
 
-  filteredOffense.forEach((wr) => {
-    // Calculate local velocity based on previous position
-    const prevPos = previousPositions.get(wr.id);
-    let wrVelocity = { x: 0, y: 0 };
+  const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-    if (prevPos) {
-      wrVelocity = {
-        x: (wr.position.x - prevPos.x) / deltaTime,
-        y: (wr.position.y - prevPos.y) / deltaTime,
+  const routeFamilies = {
+    insideBreak: new Set(['slant', 'in', 'shallow', 'drag', 'texas', 'deep cross', 'Deep Cross', 'post']),
+    outsideBreak: new Set(['out', 'speed out', 'corner', 'flat', 'rb flat', 'swing', 'wheel', 'fade']),
+    vertical: new Set(['go', 'seam', 'fade', 'wheel']),
+    comebackStyle: new Set(['comeback', 'curl', 'curl inside', 'curl outside', 'return', 'zig', 'Double Move']),
+  };
+
+  const normalize = (vector) => {
+    const length = Math.hypot(vector.x, vector.y) || 1;
+    return { x: vector.x / length, y: vector.y / length };
+  };
+
+  const dot = (left, right) => left.x * right.x + left.y * right.y;
+
+  const projectPointToSegment = (point, start, end) => {
+    const segment = { x: end.x - start.x, y: end.y - start.y };
+    const segmentLengthSquared = segment.x * segment.x + segment.y * segment.y || 1;
+    const t = clamp(
+      ((point.x - start.x) * segment.x + (point.y - start.y) * segment.y) / segmentLengthSquared,
+      0,
+      1
+    );
+    return {
+      x: start.x + segment.x * t,
+      y: start.y + segment.y * t,
+      t,
+    };
+  };
+
+  const getRouteIntent = (player, velocity) => {
+    const route = player.route || '';
+    const lowerRoute = route.toLowerCase();
+    const wrOnLeft = player.position.x <= fieldWidth / 2;
+    const insideDirection = wrOnLeft ? 1 : -1;
+    const outsideDirection = wrOnLeft ? -1 : 1;
+
+    let lateralDirection = 0;
+    let depthYards = 9;
+
+    if (routeFamilies.insideBreak.has(route) || routeFamilies.insideBreak.has(lowerRoute)) {
+      lateralDirection = insideDirection;
+      depthYards = ['drag', 'shallow'].includes(lowerRoute) ? 4 : lowerRoute === 'texas' ? 5 : 8;
+    } else if (routeFamilies.outsideBreak.has(route) || routeFamilies.outsideBreak.has(lowerRoute)) {
+      lateralDirection = outsideDirection;
+      depthYards = ['flat', 'rb flat', 'swing'].includes(lowerRoute) ? 3 : lowerRoute === 'speed out' ? 7 : 9;
+    } else if (routeFamilies.vertical.has(route) || routeFamilies.vertical.has(lowerRoute)) {
+      lateralDirection = lowerRoute === 'fade' ? outsideDirection * 0.5 : 0;
+      depthYards = lowerRoute === 'wheel' ? 16 : 18;
+    } else if (routeFamilies.comebackStyle.has(route) || routeFamilies.comebackStyle.has(lowerRoute)) {
+      lateralDirection = lowerRoute === 'zig' ? insideDirection : 0;
+      depthYards = ['curl', 'curl inside', 'curl outside', 'return'].includes(lowerRoute) ? 6 : 11;
+    }
+
+    if (!route) {
+      const velocityNorm = normalize(velocity);
+      return {
+        vector: velocityNorm,
+        lowerRoute,
+        catchDepthPixels: fieldHeight / 8,
       };
     }
 
-    // Update previous position for next frame
-    previousPositions.set(wr.id, { ...wr.position });
-
-    // Calculate distances to defenders (adjusting y by LOS offset)
-    const defendersWithDistance = filteredDefense.map((def) => {
-      const defPos = {
-        x: def.position.x,
-        y: def.position.y - losOffset,
-      };
-      return { def, dist: distance(wr.position, defPos), defPos };
+    const intent = normalize({
+      x: lateralDirection,
+      y: -1,
     });
 
-    defendersWithDistance.sort((a, b) => a.dist - b.dist);
+    return {
+      vector: intent,
+      lowerRoute,
+      catchDepthPixels: (fieldHeight / 40) * depthYards,
+    };
+  };
 
-    const closest = defendersWithDistance[0];
-    const secondClosest = defendersWithDistance[1];
+  filteredOffense.forEach((receiver) => {
+    const previousPosition = previousPositions.get(receiver.id);
+    const receiverVelocity = previousPosition
+      ? {
+          x: (receiver.position.x - previousPosition.x) / deltaTime,
+          y: (receiver.position.y - previousPosition.y) / deltaTime,
+        }
+      : { x: 0, y: -1 };
 
-    // Double coverage penalty
-    if (
-      closest?.dist < doubleCoverageThreshold &&
-      secondClosest?.dist < doubleCoverageThreshold
-    ) {
-      opennessScores[wr.id] = 10;
+    previousPositions.set(receiver.id, { ...receiver.position });
+
+    const routeIntent = getRouteIntent(receiver, receiverVelocity);
+    const receiverSpeed = Math.max(Math.hypot(receiverVelocity.x, receiverVelocity.y), 0.1);
+
+    const defendersWithDistance = filteredDefense
+      .map((defender) => {
+        const adjustedDefenderPosition = {
+          x: defender.position.x,
+          y: defender.position.y - losOffset,
+        };
+
+        return {
+          defender,
+          adjustedDefenderPosition,
+          dist: distance(receiver.position, adjustedDefenderPosition),
+        };
+      })
+      .sort((left, right) => left.dist - right.dist);
+
+    const primary = defendersWithDistance[0];
+    const helper = defendersWithDistance[1];
+
+    if (!primary) {
+      opennessScores[receiver.id] = 1;
       return;
     }
 
-    if (!closest) {
-      opennessScores[wr.id] = 1;
-      return;
+    const primaryVector = {
+      x: primary.adjustedDefenderPosition.x - receiver.position.x,
+      y: primary.adjustedDefenderPosition.y - receiver.position.y,
+    };
+    const primaryVectorNorm = normalize(primaryVector);
+
+    const pathSeparation = dot(primaryVector, routeIntent.vector);
+    const trailingAmount = -pathSeparation;
+    const lateralOffset = Math.abs(
+      primaryVector.x * routeIntent.vector.y - primaryVector.y * routeIntent.vector.x
+    );
+
+    const routeSide = routeIntent.vector.x === 0 ? 0 : Math.sign(routeIntent.vector.x);
+    const primarySide = primaryVector.x === 0 ? 0 : Math.sign(primaryVector.x);
+    const leverageWin = routeSide !== 0 && routeSide !== primarySide;
+
+    dotProduct = dot(receiverVelocity, primaryVectorNorm);
+
+    let coverageScore;
+    if (primary.dist <= closeCoverageThreshold) {
+      coverageScore = 9.3;
+    } else if (primary.dist >= wideCoverageThreshold) {
+      coverageScore = 2;
+    } else if (primary.dist >= mediumCoverageThreshold) {
+      const t = (primary.dist - mediumCoverageThreshold) / (wideCoverageThreshold - mediumCoverageThreshold);
+      coverageScore = 6 - t * 4;
+    } else {
+      const t = (primary.dist - closeCoverageThreshold) / (mediumCoverageThreshold - closeCoverageThreshold);
+      coverageScore = 9.3 - t * 3.3;
     }
 
-    // Vector from WR to defender
-    const wrToDef = {
-      x: closest.def.position.x - wr.position.x,
-      y: closest.def.position.y - losOffset - wr.position.y,
+    if (routeFamilies.insideBreak.has(routeIntent.lowerRoute)) {
+      if (leverageWin && trailingAmount > 3 * scale) {
+        coverageScore -= 2.2;
+      }
+      if (!leverageWin && primary.dist < mediumCoverageThreshold) {
+        coverageScore += 1.4;
+      }
+    }
+
+    if (routeFamilies.outsideBreak.has(routeIntent.lowerRoute)) {
+      if (leverageWin && trailingAmount > 2 * scale) {
+        coverageScore -= 1.7;
+      }
+      if (!leverageWin && lateralOffset < 10 * scale) {
+        coverageScore += 1.2;
+      }
+    }
+
+    if (routeFamilies.vertical.has(routeIntent.lowerRoute)) {
+      const defenderSpeed = Math.max(primary.defender.speed || 0, 0);
+      const speedEdge = receiverSpeed - defenderSpeed;
+      if (speedEdge > 1.2 && trailingAmount > 4 * scale) {
+        coverageScore -= 2.4;
+      }
+      if (speedEdge > 0.4 && trailingAmount > 1.5 * scale) {
+        coverageScore -= 1.1;
+      }
+      if (speedEdge < -0.5 && primary.dist < mediumCoverageThreshold) {
+        coverageScore += 1.5;
+      }
+    }
+
+    if (routeFamilies.comebackStyle.has(routeIntent.lowerRoute)) {
+      if (primary.dist < closeCoverageThreshold && trailingAmount < 1 * scale) {
+        coverageScore += 1.6;
+      } else if (trailingAmount > 2 * scale) {
+        coverageScore -= 0.8;
+      }
+    }
+
+    const catchPoint = {
+      x: receiver.position.x + routeIntent.vector.x * routeIntent.catchDepthPixels,
+      y: receiver.position.y + routeIntent.vector.y * routeIntent.catchDepthPixels,
     };
 
-    const length = Math.sqrt(wrToDef.x ** 2 + wrToDef.y ** 2) || 1;
-    const normWrToDef = { x: wrToDef.x / length, y: wrToDef.y / length };
+    const timeToCatch = routeIntent.catchDepthPixels / Math.max(receiverSpeed, 0.2);
+    const allHelpers = defendersWithDistance.slice(1);
 
-    let wrToSecondef = { x: 0, y: 0}
-    let dotSecond = 0;
+    let immediateHelpCount = 0;
+    allHelpers.forEach(({ defender, adjustedDefenderPosition }) => {
+      const defenderDistanceToCatch = distance(adjustedDefenderPosition, catchPoint);
+      const defenderSpeed = Math.max(defender.speed || 1.8, 0.4);
+      const defenderArrival = defenderDistanceToCatch / defenderSpeed;
 
-    if (secondClosest) {
-      wrToSecondef = {
-        x: secondClosest.def.position.x - wr.position.x,
-        y: secondClosest.def.position.y - losOffset - wr.position.y,
-      };
+      if (defenderArrival <= timeToCatch + (2.4 * scale)) {
+        immediateHelpCount += 1;
+      }
+    });
 
-      const lengthSecond = Math.sqrt(wrToSecondef.x ** 2 + wrToSecondef.y ** 2) || 1;
-      const normWrToSecondDef = {
-        x: wrToSecondef.x / lengthSecond,
-        y: wrToSecondef.y / lengthSecond,
-      };
-
-      dotSecond = wrVelocity.x * normWrToSecondDef.x + wrVelocity.y * normWrToSecondDef.y;
+    if (immediateHelpCount >= 1) {
+      coverageScore += 1.9;
     }
-  
-
-    // Dot product between WR velocity and normalized vector to defender
-    const dot = wrVelocity.x * normWrToDef.x + wrVelocity.y * normWrToDef.y;
-    dotProduct = dot;
-    // Calculate openness score based on distance and velocity direction
-    let opennessScore;
-
-    if (dot < -0.50 && closest.dist < closeCoverageThreshold) {
-      // WR moving away from defender and is smothered = make them covered
-      opennessScore = 5;
-      opennessScores[wr.id] = opennessScore;
-      return;
-    }
-    else if(dot < -0.50 && dotSecond > 0 && secondClosest.dist < closeCoverageThreshold * 4 ){
-      opennessScore = 5;
-      opennessScores[wr.id] = opennessScore;
-      return;
-    }
-    else if (closest.dist < closeCoverageThreshold) {
-      opennessScore = 10;
-      opennessScores[wr.id] = opennessScore;
-      return; // ✅ exits early
-    } 
-    else if(dot > 0 && dotSecond > 0.20 ){
-      opennessScore = 10;
-      opennessScores[wr.id] = opennessScore;
-      return;
-    }
-    else if(dot > 0){
-      opennessScore = 5;
-      opennessScores[wr.id] = opennessScore;
-      return;
-    }
-    else if (dot < -0.50) {
-      // WR moving away from defender and not smothered
-      opennessScore = 1;
-      opennessScores[wr.id] = opennessScore;
-      return;
-    }
-    if (dot > 0.51 && closest.dist < opennessScale * 0.6) {
-      opennessScore = 9;
-      opennessScores[wr.id] = opennessScore;
-      return
-    } else {
-      opennessScore = Math.min(10, Math.max(1, opennessScale / closest.dist));
-      opennessScores[wr.id] = opennessScore;
-      return;
+    if (immediateHelpCount >= 2) {
+      coverageScore += 1.3;
     }
 
+    if (helper && helper.dist < closeCoverageThreshold * 1.5) {
+      coverageScore += 0.8;
+    }
+
+    const quarterback = offensivePlayers.find((player) => player.role === 'qb');
+    if (quarterback) {
+      const qbPoint = quarterback.position;
+      let lanePenalty = 0;
+
+      filteredDefense.forEach((defender) => {
+        const adjustedDefenderPosition = {
+          x: defender.position.x,
+          y: defender.position.y - losOffset,
+        };
+        const closestPoint = projectPointToSegment(adjustedDefenderPosition, qbPoint, catchPoint);
+        const contestDistance = distance(adjustedDefenderPosition, closestPoint);
+        if (closestPoint.t > 0.15 && closestPoint.t < 0.95 && contestDistance < laneContestThreshold) {
+          lanePenalty += 0.55;
+        }
+      });
+
+      const cappedLanePenalty = Math.min(lanePenalty, 2.2);
+      coverageScore += cappedLanePenalty;
+    }
+
+    coverageScore = clamp(coverageScore, 1, 10);
+    opennessScores[receiver.id] = coverageScore;
+
+    // const bucket = getCoverageBucket(coverageScore);
+    // if (shouldLogOpenness(receiver.id, bucket)) {
+    //   console.log('[OPENNESS DEBUG]', {
+    //     receiverId: receiver.id,
+    //     route: receiver.route || 'none',
+    //     role: receiver.role,
+    //     coverageBucket: bucket,
+    //     coverageScore: Number(coverageScore.toFixed(2)),
+    //     primaryDefenderId: primary.defender.id,
+    //     primaryDistance: Number(primary.dist.toFixed(2)),
+    //     trailingAmount: Number(trailingAmount.toFixed(2)),
+    //     leverageWin,
+    //     lateralOffset: Number(lateralOffset.toFixed(2)),
+    //     helpDefendersInWindow: immediateHelpCount,
+    //     adjustments: {
+    //       leverage: Number(leverageAdjustment.toFixed(2)),
+    //       speed: Number(speedAdjustment.toFixed(2)),
+    //       help: Number(helperAdjustment.toFixed(2)),
+    //       lane: Number(laneAdjustment.toFixed(2)),
+    //     },
+    //   });
+    // }
   });
 
   return opennessScores;
@@ -189,8 +329,6 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
   } else {
     coverage = Math.random() * (1.25 - 1) + 1;
   }
-
-  console.log("route: " + route)
 
   switch (route) {
     case 'corner':
@@ -274,12 +412,49 @@ export function calculateTotalAndYAC(openness, route, yardLine) {
   // Calculate yards after catch
   const yac = totalYards - averageYards;
 
-  console.log("Coverage: " + coverage + ", averageYards" + averageYards + ", totalYards: " + totalYards)
-
-
   return {
     totalYards: Math.round(totalYards),
     yac: Math.max(0, Math.round(yac))
+  };
+}
+
+export function calculatePassYardsFromCatch({
+  openness,
+  catchY,
+  lineOfScrimmageY,
+  oneYardInPixels,
+  yardLine,
+}) {
+  const safeOneYard = Math.max(oneYardInPixels || 0, 0.0001);
+  const rawAirYards = Math.max(0, Math.round((lineOfScrimmageY - catchY) / safeOneYard));
+  let minYac = 0;
+  let maxYac = 2;
+
+  if (openness === 'red') {
+    minYac = 0;
+    maxYac = 1;
+  } else if (openness === 'yellow') {
+    minYac = 0;
+    maxYac = 3;
+  } else if (openness === 'lime') {
+    minYac = 2;
+    maxYac = 8;
+  }
+  const airYards = rawAirYards;
+
+  const yac = getRandomInt(minYac, maxYac);
+  const totalYards = Math.max(0, airYards + yac);
+  const yardsToScore = Math.max(0, 100 - yardLine);
+
+  if (totalYards >= yardsToScore && yardsToScore > 0) {
+    return 'Touchdown!';
+  }
+
+  return {
+    totalYards,
+    passYardsWithoutYac: airYards,
+    airYards,
+    yac,
   };
 }
 

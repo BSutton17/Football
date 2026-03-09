@@ -13,23 +13,20 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
   } = useAppContext();
 
     
-  // translate offesnive y to defense for comparison
-  function convertOffensiveYtoDefensiveY(offensiveY) {
-    return offensiveY * 1.02597 + 281.58;
-  } 
-
-  // Helper function to find closest offensive player ID by Euclidean distance
+  // Helper function to find closest offensive player by Euclidean distance
     const findClosestOffensivePlayerId = (defenderPosition, players) => {
     let closestId = null;
-    let closestDistSq = Infinity;
+    let closestDistance = Infinity;
 
     players.forEach(p => {
 
         if (p.isOffense && p.role !== 'offensive-lineman' && p.role !== 'qb') {
         const dx = p.position.x - defenderPosition.x;
-          
-        if (Math.abs(dx) < closestDistSq) {
-            closestDistSq = Math.abs(dx);
+        const dy = p.position.y - defenderPosition.y;
+        const distance = Math.hypot(dx, dy);
+
+        if (distance < closestDistance) {
+            closestDistance = distance;
             closestId = p.id;
         }
         }
@@ -71,16 +68,21 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
 
         setSelectedPlayerId(null);
       } else if (coverage === "man") {
+        const defender = players.find((p) => p.id === id);
+        const assignedOffensiveId = defender
+          ? findClosestOffensivePlayerId(defender.position, players)
+          : null;
+
         setPlayers((prev) =>
           prev.map((p) => {
             if (p.id === id) {
-              const offensivePlayerId = findClosestOffensivePlayerId(p.position, prev);
               return {
                 ...p,
                 zone: "man",
-                assignedOffensiveId: offensivePlayerId,
+                assignedOffensiveId,
                 zoneCircle: null,
                 hasCut: false,
+                isBlitzing: false,
               };
             }
             return p;
@@ -90,7 +92,7 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
         socket.emit("assign_zone", {
           playerId: id,
           zoneType: "man",
-          assignedOffensiveId: findClosestOffensivePlayerId(players.find(p => p.id === id)?.position, players),
+          assignedOffensiveId,
           room: roomId,
         });
 

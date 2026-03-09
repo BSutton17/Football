@@ -4,6 +4,7 @@
     const direction = fieldSize.width / 2;
     const centerX = fieldSize.width;
     const forwardDist = fieldSize.height / 4;
+    const scaledX = (value) => value * (fieldSize.width / 430);
 
     switch (route) {
       // WR routes
@@ -71,7 +72,7 @@
       case "speed out":
       return [
         {
-          x: startPos.x - 1,
+          x: startPos.x - scaledX(1),
           y: startPos.y,
         },
         {
@@ -134,7 +135,7 @@
     case "return":
       return [
         {
-          x: startPos.x - 1,
+          x: startPos.x - scaledX(1),
           y: startPos.y,
         },
         {
@@ -150,11 +151,11 @@
       ];
 
     case "fade":
-      return [{x: startPos.x > direction ? startPos.x + 50 : startPos.x - 50, y: startPos.y - fieldSize.height / 2 }];
+      return [{x: startPos.x > direction ? startPos.x + scaledX(50) : startPos.x - scaledX(50), y: startPos.y - fieldSize.height / 2 }];
     case "zig":
       return [
         {
-          x: startPos.x - 1,
+          x: startPos.x - scaledX(1),
           y: startPos.y,
         },
         {
@@ -281,7 +282,6 @@
 
           const targetX = startPos.x + dx;
           const targetY = startPos.y - dy;
-          console.log(`Run target: (${targetX}, ${targetY})`);
 
           return [{ x: targetX, y: targetY }];
         }
@@ -298,26 +298,28 @@
     const forwardDist = fieldSize.height / 4;
     const direction = fieldSize.width / 2
     const centerX = fieldSize.width ; // full size
+    const scaledX = (value) => value * (fieldSize.width / 430);
+    const scaledY = (value) => value * (fieldSize.height / 715);
 
     const startX = x;
-    const startY = y - 10; // offset for visual alignment
+    const startY = y - scaledY(10); // offset for visual alignment
 
     switch (route) {
       //wr
       case "corner": {
         const forwardY = y - forwardDist;
-        const horizontalX = x < direction ? x - 75 : x + 75;
-        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY - 50}`;
+        const horizontalX = x < direction ? x - scaledX(75) : x + scaledX(75);
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY - scaledY(50)}`;
       }
       case "go": {
-        const endY = y - offsetY - 200;
+        const endY = y - offsetY - scaledY(200);
         const interpY = startY + (endY - startY) * pct;
         return `M${startX},${startY} L${startX},${interpY}`;
       }
       case "post": {
         const forwardY = y - forwardDist;
-        const horizontalX = x > direction ? x - 75 : x + 75;
-        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY - 50}`;
+        const horizontalX = x > direction ? x - scaledX(75) : x + scaledX(75);
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY - scaledY(50)}`;
       }
       case "slant": {
         const verticalY = y - forwardDist / 2.5;
@@ -337,77 +339,77 @@
       }
       case "curl": {
         const forwardY = y - forwardDist;
-        const horizontalX = x > direction ? x - 25 : x + 25;
-        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY + 25}`;
+        const horizontalX = x > direction ? x - scaledX(25) : x + scaledX(25);
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY + scaledY(25)}`;
       }
       case "in": {
         const forwardY = y - forwardDist;
-        const horizontalX = x < direction ? x + 100 : x - 100;
+        const horizontalX = x < direction ? x + scaledX(100) : x - scaledX(100);
         return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY}`;
       }
       case "comeback": {
         const forwardY = y - forwardDist * 1.25;
-        const horizontalX = x < direction ? x - 75 : x + 75;
-        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY + 75}`;
+        const horizontalX = x < direction ? x - scaledX(75) : x + scaledX(75);
+        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY + scaledY(75)}`;
       }
       case "out": {
         const forwardY = y - forwardDist;
-        const horizontalX = x < direction ? x - 75 : x + 75;
+        const horizontalX = x < direction ? x - scaledX(75) : x + scaledX(75);
         return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY}`;
       }
       case "speed out": {
       const shortY = y - forwardDist / 5;
-      const horizontalX = x < direction ? x -75 : x +75;
-      return `M${x},${startY + 6} L${horizontalX},${shortY}`;
+      const horizontalX = x < direction ? x - scaledX(75) : x + scaledX(75);
+      return `M${x},${startY + scaledY(6)} L${horizontalX},${shortY}`;
     }
 
     case "Double Move": {
       const firstY = y - forwardDist / 2;
-      const cutX = x < direction ? x + 25 : x - 25;
-      const secondY = firstY - 100;
+      const cutX = x < direction ? x + scaledX(25) : x - scaledX(25);
+      const secondY = firstY - scaledY(100);
       return `M${x},${startY} L${x},${firstY} L${cutX},${firstY} L${cutX},${secondY}`;
     }
 
     case "Deep Cross": {
       const forwardY = y - forwardDist / 1.5;
-      const horizontalX = x > direction ? x - 50 : x + 50;
-      const horizontalXTwo = x > direction ? x - 150 : x + 150;
-      return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY - 50} L${horizontalXTwo},${forwardY - 50}`;
+      const horizontalX = x > direction ? x - scaledX(50) : x + scaledX(50);
+      const horizontalXTwo = x > direction ? x - scaledX(150) : x + scaledX(150);
+      return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY - scaledY(50)} L${horizontalXTwo},${forwardY - scaledY(50)}`;
     }
 
     case "drag": {
       const forwardY = y - forwardDist / 3.5;
-      const horizontalX = x < direction ? x + 10 : x - 10;
-      const horizontalXCross = x < direction ? x + 100 : x - 100;
+      const horizontalX = x < direction ? x + scaledX(10) : x - scaledX(10);
+      const horizontalXCross = x < direction ? x + scaledX(100) : x - scaledX(100);
       return `M${x},${startY} L${horizontalX},${forwardY} L${horizontalXCross},${forwardY}`;
     }
 
     case "return": {
       const forwardY = y - forwardDist / 2.5;
-      const horizontalX = x > direction ? x + 25 : x - 25;
-      const horizontalXCross = x < direction ? x + 125 : x - 125;
-      return `M${x},${startY + 6} L${horizontalX},${forwardY} L${horizontalXCross},${forwardY}`;
+      const horizontalX = x > direction ? x + scaledX(25) : x - scaledX(25);
+      const horizontalXCross = x < direction ? x + scaledX(125) : x - scaledX(125);
+      return `M${x},${startY + scaledY(6)} L${horizontalX},${forwardY} L${horizontalXCross},${forwardY}`;
     }
 
     case "fade": {
       const firstY = y - forwardDist / 6;
-      const horizontalX = x > direction ? x + 10 : x - 10;
-      const horizontalXTwo = x > direction ? x + 25 : x - 25;
-      const secondY = firstY - 150;
+      const horizontalX = x > direction ? x + scaledX(10) : x - scaledX(10);
+      const horizontalXTwo = x > direction ? x + scaledX(25) : x - scaledX(25);
+      const secondY = firstY - scaledY(150);
       return `M${x},${startY} L${horizontalX},${firstY} L${horizontalXTwo},${secondY}`;
     }
 
     case "flat": {
       const forwardY = y - forwardDist / 2;
-      const horizontalX = x < direction ? x - 75 : x + 75;
+      const horizontalX = x < direction ? x - scaledX(75) : x + scaledX(75);
       return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY}`;
     }
 
     case "zig": {
       const forwardY = y - forwardDist / 3.5;
-      const horizontalX = x < direction ? x + 45 : x - 45;
-      const horizontalXCross = x > direction ? x + 70 : x - 70;
-      return `M${x},${startY + 6} L${horizontalX},${forwardY} L${horizontalXCross},${forwardY}`;
+      const horizontalX = x < direction ? x + scaledX(45) : x - scaledX(45);
+      const horizontalXCross = x > direction ? x + scaledX(70) : x - scaledX(70);
+      return `M${x},${startY + scaledY(6)} L${horizontalX},${forwardY} L${horizontalXCross},${forwardY}`;
     }
 
       //TE
@@ -425,11 +427,6 @@
         const secondy = y - forwardDist * 0.6
         return `M${x},${startY} L${firstx},${firsty} L${secondx},${secondy}`
       }
-      case "flat": {
-        const forwardY = y - forwardDist / 2;
-        const horizontalX = x < direction ? x - 75 : x + 75;
-        return `M${x},${startY} L${x},${forwardY} L${horizontalX},${forwardY}`
-      }
 
       case "curl outside": {
         const firstx = x > direction ? x + centerX / 6.5 : x - centerX / 6.5
@@ -440,10 +437,10 @@
       }
       case "block": {
         // Upside-down T: horizontal top, vertical stem
-        const topY = y + 25;
-        const bottomY = y + 10;
-        const leftX = x - 10;
-        const rightX = x + 10;
+        const topY = y + scaledY(25);
+        const bottomY = y + scaledY(10);
+        const leftX = x - scaledX(10);
+        const rightX = x + scaledX(10);
 
         // Represented as two lines: horizontal then vertical
         return `M${leftX},${topY} L${rightX},${topY} M${x},${topY} L${x},${bottomY}`;
@@ -459,7 +456,7 @@
       }
 
       case "swing": {
-         const initialx = x > direction ? x + 16 : x - 16
+        const initialx = x > direction ? x + scaledX(16) : x - scaledX(16)
          const firstx = x > direction ? (centerX / 2) * 1.75 : centerX / 5;
         return `M${initialx},${y} L${firstx},${y}`
       }
@@ -475,13 +472,13 @@
       case "wheel": {
         const forwardY = y - forwardDist / 2.5;
         const forwardYTwo = y - forwardDist;
-        const horizontalX = x < direction ? x - 75 : x + 75;
-        const horizontalXTwo = x < direction ? x - 125 : x + 125;
-        return `M${x},${startY + 8} L${horizontalX},${startY} L${horizontalXTwo},${forwardY} L${horizontalXTwo},${forwardYTwo}`;
+        const horizontalX = x < direction ? x - scaledX(75) : x + scaledX(75);
+        const horizontalXTwo = x < direction ? x - scaledX(125) : x + scaledX(125);
+        return `M${x},${startY + scaledY(8)} L${horizontalX},${startY} L${horizontalXTwo},${forwardY} L${horizontalXTwo},${forwardYTwo}`;
       }
 
       case "run" :{
-        const endY = y - offsetY - 10;
+        const endY = y - offsetY - scaledY(10);
         const interpY = startY + (endY - startY) * pct;
         return `M${startX},${startY} L${startX},${interpY}`;
       }

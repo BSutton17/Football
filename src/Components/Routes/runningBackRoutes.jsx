@@ -12,6 +12,9 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
     roomId,
     isSetClicked
   } = useAppContext();
+  const controlOffsetX = Math.max(20, fieldSize.width * 0.07);
+  const controlOffsetY = Math.max(32, fieldSize.height * 0.07);
+  const controlGap = Math.max(8, fieldSize.width * 0.02);
 
   const handleRouteClick = (route) => {
     assignRoute(player.id, route);
@@ -197,10 +200,10 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
         <div
           style={{
             position: "absolute",
-            left: `${player.position.x - 30}px`,
-            top: `${player.position.y - 50}px`,
+            left: `${player.position.x - controlOffsetX}px`,
+            top: `${player.position.y - controlOffsetY}px`,
             display: "flex",
-            gap: "10px",
+            gap: `${controlGap}px`,
             zIndex: 5,
           }}
         >

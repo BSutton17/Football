@@ -1,6 +1,4 @@
 import React from 'react';
-import { useAppContext } from '../Context/AppContext';
-import teamData from '../Teams.json'
 import { useHandlerContext } from '../Context/HandlerContext';
 import { useState } from 'react';
 

@@ -1,95 +1,95 @@
 {
-  "TeamOne": {
-    "score": 0,
-    "offensivePlayers": [
-      { "id": "O-1WR1", "role": "WR", "speed": 91, "routeRunning": 91 },
-      { "id": "O-1WR2", "role": "WR", "speed": 92, "routeRunning": 90 },
-      { "id": "O-1WR3", "role": "WR", "speed": 87, "routeRunning": 88 },
-      { "id": "O-1WR4", "role": "WR", "speed": 89, "routeRunning": 85 },
-      { "id": "O-1TE1", "role": "TE", "speed": 75, "routeRunning": 77, "blocking": 88, "isBlocking": false },
-      { "id": "O-1TE2", "role": "TE", "speed": 74, "routeRunning": 78, "blocking": 85, "isBlocking": false },
-      { "id": "O-1RB1", "role": "RB", "strength": 85, "speed": 85, "routeRunning": 82, "blocking": 79, "isBlocking": false },
-      { "id": "O-1RB2", "role": "RB", "strength": 91, "speed": 83, "routeRunning": 80, "blocking": 76, "isBlocking": false }
-    ],
-    "defensivePlayers": [
-      { "id": "D-1CB1", "role": "CB", "speed": 93, "reactionTime": 88, "blitzing": 72, "isBlitzing": false },
-      { "id": "D-1CB2", "role": "CB", "speed": 89, "reactionTime": 86, "blitzing": 70, "isBlitzing": false },
-      { "id": "D-1CB3", "role": "CB", "speed": 90, "reactionTime": 87, "blitzing": 74, "isBlitzing": false },
-      { "id": "D-1S1", "role": "S", "speed": 86, "reactionTime": 90, "blitzing": 83, "isBlitzing": false },
-      { "id": "D-1S2", "role": "S", "speed": 84, "reactionTime": 88, "blitzing": 82, "isBlitzing": false },
-      { "id": "D-1S3", "role": "S", "speed": 85, "reactionTime": 89, "blitzing": 84, "isBlitzing": false },
-      { "id": "D-1LB1", "role": "LB", "speed": 78, "reactionTime": 83, "blitzing": 88, "isBlitzing": false },
-      { "id": "D-1LB2", "role": "LB", "speed": 77, "reactionTime": 81, "blitzing": 86, "isBlitzing": false },
-      { "id": "D-1LB3", "role": "LB", "speed": 76, "reactionTime": 82, "blitzing": 85, "isBlitzing": false }
-    ],
-    "OLine": 88,
-    "DLine": 92,
-    "Qb": 92
-  },
-  "TeamTwo": {
-    "score": 0,
-    "offensivePlayers": [
-      { "id": "O-2WR1", "role": "WR", "speed": 92, "routeRunning": 91 },
-      { "id": "O-2WR2", "role": "WR", "speed": 87, "routeRunning": 88 },
-      { "id": "O-2WR3", "role": "WR", "speed": 88, "routeRunning": 90 },
-      { "id": "O-2WR4", "role": "WR", "speed": 86, "routeRunning": 87 },
-      { "id": "O-2TE1", "role": "TE", "speed": 76, "routeRunning": 79, "blocking": 87, "isBlocking": false },
-      { "id": "O-2TE2", "role": "TE", "speed": 74, "routeRunning": 77, "blocking": 84, "isBlocking": false },
-      { "id": "O-2RB1", "role": "RB", "strength": 85, "speed": 84, "routeRunning": 81, "blocking": 78, "isBlocking": false },
-      { "id": "O-2RB2", "role": "RB", "strength": 91, "speed": 82, "routeRunning": 79, "blocking": 75, "isBlocking": false }
-    ],
-    "defensivePlayers": [
-      { "id": "D-2CB1", "role": "CB", "speed": 90, "reactionTime": 90, "blitzing": 75, "isBlitzing": false },
-      { "id": "D-2CB2", "role": "CB", "speed": 89, "reactionTime": 85, "blitzing": 70, "isBlitzing": false },
-      { "id": "D-2CB3", "role": "CB", "speed": 88, "reactionTime": 86, "blitzing": 72, "isBlitzing": false },
-      { "id": "D-2S1", "role": "S", "speed": 85, "reactionTime": 89, "blitzing": 84, "isBlitzing": false },
-      { "id": "D-2S2", "role": "S", "speed": 83, "reactionTime": 87, "blitzing": 82, "isBlitzing": false },
-      { "id": "D-2S3", "role": "S", "speed": 84, "reactionTime": 88, "blitzing": 83, "isBlitzing": false },
-      { "id": "D-2LB1", "role": "LB", "speed": 77, "reactionTime": 82, "blitzing": 87, "isBlitzing": false },
-      { "id": "D-2LB2", "role": "LB", "speed": 76, "reactionTime": 80, "blitzing": 85, "isBlitzing": false },
-      { "id": "D-2LB3", "role": "LB", "speed": 75, "reactionTime": 81, "blitzing": 84, "isBlitzing": false }
-    ],
-    "OLine": 85,
-    "DLine": 91,
-    "Qb": 88
-  },
-  "TeamThree": {
-    "score": 0,
-    "offensivePlayers": [
-      { "id": "O3WR1", "role": "WR", "speed": 88, "routeRunning": 90 },
-      { "id": "O3WR2", "role": "WR", "speed": 87, "routeRunning": 88 },
-      { "id": "O3WR3", "role": "WR", "speed": 89, "routeRunning": 85 },
-      { "id": "O3WR4", "role": "WR", "speed": 86, "routeRunning": 87 },
-      { "id": "O3TE1", "role": "TE", "speed": 75, "routeRunning": 80, "blocking": 89, "isBlocking": false },
-      { "id": "O3TE2", "role": "TE", "speed": 73, "routeRunning": 78, "blocking": 86, "isBlocking": false },
-      { "id": "O3RB1", "role": "RB", "strength": 85, "speed": 83, "routeRunning": 82, "blocking": 77, "isBlocking": false },
-      { "id": "O3RB2", "role": "RB", "strength": 90, "speed": 81, "routeRunning": 79, "blocking": 74, "isBlocking": false }
-    ],
-    "defensivePlayers": [
-      { "id": "D-3CB1", "role": "CB", "speed": 92, "reactionTime": 87, "blitzing": 73, "isBlitzing": false },
-      { "id": "D-3CB2", "role": "CB", "speed": 90, "reactionTime": 85, "blitzing": 70, "isBlitzing": false },
-      { "id": "D-3CB3", "role": "CB", "speed": 89, "reactionTime": 86, "blitzing": 72, "isBlitzing": false },
-      { "id": "D-3S1", "role": "S", "speed": 86, "reactionTime": 89, "blitzing": 83, "isBlitzing": false },
-      { "id": "D-3S2", "role": "S", "speed": 85, "reactionTime": 88, "blitzing": 82, "isBlitzing": false },
-      { "id": "D-3S3", "role": "S", "speed": 84, "reactionTime": 87, "blitzing": 81, "isBlitzing": false },
-      { "id": "D-3LB1", "role": "LB", "speed": 77, "reactionTime": 82, "blitzing": 86, "isBlitzing": false },
-      { "id": "D-3LB2", "role": "LB", "speed": 76, "reactionTime": 81, "blitzing": 84, "isBlitzing": false },
-      { "id": "D-3LB3", "role": "LB", "speed": 75, "reactionTime": 80, "blitzing": 83, "isBlitzing": false }
-    ],
-    "OLine": 81,
-    "DLine": 86,
-    "Qb": 90
-  },
-  "test": {
-    "score": 0,
-    "offensivePlayers": [
-      { "id": "O3WR1", "role": "WR", "speed": 99, "routeRunning": 90 }
-    ],
-    "defensivePlayers": [
-      { "id": "D3CB1", "role": "CB", "speed": 99, "reactionTime": 87, "blitzing": 74, "isBlitzing": false }
-    ],
-    "OLine": 81,
-    "DLine": 86,
-    "Qb": 86 
-  }
+"TeamOne":  {
+  "score":  0,
+  "offensivePlayers":  [
+    {"id":  "O-1WR1", "role":  "WR", "speed":  91, "routeRunning":  91, "acceleration":  89},
+    {"id":  "O-1WR2", "role":  "WR", "speed":  92, "routeRunning":  90, "acceleration":  90},
+    {"id":  "O-1WR3", "role":  "WR", "speed":  87, "routeRunning":  88, "acceleration":  85},
+    {"id":  "O-1WR4", "role":  "WR", "speed":  89, "routeRunning":  85, "acceleration":  87},
+    {"id":  "O-1TE1", "role":  "TE", "speed":  75, "routeRunning":  77, "blocking":  88, "isBlocking":  false, "acceleration":  69},
+    {"id":  "O-1TE2", "role":  "TE", "speed":  74, "routeRunning":  78, "blocking":  85, "isBlocking":  false, "acceleration":  68},
+    {"id":  "O-1RB1", "role":  "RB", "strength":  85, "speed":  85, "routeRunning":  82, "blocking":  79, "isBlocking":  false, "acceleration":  82},
+    {"id":  "O-1RB2", "role":  "RB", "strength":  91, "speed":  83, "routeRunning":  80, "blocking":  76, "isBlocking":  false, "acceleration":  80}
+  ],
+  "defensivePlayers":  [
+    {"id":  "D-1CB1", "role":  "CB", "speed":  93, "reactionTime":  88, "blitzing":  72, "isBlitzing":  false, "acceleration":  91},
+    {"id":  "D-1CB2", "role":  "CB", "speed":  89, "reactionTime":  86, "blitzing":  70, "isBlitzing":  false, "acceleration":  87},
+    {"id":  "D-1CB3", "role":  "CB", "speed":  90, "reactionTime":  87, "blitzing":  74, "isBlitzing":  false, "acceleration":  88},
+    {"id":  "D-1S1", "role":  "S", "speed":  86, "reactionTime":  90, "blitzing":  83, "isBlitzing":  false, "acceleration":  82},
+    {"id":  "D-1S2", "role":  "S", "speed":  84, "reactionTime":  88, "blitzing":  82, "isBlitzing":  false, "acceleration":  80},
+    {"id":  "D-1S3", "role":  "S", "speed":  85, "reactionTime":  89, "blitzing":  84, "isBlitzing":  false, "acceleration":  81},
+    {"id":  "D-1LB1", "role":  "LB", "speed":  78, "reactionTime":  83, "blitzing":  88, "isBlitzing":  false, "acceleration":  71},
+    {"id":  "D-1LB2", "role":  "LB", "speed":  77, "reactionTime":  81, "blitzing":  86, "isBlitzing":  false, "acceleration":  70},
+    {"id":  "D-1LB3", "role":  "LB", "speed":  76, "reactionTime":  82, "blitzing":  85, "isBlitzing":  false, "acceleration":  69}
+  ],
+  "OLine":  88,
+  "DLine":  92,
+  "Qb":  92
+},
+"TeamTwo":  {
+  "score":  0,
+  "offensivePlayers":  [
+    {"id":  "O-2WR1", "role":  "WR", "speed":  92, "routeRunning":  91, "acceleration":  90},
+    {"id":  "O-2WR2", "role":  "WR", "speed":  87, "routeRunning":  88, "acceleration":  85},
+    {"id":  "O-2WR3", "role":  "WR", "speed":  88, "routeRunning":  90, "acceleration":  86},
+    {"id":  "O-2WR4", "role":  "WR", "speed":  86, "routeRunning":  87, "acceleration":  84},
+    {"id":  "O-2TE1", "role":  "TE", "speed":  76, "routeRunning":  79, "blocking":  87, "isBlocking":  false, "acceleration":  70},
+    {"id":  "O-2TE2", "role":  "TE", "speed":  74, "routeRunning":  77, "blocking":  84, "isBlocking":  false, "acceleration":  68},
+    {"id":  "O-2RB1", "role":  "RB", "strength":  85, "speed":  84, "routeRunning":  81, "blocking":  78, "isBlocking":  false, "acceleration":  81},
+    {"id":  "O-2RB2", "role":  "RB", "strength":  91, "speed":  82, "routeRunning":  79, "blocking":  75, "isBlocking":  false, "acceleration":  79}
+  ],
+  "defensivePlayers":  [
+    {"id":  "D-2CB1", "role":  "CB", "speed":  90, "reactionTime":  90, "blitzing":  75, "isBlitzing":  false, "acceleration":  88},
+    {"id":  "D-2CB2", "role":  "CB", "speed":  89, "reactionTime":  85, "blitzing":  70, "isBlitzing":  false, "acceleration":  87},
+    {"id":  "D-2CB3", "role":  "CB", "speed":  88, "reactionTime":  86, "blitzing":  72, "isBlitzing":  false, "acceleration":  86},
+    {"id":  "D-2S1", "role":  "S", "speed":  85, "reactionTime":  89, "blitzing":  84, "isBlitzing":  false, "acceleration":  81},
+    {"id":  "D-2S2", "role":  "S", "speed":  83, "reactionTime":  87, "blitzing":  82, "isBlitzing":  false, "acceleration":  79},
+    {"id":  "D-2S3", "role":  "S", "speed":  84, "reactionTime":  88, "blitzing":  83, "isBlitzing":  false, "acceleration":  80},
+    {"id":  "D-2LB1", "role":  "LB", "speed":  77, "reactionTime":  82, "blitzing":  87, "isBlitzing":  false, "acceleration":  70},
+    {"id":  "D-2LB2", "role":  "LB", "speed":  76, "reactionTime":  80, "blitzing":  85, "isBlitzing":  false, "acceleration":  69},
+    {"id":  "D-2LB3", "role":  "LB", "speed":  75, "reactionTime":  81, "blitzing":  84, "isBlitzing":  false, "acceleration":  68}
+  ],
+  "OLine":  85,
+  "DLine":  91,
+  "Qb":  88
+},
+"TeamThree":  {
+  "score":  0,
+  "offensivePlayers":  [  
+    {"id":  "O3WR1",  "role":  "WR",  "speed":  88,  "routeRunning":  90,  "acceleration":  86  },  
+    {"id":  "O3WR2",  "role":  "WR",  "speed":  87,  "routeRunning":  88,  "acceleration":  85  },  
+    {"id":  "O3WR3",  "role":  "WR",  "speed":  89,  "routeRunning":  85,  "acceleration":  87  },  
+    {"id":  "O3WR4",  "role":  "WR",  "speed":  86,  "routeRunning":  87,  "acceleration":  84  },  
+    {"id":  "O3TE1",  "role":  "TE",  "speed":  75,  "routeRunning":  80,  "blocking":  89,  "isBlocking":  false,  "acceleration":  69  },  
+    {"id":  "O3TE2",  "role":  "TE",  "speed":  73,  "routeRunning":  78,  "blocking":  86,  "isBlocking":  false,  "acceleration":  67  },  
+    {"id":  "O3RB1",  "role":  "RB",  "strength":  85,  "speed":  83,  "routeRunning":  82,  "blocking":  77,  "isBlocking":  false,  "acceleration":  80  },  
+    {"id":  "O3RB2",  "role":  "RB",  "strength":  90,  "speed":  81,  "routeRunning":  79,  "blocking":  74,  "isBlocking":  false,  "acceleration":  78  }
+   ],
+  "defensivePlayers":  [  
+    {"id":  "D-3CB1",  "role":  "CB",  "speed":  92,  "reactionTime":  87,  "blitzing":  73,  "isBlitzing":  false,  "acceleration":  90  },  
+    {"id":  "D-3CB2",  "role":  "CB",  "speed":  90,  "reactionTime":  85,  "blitzing":  70,  "isBlitzing":  false,  "acceleration":  88  },  
+    {"id":  "D-3CB3",  "role":  "CB",  "speed":  89,  "reactionTime":  86,  "blitzing":  72,  "isBlitzing":  false,  "acceleration":  87  },  
+    {"id":  "D-3S1",  "role":  "S",  "speed":  86,  "reactionTime":  89,  "blitzing":  83,  "isBlitzing":  false,  "acceleration":  82  },  
+    {"id":  "D-3S2",  "role":  "S",  "speed":  85,  "reactionTime":  88,  "blitzing":  82,  "isBlitzing":  false,  "acceleration":  81  },  
+    {"id":  "D-3S3",  "role":  "S",  "speed":  84,  "reactionTime":  87,  "blitzing":  81,  "isBlitzing":  false,  "acceleration":  80  },  
+    {"id":  "D-3LB1",  "role":  "LB",  "speed":  77,  "reactionTime":  82,  "blitzing":  86,  "isBlitzing":  false,  "acceleration":  70  },  
+    {"id":  "D-3LB2",  "role":  "LB",  "speed":  76,  "reactionTime":  81,  "blitzing":  84,  "isBlitzing":  false,  "acceleration":  69  },  
+    {"id":  "D-3LB3",  "role":  "LB",  "speed":  75,  "reactionTime":  80,  "blitzing":  83,  "isBlitzing":  false,  "acceleration":  68  }
+   ],
+  "OLine":  81,
+  "DLine":  86,
+  "Qb":  90
+},
+"test":  {
+  "score":  0,
+  "offensivePlayers":  [
+    { "id":  "O3WR1", "role":  "WR", "speed":  99, "routeRunning":  90, "acceleration":  97}
+  ],
+  "defensivePlayers":  [
+    { "id":  "D3CB1", "role":  "CB", "speed":  99, "reactionTime":  87, "blitzing":  74, "isBlitzing":  false, "acceleration":  97}
+  ],
+  "OLine":  81,
+  "DLine":  86,
+  "Qb":  86
+}
 }
