@@ -3,6 +3,10 @@ import React from 'react';
 import { useAppContext } from '../../Context/AppContext';
 
 const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, moreRoutes }) => {
+  const screenX = (player.position.x / 800) * fieldSize.width;
+  const screenY = (player.position.y / 600) * fieldSize.height;
+  const isLeftAligned = player.position.x < 400;
+
   const { setSackTimeRemaining, setSelectedPlayerId, setPlayers, socket, roomId } = useAppContext();
 
   const handleRouteClick = (route) => {
@@ -37,10 +41,10 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => handleRouteClick('in')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y - offsetY,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY - offsetY,
         }}
       >
         In
@@ -50,8 +54,8 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         className="route-btn"
         onClick={() => handleRouteClick('go')}
         style={{
-          left: player.position.x,
-          top: player.position.y - offsetY,
+          left: screenX,
+          top: screenY - offsetY,
         }}
       >
         Seam
@@ -62,10 +66,10 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => handleRouteClick('out')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y - offsetY,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY - offsetY,
         }}
       >
         Out
@@ -75,8 +79,8 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         className="route-btn"
         onClick={() => handleRouteClick('curl inside')}
         style={{
-          left: player.position.x < fieldSize.width / 2 ? player.position.x + offsetX : player.position.x - offsetX,
-          top: player.position.y,
+          left: isLeftAligned ? screenX + offsetX : screenX - offsetX,
+          top: screenY,
         }}
       >
         Inside
@@ -87,10 +91,10 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => handleRouteClick('flat')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y + offsetY,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY + offsetY,
         }}
       >
         Flat
@@ -125,8 +129,8 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
           );
         }}
         style={{
-          left: player.position.x,
-          top: player.position.y + offsetY,
+          left: screenX,
+          top: screenY + offsetY,
         }}
       >
         Block
@@ -137,10 +141,10 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => handleRouteClick('shallow')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y + offsetY,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY + offsetY,
         }}
       >
         Shallow
@@ -150,8 +154,8 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         className="route-btn"
         onClick={() => handleRouteClick('curl outside')}
         style={{
-          left: player.position.x > fieldSize.width / 2 ? player.position.x + offsetX : player.position.x - offsetX,
-          top: player.position.y,
+          left: !isLeftAligned ? screenX + offsetX : screenX - offsetX,
+          top: screenY,
         }}
       >
         Outside
@@ -165,10 +169,10 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => handleRouteClick('corner')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y - offsetY,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY - offsetY,
         }}
       >
         Corner
@@ -179,8 +183,8 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         id="smaller"
         onClick={() => handleRouteClick('Deep Cross')}
         style={{
-          left: player.position.x,
-          top: player.position.y - offsetY,
+          left: screenX,
+          top: screenY - offsetY,
         }}
       >
         Deep Cross
@@ -191,10 +195,10 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => handleRouteClick('post')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y - offsetY,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY - offsetY,
         }}
       >
         Post
@@ -204,8 +208,8 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         className="route-btn"
         onClick={() => handleRouteClick('return')}
         style={{
-          left: player.position.x < fieldSize.width / 2 ? player.position.x + offsetX : player.position.x - offsetX,
-          top: player.position.y,
+          left: isLeftAligned ? screenX + offsetX : screenX - offsetX,
+          top: screenY,
         }}
       >
         Return
@@ -216,10 +220,10 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => handleRouteClick('curl')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y + offsetY,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY + offsetY,
         }}
       >
         Curl
@@ -254,8 +258,8 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
           );
         }}
         style={{
-          left: player.position.x,
-          top: player.position.y + offsetY,
+          left: screenX,
+          top: screenY + offsetY,
         }}
       >
         Block
@@ -266,10 +270,10 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => handleRouteClick('drag')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y + offsetY,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY + offsetY,
         }}
       >
         Drag
@@ -279,8 +283,8 @@ const TightEndRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         className="route-btn"
         onClick={() => handleRouteClick('zig')}
         style={{
-          left: player.position.x > fieldSize.width / 2 ? player.position.x + offsetX : player.position.x - offsetX,
-          top: player.position.y,
+          left: !isLeftAligned ? screenX + offsetX : screenX - offsetX,
+          top: screenY,
         }}
       >
         Zig

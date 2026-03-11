@@ -15,6 +15,7 @@ body {
   position: fixed;
   bottom: 0;
   left: 0;
+  z-index: 100;
 }
 
 /* Scoreboard Header */
@@ -39,17 +40,17 @@ body {
 .scoreboard-box {
   display: flex;
   flex-direction: column;
-  font-size: 2vh;
+  font-size: 2vmin;
   font-weight: bold;
 }
 
 .yard-line {
-  font-size: 1.8vh;
+  font-size: 1.8vmin;
   text-shadow: 0 0 5px black;
 }
 
 .down-distance {
-  font-size: 2.2vh;
+  font-size: 2.2vmin;
   color: #fbd34c;
   text-shadow: 0 0 5px black;
 }
@@ -59,16 +60,16 @@ body {
   flex-direction: column;
   align-items: flex-end;
   margin-right: 5vw;;
-  font-size: 2vh;
+  font-size: 2vmin;
 }
 
 .quarter {
-  font-size: 2.2vh;
+  font-size: 2.2vmin;
   color: #00ffcc;
 }
 
 .clock-time {
-  font-size: 2.6vh;
+  font-size: 2.6vmin;
   font-weight: bold;
   color: #ffffff;
 }
@@ -79,7 +80,7 @@ body {
   top: 6vh;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 5vh;
+  font-size: 5vmin;
   font-weight: bold;
   z-index: 1000;
   font-family: 'Orbitron', sans-serif;
@@ -88,7 +89,7 @@ body {
 
 .score{
   display: inline;
-  font-size: 200%;
+  font-size: 4vmin;
 }
 
 .scoreboard-outcome {
@@ -96,7 +97,7 @@ body {
   top: 14vh;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 4.5vh;
+  font-size: 4.5vmin;
   font-weight: bold;
   color: #00ffcc;
   text-shadow: 2px 2px 8px black;
@@ -194,6 +195,80 @@ body {
   justify-content: center;
 }
 
+/* Phase 5: pass-pro visual states */
+.phase5-ol {
+  transition: background-color 180ms ease, box-shadow 180ms ease, border-color 180ms ease, transform 180ms ease;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+}
+
+.phase5-neutral {
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.phase5-anchor {
+  background-color: #2f9a67;
+  border-color: rgba(174, 245, 204, 0.7);
+  box-shadow: 0 0 7px 1px rgba(46, 204, 113, 0.38);
+}
+
+.phase5-mirror {
+  background-color: #2d74bd;
+  border-color: rgba(182, 221, 255, 0.68);
+  box-shadow: 0 0 7px 1px rgba(52, 152, 219, 0.34);
+}
+
+.phase5-stressed {
+  background-color: #bb7e2c;
+  border-color: rgba(255, 221, 168, 0.72);
+  animation: phase5StressPulse 680ms ease-in-out infinite;
+}
+
+.phase5-lost {
+  background-color: #b03a3a;
+  border-color: rgba(255, 193, 193, 0.75);
+  animation: phase5LostPulse 520ms ease-in-out infinite;
+}
+
+@keyframes phase5StressPulse {
+  0% { box-shadow: 0 0 4px 1px rgba(243, 156, 18, 0.26); transform: translate(-50%, -50%) scale(1); }
+  50% { box-shadow: 0 0 10px 3px rgba(243, 156, 18, 0.5); transform: translate(-50%, -50%) scale(1.03); }
+  100% { box-shadow: 0 0 4px 1px rgba(243, 156, 18, 0.26); transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes phase5LostPulse {
+  0% { box-shadow: 0 0 6px 2px rgba(231, 76, 60, 0.4); transform: translate(-50%, -50%) scale(1); }
+  50% { box-shadow: 0 0 14px 5px rgba(231, 76, 60, 0.68); transform: translate(-50%, -50%) scale(1.05); }
+  100% { box-shadow: 0 0 6px 2px rgba(231, 76, 60, 0.4); transform: translate(-50%, -50%) scale(1); }
+}
+
+.phase5-pocket {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 2;
+  border: 2px dashed rgba(255, 255, 255, 0.38);
+  width: 11vh;
+  height: 11vh;
+  transition: box-shadow 180ms ease, border-color 180ms ease, opacity 180ms ease, transform 180ms ease;
+}
+
+.phase5-pocket-clean {
+  border-color: rgba(154, 255, 200, 0.58);
+  box-shadow: 0 0 12px 4px rgba(46, 204, 113, 0.34);
+}
+
+.phase5-pocket-tight {
+  border-color: rgba(255, 230, 150, 0.62);
+  box-shadow: 0 0 12px 4px rgba(241, 196, 15, 0.42);
+}
+
+.phase5-pocket-collapse {
+  border-color: rgba(255, 173, 173, 0.7);
+  box-shadow: 0 0 14px 5px rgba(231, 76, 60, 0.58);
+  animation: phase5LostPulse 560ms ease-in-out infinite;
+}
+
 /* Routes */
 .route-btn, .zone-btn {
   position: absolute;
@@ -212,7 +287,7 @@ body {
   border: 1px solid purple;
 }
 
-#smaller { font-size: 10px; }
+#smaller { font-size: 1vmin; }
 
 .route-btn {
   background-color: rgb(0, 168, 154);
@@ -235,15 +310,15 @@ body {
   margin-right: 2.5vw;
   width: 30vw;
   height: 7.5vh;
-  font-size: 100%;
+  font-size: 1.8vmin;
   background-color: rgba(179, 10, 179, 0.702);
   color: white;
-  z-index: 2;
+  z-index: 20;
 }
 .route-svg {
   position: absolute;
-  width: 15vw;
-  height: 60vh;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
   left: 0;
   top: 0;
@@ -273,7 +348,7 @@ body {
   top: 1vh;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 2.5vh;
+  font-size: 2.5vmin;
   font-weight: bold;
   color: #eb0e0e;
   text-shadow: 2px 2px 8px black;
@@ -287,7 +362,7 @@ body {
   height: 20px;
   pointer-events: none;
   z-index: 10;
-  font-size: 20px;
+  font-size: 2vmin;
 }
 
 .zone-svg, .man-svg, .thrown-line-svg {
@@ -316,60 +391,199 @@ body {
 /* Inventory */
 .offense-inventory, .defense-inventory {
   display: flex;
-  flex-wrap: wrap;
-  padding: 8px;
-  min-height: 15vh;
-  justify-content: center;
-  gap: 8px;
-  border-top: 2px solid #ccc;
+  flex-direction: column;
+  gap: 0.7vmin;
+  padding: 0.8vmin 1.1vmin;
+  min-height: 14vmin;
+  border-top: 2px solid rgba(255, 255, 255, 0.45);
   position: fixed;
   bottom: 0;
   left: 0;
   width: 100vw;
   z-index: 5;
+  backdrop-filter: blur(8px);
 }
 
 .offense-inventory {
-  background-color: #8da7ee93;
+  background: linear-gradient(180deg, rgba(67, 99, 173, 0.95), rgba(44, 76, 145, 0.88));
 }
 
 .defense-inventory {
-  background-color: #ee8d8d93;
+  background: linear-gradient(180deg, rgba(165, 70, 70, 0.95), rgba(138, 45, 45, 0.9));
 }
 
-.x-out {
+.inventory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8vmin;
+}
+
+.inventory-title-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 1vmin;
+}
+
+.inventory-title {
+  margin: 0;
+  font-size: 1.45vmin;
+  color: #f5f8ff;
+  letter-spacing: 0.03em;
+}
+
+.inventory-count {
+  color: #d7e3ff;
+  font-size: 1.1vmin;
+  opacity: 0.92;
+}
+
+.inventory-collapse {
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.4vmin 1vmin;
+  font-size: 1.05vmin;
   position: relative;
-  top: 0vh;
-  right: 3vw;
+  margin-right: 1.2vmin;
   cursor: pointer;
-  font-size: 18px;
-  color: white;
-  z-index: 10;
+}
+
+.inventory-controls {
+  display: flex;
+  gap: 0.5vmin;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.inventory-role-list {
+  display: flex;
+  gap: 0.6vmin;
+  overflow-x: auto;
+  max-width: 70vmin;
+  padding-bottom: 0.2vmin;
+}
+
+.inventory-role-chip {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ecf2ff;
+  border-radius: 999px;
+  padding: 0.35vmin 0.9vmin;
+  font-size: 1vmin;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.inventory-role-chip.active {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.56);
+  color: #fff;
+}
+
+.inventory-grid {
+  display: flex;
+  gap: 1.3vmin;
+  max-height: 100vmin;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.4vmin;
+  padding-left: 1vmin;
+  padding-right: 1vmin;
+  justify-content: center;
+  align-items: stretch;
+  scroll-snap-type: x proximity;
+}
+
+.inventory-player-card {
+  border-radius: 1.2vmin;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  padding: 0.7vmin;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 1.3vmin;
+  width: 15vmin;
+  min-width: 15vmin;
+  height: 10vmin;
+  scroll-snap-align: center;
+  cursor: grab;
+  user-select: none;
+}
+
+.inventory-player-image-slot {
+  width: 9vmin;
+  height: 9vmin;
+  min-width: 9vmin;
+  align-self: center;
+  border-radius: 0.8vmin;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.inventory-player-card:active {
+  cursor: grabbing;
+}
+
+.inventory-player-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25vmin;
+  width: 100%;
+  text-align: center;
+}
+
+.inventory-player-overall {
+  font-weight: 700;
+  font-size: 0.95vmin;
+  letter-spacing: 0.03em;
+  color: #f8fbff;
+}
+
+.inventory-player-role {
+  opacity: 0.9;
+  font-size: 0.82vmin;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.inventory-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: #eef3ff;
+  opacity: 0.9;
+  font-size: 1.35vmin;
+  padding: 1vmin 0;
 }
 
 .show-inv {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20vh;
-  height: 6vh;
-  margin-bottom: 1vh;
-  border-radius: 20px;
+  width: 22vmin;
+  height: 4.8vmin;
+  margin-bottom: 1vmin;
+  border-radius: 999px;
   position: fixed;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   z-index: 8;
-  background-color: white;
-  color: black;
+  background: rgba(18, 27, 48, 0.94);
+  color: #f6f9ff;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  font-size: 1.1vmin;
 }
 
 .inventory-player.offense {
-  background-color: #cce5ff;
+  background-color: rgba(69, 140, 255, 0.22);
 }
 
 .inventory-player.defense {
-  background-color: #f8d7da;
+  background-color: rgba(250, 99, 99, 0.2);
 }
 
 .inventory-container {
@@ -377,17 +591,6 @@ body {
   justify-content: center;
   flex-direction: column;
   width: 100vw;
-}
-
-.inventory-menu {
-  position: relative;
-  width: 110vh;
-  height: 4vh;
-  border-bottom: 3px solid white;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  right: 1.2vw;
 }
 
 .remove-player-button {
@@ -400,7 +603,7 @@ body {
   padding: 1vh 2vw;
   border: none;
   border-radius: 10px;
-  font-size: 1rem;
+  font-size: 2vmin;
   z-index: 999;
 }
 
@@ -479,7 +682,7 @@ body {
 }
 
 .kickoff-countdown {
-  font-size: 2rem;
+  font-size: 4vmin;
   margin-bottom: 20px;
 }
 .kickoff-container {
@@ -522,7 +725,7 @@ body {
 }
 
 .arrow-icon {
-  font-size: 5rem;
+  font-size: 10vmin;
   color: white;
   z-index: 1;
   position: relative;
@@ -541,5 +744,64 @@ body {
     background-color: #28aa28;
     border: 0.3vh solid green;
     position: relative;
+  }
+
+  .offense-inventory,
+  .defense-inventory {
+    min-height: 26vmin;
+    padding: 1.1vmin;
+    border-top-left-radius: 2vmin;
+    border-top-right-radius: 2vmin;
+  }
+
+  .inventory-controls {
+    align-items: flex-start;
+  }
+
+  .inventory-role-list {
+    max-width: 100%;
+  }
+
+  .inventory-grid {
+    max-height: 17.8vmin;
+    gap: 0.8vmin;
+  }
+
+  .inventory-player-overall {
+    font-size: 1.55vmin;
+  }
+
+  .inventory-title {
+    font-size: 1.9vmin;
+  }
+
+  .inventory-count {
+    font-size: 1.5vmin;
+  }
+
+  .show-inv {
+    width: 28vmin;
+    height: 5.9vmin;
+    font-size: 1.8vmin;
+  }
+
+  .inventory-role-chip {
+    font-size: 1.5vmin;
+  }
+
+  .inventory-player-image-slot {
+    width: 5vmin;
+    height: 5vmin;
+    min-width: 5vmin;
+  }
+
+  .inventory-player-card {
+    width: 16.5vmin;
+    min-width: 16.5vmin;
+    height: 16.5vmin;
+  }
+
+  .inventory-player-role {
+    font-size: 1.3vmin;
   }
 }

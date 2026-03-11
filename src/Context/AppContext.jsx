@@ -53,6 +53,8 @@ export const Provider = ({ children }) => {
           const [inventory, setInventory] = useState({
         offense: teamData[offenseName].offensivePlayers,
         defense: teamData[defenseName].defensivePlayers,
+        offensiveLine: teamData[offenseName].offensiveLine ?? [],
+        defensiveLine: teamData[defenseName].defensiveLine ?? [],
         OLine: teamData[offenseName].OLine,
         DLine: teamData[defenseName].DLine,
         Qb: teamData[offenseName].Qb
@@ -63,13 +65,15 @@ export const Provider = ({ children }) => {
         if (offenseName) {
           setInventory({
             offense: teamData[offenseName].offensivePlayers,
-            defense: teamData[offenseName].defensivePlayers,
+            defense: teamData[defenseName].defensivePlayers,
+            offensiveLine: teamData[offenseName].offensiveLine ?? [],
+            defensiveLine: teamData[defenseName].defensiveLine ?? [],
             OLine: teamData[offenseName].OLine,
-            DLine: teamData[offenseName].DLine,
+            DLine: teamData[defenseName].DLine,
             Qb: teamData[offenseName].Qb
           });
         }
-      }, [offenseName]);
+      }, [defenseName, offenseName]);
       
       // Score updates based on outcome
       useEffect(() => {
@@ -85,13 +89,18 @@ export const Provider = ({ children }) => {
       
       // Switch sides function — swap offense and defense teams & reset field state
       const switchSides = (outcome, yardLine, height) => {
-        setTimeout(() => {
-          preSnapRef.current = players.filter(p =>
-            p.role === 'qb' ||
-            p.role === 'offensive-lineman' ||
-            p.role === 'defensive-lineman'
-          );
-        }, 50);
+        const keepCorePlayers = (p) => (
+          p.role === 'qb' ||
+          p.role === 'offensive-lineman' ||
+          p.role === 'defensive-lineman'
+        );
+
+        setPlayers((prevPlayers) => {
+          const trimmedPlayers = prevPlayers.filter(keepCorePlayers);
+          preSnapRef.current = trimmedPlayers;
+          setPreSnapPlayers(trimmedPlayers);
+          return trimmedPlayers;
+        });
 
         const newOffenseName = defenseName;
         const newDefenseName = offenseName;
@@ -103,6 +112,8 @@ export const Provider = ({ children }) => {
         setInventory({
           offense: teamData[newOffenseName].offensivePlayers,
           defense: teamData[newDefenseName].defensivePlayers,
+          offensiveLine: teamData[newOffenseName].offensiveLine ?? [],
+          defensiveLine: teamData[newDefenseName].defensiveLine ?? [],
           OLine: teamData[newOffenseName].OLine,
           DLine: teamData[newDefenseName].DLine,
           Qb: teamData[newOffenseName].Qb

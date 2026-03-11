@@ -1,5 +1,41 @@
 import { useEffect } from 'react';
 
+const LOGICAL_FIELD_WIDTH = 800;
+const LOGICAL_FIELD_HEIGHT = 600;
+const clampX = (value) => Math.max(0, Math.min(LOGICAL_FIELD_WIDTH, value));
+
+const realignTrenchToSpot = (playersList, spotX) => {
+  if (!Array.isArray(playersList)) return playersList;
+
+  const center = playersList.find((p) => p.id === 'O-L3' && p.position);
+  if (!center?.position || typeof spotX !== 'number' || Number.isNaN(spotX)) return playersList;
+
+  const deltaX = spotX - center.position.x;
+  if (Math.abs(deltaX) < 0.001) return playersList;
+
+  const trenchIds = new Set(['QB', 'O-L1', 'O-L2', 'O-L3', 'O-L4', 'O-L5', 'D-L1', 'D-L2', 'D-L3', 'D-L4']);
+  const shiftedRoles = new Set(['WR', 'TE', 'RB', 'CB', 'LB', 'S', 'qb', 'offensive-lineman', 'defensive-lineman']);
+
+  return playersList.map((player) => {
+    const shouldShift = trenchIds.has(player.id) || shiftedRoles.has(player.role);
+    if (!shouldShift || !player.position) return player;
+
+    const shiftedX = clampX(player.position.x + deltaX);
+    const shiftedZoneCircle = player.zoneCircle && typeof player.zoneCircle.x === 'number'
+      ? { ...player.zoneCircle, x: clampX(player.zoneCircle.x + deltaX) }
+      : player.zoneCircle;
+
+    return {
+      ...player,
+      position: {
+        ...player.position,
+        x: shiftedX,
+      },
+      zoneCircle: shiftedZoneCircle,
+    };
+  });
+};
+
 export function useDefenseSocketSync({
   socket,
   fieldRef,
@@ -37,13 +73,9 @@ export function useDefenseSocketSync({
     if (!socket) return;
 
     const handleCharacterPlaced = (data) => {
-      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
-      const pixelX = data.position.x * rect.width;
-      const pixelY = data.position.y * rect.height;
-
       const newPlayer = {
         ...data,
-        position: { x: pixelX, y: pixelY },
+        position: { x: data.position.x, y: data.position.y },
       };
 
       setPlayers((prevPlayers) => {
@@ -85,7 +117,12 @@ export function useDefenseSocketSync({
       setPlayers((prevPlayers) =>
         prevPlayers.map((player) => {
           const updated = data.players.find((p) => p.id === player.id);
-          if (updated) {
+          const hasValidPosition =
+            updated?.position &&
+            typeof updated.position.x === 'number' &&
+            typeof updated.position.y === 'number';
+
+          if (updated && hasValidPosition) {
             return {
               ...player,
               position: { ...updated.position },
@@ -95,6 +132,23 @@ export function useDefenseSocketSync({
 
           return player;
         })
+      );
+    };
+
+    const handleCharacterPositionUpdated = ({ playerId, logicalX, logicalY, normalizedX, normalizedY }) => {
+      const nextX = typeof logicalX === 'number' ? logicalX : (normalizedX * LOGICAL_FIELD_WIDTH);
+      const nextY = typeof logicalY === 'number' ? logicalY : (normalizedY * LOGICAL_FIELD_HEIGHT);
+
+      if (typeof nextX !== 'number' || Number.isNaN(nextX) || typeof nextY !== 'number' || Number.isNaN(nextY)) {
+        return;
+      }
+
+      setPlayers((prev) =>
+        prev.map((p) =>
+          p.id === playerId
+            ? { ...p, position: { x: nextX, y: nextY } }
+            : p
+        )
       );
     };
 
@@ -116,7 +170,6 @@ export function useDefenseSocketSync({
     };
 
     const handlePlayReset = (data) => {
-      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
       setRouteProgress({});
       setSelectedPlayerId(null);
       setSelectedZoneId(null);
@@ -127,13 +180,14 @@ export function useDefenseSocketSync({
       setLiveCountdown(null);
       setQbPenalty(0);
       setRouteStarted(false);
-      setPlayers(preSnapRef.current);
+      const alignedPreSnapPlayers = realignTrenchToSpot(preSnapRef.current, data.ballSpotX);
+      setPlayers(alignedPreSnapPlayers);
       setOutcome('');
       setCurrentYards(0);
       setDistance(data.newDistance);
       setDown(data.newDown);
       setYardLine(data.newYardLine);
-      setFirstDownStartY(data.newFirstDownStartY * (rect.height / 40));
+      setFirstDownStartY(data.newFirstDownStartY * (LOGICAL_FIELD_HEIGHT / 40));
 
       if (
         data.outcome === 'Touchdown!' ||
@@ -146,7 +200,6 @@ export function useDefenseSocketSync({
     };
 
     const handleBallThrown = (payloadOrX, maybeY) => {
-      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
       const normalizedX = typeof payloadOrX === 'object' && payloadOrX !== null
         ? payloadOrX.normalizedX
         : payloadOrX;
@@ -162,20 +215,18 @@ export function useDefenseSocketSync({
       }
 
       if (outcome !== 'Sacked') {
-        const pixelX = normalizedX * rect.width;
-        const pixelY = normalizedY * rect.height;
-        setThrownBallLine({ x: pixelX, y: pixelY, targetHalf });
+        setThrownBallLine({
+          x: normalizedX * LOGICAL_FIELD_WIDTH,
+          y: normalizedY * LOGICAL_FIELD_HEIGHT,
+          targetHalf,
+        });
       }
     };
 
     const handlePreSnapPlayers = (data) => {
-      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
       const updatedPlayers = data.players.map((p) => ({
         ...p,
-        position: {
-          x: p.position.x * rect.width,
-          y: p.position.y * rect.height,
-        },
+        position: { ...p.position },
       }));
 
       setPreSnapPlayers(updatedPlayers);
@@ -194,6 +245,7 @@ export function useDefenseSocketSync({
     socket.on('player_removed', handleRemovePlayer);
     socket.on('offense_set', handleOffenseSet);
     socket.on('character_placed', handleCharacterPlaced);
+    socket.on('character_position_updated', handleCharacterPositionUpdated);
     socket.on('route_started', handleRouteStarted);
     socket.on('play_reset', handlePlayReset);
     socket.on('ball_thrown', handleBallThrown);
@@ -208,6 +260,7 @@ export function useDefenseSocketSync({
       socket.off('player_removed', handleRemovePlayer);
       socket.off('offense_set', handleOffenseSet);
       socket.off('character_placed', handleCharacterPlaced);
+      socket.off('character_position_updated', handleCharacterPositionUpdated);
       socket.off('route_started', handleRouteStarted);
       socket.off('play_reset', handlePlayReset);
       socket.off('ball_thrown', handleBallThrown);

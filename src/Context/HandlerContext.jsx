@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useRef } from 'react';
 import { useAppContext } from './AppContext';
 
+const LOGICAL_FIELD_WIDTH = 800;
+const LOGICAL_FIELD_HEIGHT = 600;
+
 const noop = () => {};
 
 const defaultHandlerContextValue = {
@@ -57,12 +60,14 @@ export const HandlerProvider = ({ children }) => {
     // Calculate drop position relative to the field's bounding rect
     const dropX = initialX - rect.left;
     const dropY = initialY - rect.top;
+    const dropLogicalX = (dropX / rect.width) * LOGICAL_FIELD_WIDTH;
+    const dropLogicalY = (dropY / rect.height) * LOGICAL_FIELD_HEIGHT;
 
-    const half = rect.height / 2;
+    const half = LOGICAL_FIELD_HEIGHT / 2;
 
     // Enforce team side boundaries
-    if (draggingId.startsWith("O") && dropY < half) return;
-    if (draggingId.startsWith("D") && dropY > half) return;
+    if (draggingId.startsWith("O") && dropLogicalY < half) return;
+    if (draggingId.startsWith("D") && dropLogicalY > half) return;
 
     let updatedPlayer = null;
     let emittedPlayerPosition = null;
@@ -71,11 +76,11 @@ export const HandlerProvider = ({ children }) => {
 
     if (!draggingId?.startsWith('DZ')) {
       if (draggingId.startsWith('O')) {
-        emittedPlayerPosition = { x: dropX, y: dropY - (half - half / 15) };
+        emittedPlayerPosition = { x: dropLogicalX, y: dropLogicalY - (half - half / 15) };
       } else if (draggingId.startsWith('D')) {
-        emittedPlayerPosition = { x: dropX, y: dropY - half / 15 };
+        emittedPlayerPosition = { x: dropLogicalX, y: dropLogicalY - half / 15 };
       } else {
-        emittedPlayerPosition = { x: dropX, y: dropY };
+        emittedPlayerPosition = { x: dropLogicalX, y: dropLogicalY };
       }
     }
 
@@ -85,11 +90,11 @@ export const HandlerProvider = ({ children }) => {
           let newPosition;
           // Update player position with normalized coords
           if (draggingId.startsWith('O')) {
-            newPosition = { x: dropX, y: dropY - (half - half / 15) };
+            newPosition = { x: dropLogicalX, y: dropLogicalY - (half - half / 15) };
           } else if (draggingId.startsWith('D')) {
-            newPosition = { x: dropX, y: dropY - half / 15 };
+            newPosition = { x: dropLogicalX, y: dropLogicalY - half / 15 };
           } else {
-            newPosition = { x: dropX, y: dropY };
+            newPosition = { x: dropLogicalX, y: dropLogicalY };
           }
 
           updatedPlayer = { ...p, position: newPosition };
@@ -100,16 +105,16 @@ export const HandlerProvider = ({ children }) => {
           const bottom = half;
           const flatThreshold = bottom * (2 / 3);
           const midThreshold = bottom * (1 / 3);
-          const leftBound = rect.width / 3;
-          const rightBound = (rect.width / 3) * 2;
+          const leftBound = LOGICAL_FIELD_WIDTH / 3;
+          const rightBound = (LOGICAL_FIELD_WIDTH / 3) * 2;
 
           let newZone = p.zone;
 
-          if (dropY > flatThreshold) {
-            const middleFlat = dropX >= leftBound && dropX <= rightBound;
+          if (dropLogicalY > flatThreshold) {
+            const middleFlat = dropLogicalX >= leftBound && dropLogicalX <= rightBound;
             newZone = middleFlat ? "hook" : "flat";
-          } else if (dropY > midThreshold) {
-            newZone = dropX < leftBound || dropX > rightBound ? "cloud" : "hook";
+          } else if (dropLogicalY > midThreshold) {
+            newZone = dropLogicalX < leftBound || dropLogicalX > rightBound ? "cloud" : "hook";
           } else {
             newZone = "deep";
           }
@@ -119,8 +124,8 @@ export const HandlerProvider = ({ children }) => {
             zoneType: newZone,
             zoneCircle: {
               ...p.zoneCircle,
-              x: dropX,
-              y: dropY,
+              x: dropLogicalX,
+              y: dropLogicalY,
             },
           };
 
@@ -129,8 +134,8 @@ export const HandlerProvider = ({ children }) => {
             zoneType: newZone,
             zoneCircle: {
               ...p.zoneCircle,
-              x: dropX / rect.width,
-              y: dropY / rect.height,
+              x: dropLogicalX,
+              y: dropLogicalY,
             },
           };
 
@@ -147,10 +152,11 @@ export const HandlerProvider = ({ children }) => {
 
     // Emit updated player position
     if (updatedPlayer) {
+      // Always emit logical units (0-800, 0-600)
       socket.emit("update_character_position", {
         playerId: updatedPlayer.id,
-        normalizedX: (emittedPlayerPosition?.x ?? updatedPlayer.position.x) / rect.width,
-        normalizedY: (emittedPlayerPosition?.y ?? updatedPlayer.position.y) / rect.height,
+        logicalX: emittedPlayerPosition?.x ?? updatedPlayer.position.x,
+        logicalY: emittedPlayerPosition?.y ?? updatedPlayer.position.y,
         isOffense: isOffense,
         room: roomId,
       });
@@ -295,18 +301,18 @@ export const HandlerProvider = ({ children }) => {
   const handleDropOnField = (playerData, x, y, yValue, rect) => {
     const role = playerData.role;
 
-    const normalizedX = x / rect.width;
-    const newY = getRoleDropY(role, y, yValue);
-
-    const normalizedY = newY / rect.height;
+    const logicalX = (x / rect.width) * LOGICAL_FIELD_WIDTH;
+    const logicalDropY = (y / rect.height) * LOGICAL_FIELD_HEIGHT;
+    const logicalYValue = (yValue / rect.height) * LOGICAL_FIELD_HEIGHT;
+    const newY = getRoleDropY(role, logicalDropY, logicalYValue);
 
     const isOffense = playerData.type === "offense";
 
-    const normalizedPosition = { x: normalizedX, y: normalizedY };
+    const logicalPosition = { x: logicalX, y: newY };
 
     const newPlayer = {
       ...playerData,
-      position: { x, y: newY},
+      position: { x: logicalX, y: newY},
       isOffense,
       route: null,
       hasCut: false,
@@ -319,7 +325,7 @@ export const HandlerProvider = ({ children }) => {
       route: null,
       assignedOffensiveId: null,
       hasCut: false,
-      position: { x, y: newY},
+      position: { x: logicalX, y: newY},
     };
 
     setPlayers((prev) => [...prev, isOffense ? newPlayer : newDPlayer]);
@@ -333,7 +339,7 @@ export const HandlerProvider = ({ children }) => {
 
     socket.emit("place_character", {
       ...playerData,
-      position: normalizedPosition,
+      position: logicalPosition,
       isOffense,
       zone: isOffense ? undefined : null,
       assignedOffensiveId: isOffense ? undefined : null,
@@ -344,14 +350,14 @@ export const HandlerProvider = ({ children }) => {
   const handleDropOnFieldTouch = (playerData, x, y, yValue, rect) => {
     const role = playerData.role;
 
-    const normalizedX = x / rect.width;
-    const newY = getRoleDropY(role, y, yValue);
-
-    const normalizedY = newY / rect.height;
+    const logicalX = (x / rect.width) * LOGICAL_FIELD_WIDTH;
+    const logicalDropY = (y / rect.height) * LOGICAL_FIELD_HEIGHT;
+    const logicalYValue = (yValue / rect.height) * LOGICAL_FIELD_HEIGHT;
+    const newY = getRoleDropY(role, logicalDropY, logicalYValue);
 
     const isOffense = playerData.type === "offense";
 
-    const normalizedPosition = { x: normalizedX, y: normalizedY };
+    const logicalPosition = { x: logicalX, y: newY };
 
     setPlayers((prev) => {
       const playerExists = prev.find((p) => p.id === playerData.id);
@@ -360,7 +366,7 @@ export const HandlerProvider = ({ children }) => {
           p.id === playerData.id
             ? {
                 ...p,
-                position: { x, y: newY},
+                position: { x: logicalX, y: newY},
                 route: null,
                 hasCut: false,
                 zone: isOffense ? p.zone : null,
@@ -372,14 +378,14 @@ export const HandlerProvider = ({ children }) => {
         const newPlayer = isOffense
           ? {
               ...playerData,
-              position: { x, y: newY},
+              position: { x: logicalX, y: newY},
               isOffense,
               route: null,
               hasCut: false,
             }
           : {
               ...playerData,
-              position: { x, y: newY},
+              position: { x: logicalX, y: newY},
               zone: null,
               isOffense,
               route: null,
@@ -400,7 +406,7 @@ export const HandlerProvider = ({ children }) => {
   }
     socket.emit("place_character", {
       ...playerData,
-      position: normalizedPosition,
+      position: logicalPosition,
       isOffense,
       zone: isOffense ? undefined : null,
       assignedOffensiveId: isOffense ? undefined : null,

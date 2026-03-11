@@ -1,9 +1,28 @@
 // routeUtils.js
 
+  const NON_STEMMABLE_ROUTES = new Set([
+    'go',
+    'slant',
+    'speed out',
+    'fade',
+    'seam',
+    'texas',
+    'wheel',
+    'swing',
+  ]);
+
+  const clampStemScale = (value) => Math.max(0.25, Math.min(value ?? 1, 1.5));
+
+  export function canStemRoute(route) {
+    if (!route) return false;
+    return !NON_STEMMABLE_ROUTES.has(String(route).toLowerCase());
+  }
+
   export function getRouteWaypoints(fieldSize, startPos, route, player) {
     const direction = fieldSize.width / 2;
     const centerX = fieldSize.width;
-    const forwardDist = fieldSize.height / 4;
+    const stemScale = canStemRoute(route) ? clampStemScale(player?.routeStemScale) : 1;
+    const forwardDist = (fieldSize.height / 4) * stemScale;
     const scaledX = (value) => value * (fieldSize.width / 430);
 
     switch (route) {
@@ -293,9 +312,10 @@
   }
 
   // Generate SVG path string for route visualization
-  export function getRoutePath(fieldSize, x, y, route, offsetX, offsetY, progress = 100) {
+  export function getRoutePath(fieldSize, x, y, route, offsetX, offsetY, progress = 100, stemScale = 1) {
     const pct = Math.min(progress / 100, 1);
-    const forwardDist = fieldSize.height / 4;
+    const routeStemScale = canStemRoute(route) ? clampStemScale(stemScale) : 1;
+    const forwardDist = (fieldSize.height / 4) * routeStemScale;
     const direction = fieldSize.width / 2
     const centerX = fieldSize.width ; // full size
     const scaledX = (value) => value * (fieldSize.width / 430);

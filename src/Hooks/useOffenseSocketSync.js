@@ -1,5 +1,8 @@
 import { useEffect } from 'react';
 
+const LOGICAL_FIELD_WIDTH = 800;
+const LOGICAL_FIELD_HEIGHT = 600;
+
 export function useOffenseSocketSync({
   socket,
   fieldRef,
@@ -12,13 +15,10 @@ export function useOffenseSocketSync({
     if (!socket) return;
 
     const handleCharacterPlaced = (data) => {
-      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
-      const pixelX = data.position.x * rect.width;
-      const pixelY = data.position.y * rect.height;
-
+      // Treat all received positions as logical units (0-800, 0-600)
       const newPlayer = {
         ...data,
-        position: { x: pixelX, y: pixelY },
+        position: { x: data.position.x, y: data.position.y },
       };
 
       setPlayers((prevPlayers) => {
@@ -62,15 +62,14 @@ export function useOffenseSocketSync({
       );
     };
 
-    const handleCharacterPositionUpdated = ({ playerId, normalizedX, normalizedY }) => {
-      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
-      const pixelX = normalizedX * rect.width;
-      const pixelY = normalizedY * rect.height;
+    const handleCharacterPositionUpdated = ({ playerId, logicalX, logicalY, normalizedX, normalizedY }) => {
+      const nextX = typeof logicalX === 'number' ? logicalX : (normalizedX * LOGICAL_FIELD_WIDTH);
+      const nextY = typeof logicalY === 'number' ? logicalY : (normalizedY * LOGICAL_FIELD_HEIGHT);
 
       setPlayers((prev) =>
         prev.map((p) =>
           p.id === playerId
-            ? { ...p, position: { x: pixelX, y: pixelY } }
+            ? { ...p, position: { x: nextX, y: nextY } }
             : p
         )
       );
@@ -95,10 +94,8 @@ export function useOffenseSocketSync({
 
     const handleZoneAreaUpdate = (data) => {
       const { playerId, zoneType, zoneCircle } = data;
-      const rect = fieldRef.current?.getBoundingClientRect() || { width: 1, height: 1 };
-
-      const pixelX = zoneCircle.x * rect.width;
-      const pixelY = zoneCircle.y * rect.height;
+      const pixelX = typeof zoneCircle.x === 'number' ? zoneCircle.x : 0;
+      const pixelY = typeof zoneCircle.y === 'number' ? zoneCircle.y : 0;
 
       setPlayers((prevPlayers) =>
         prevPlayers.map((player) => {
@@ -129,7 +126,12 @@ export function useOffenseSocketSync({
       setPlayers((prevPlayers) =>
         prevPlayers.map((player) => {
           const updated = data.players.find((p) => p.id === player.id);
-          if (updated) {
+          const hasValidPosition =
+            updated?.position &&
+            typeof updated.position.x === 'number' &&
+            typeof updated.position.y === 'number';
+
+          if (updated && hasValidPosition) {
             return {
               ...player,
               position: { ...updated.position },

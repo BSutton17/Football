@@ -4,7 +4,7 @@ import '../App.css';
 import { useAppContext } from '../Context/AppContext';
 import { useHandlerContext } from '../Context/HandlerContext';
 import { calculateAllOpenness } from '../Utils/calculator';
-import { getRoutePath, getRouteWaypoints } from '../Utils/routeUtils';
+import { canStemRoute, getRoutePath, getRouteWaypoints } from '../Utils/routeUtils';
 import ReceiverRoutes from './Routes/receiverRoutes';
 import TightEndRoutes from './Routes/tightEndRoutes';
 import RunningBackRoutes from './Routes/runningBackRoutes';
@@ -12,67 +12,149 @@ import EndZoneGraphics from './EndZoneGraphics'
 import { useOffenseSocketSync } from '../Hooks/useOffenseSocketSync';
 import { resetPlayerMovementState } from '../Utils/playerState';
 import { logPlaySnapshot } from '../Utils/playDebug';
+import { getUnifiedAccelerationRate, getUnifiedMaxSpeed } from '../Utils/movementModel';
+
+const LOGICAL_FIELD_WIDTH = 800;
+const LOGICAL_FIELD_HEIGHT = 600;
+const SKILL_SPEED_SCALE = 0.78;
+const LINEMAN_LOG_INTERVALS = [50, 200, 500, 2000];
+const LEFT_HASH_X = LOGICAL_FIELD_WIDTH / 3;
+const RIGHT_HASH_X = (LOGICAL_FIELD_WIDTH / 3) * 2;
+
+const clampX = (value) => Math.max(0, Math.min(LOGICAL_FIELD_WIDTH, value));
+
+const getSpottedBallX = (downedX) => {
+  if (typeof downedX !== 'number' || Number.isNaN(downedX)) {
+    return LOGICAL_FIELD_WIDTH / 2;
+  }
+  if (downedX <= LEFT_HASH_X) return LEFT_HASH_X;
+  if (downedX >= RIGHT_HASH_X) return RIGHT_HASH_X;
+  return clampX(downedX);
+};
+
+const realignTrenchToSpot = (playersList, spotX) => {
+  if (!Array.isArray(playersList)) return playersList;
+
+  const center = playersList.find((p) => p.id === 'O-L3' && p.position);
+  if (!center?.position) return playersList;
+
+  const deltaX = spotX - center.position.x;
+  if (Math.abs(deltaX) < 0.001) {
+    return playersList;
+  }
+
+  const trenchIds = new Set(['QB', 'O-L1', 'O-L2', 'O-L3', 'O-L4', 'O-L5', 'D-L1', 'D-L2', 'D-L3', 'D-L4']);
+  const shiftedRoles = new Set(['WR', 'TE', 'RB', 'CB', 'LB', 'S', 'qb', 'offensive-lineman', 'defensive-lineman']);
+
+  return playersList.map((player) => {
+    const shouldShift = trenchIds.has(player.id) || shiftedRoles.has(player.role);
+    if (!shouldShift || !player.position) return player;
+
+    const shiftedX = clampX(player.position.x + deltaX);
+    const shiftedZoneCircle = player.zoneCircle && typeof player.zoneCircle.x === 'number'
+      ? { ...player.zoneCircle, x: clampX(player.zoneCircle.x + deltaX) }
+      : player.zoneCircle;
+
+    return {
+      ...player,
+      position: {
+        ...player.position,
+        x: shiftedX,
+      },
+      zoneCircle: shiftedZoneCircle,
+    };
+  });
+};
+
 function OffensiveField({ offsetX, offsetY, socket }) {
   const {
-    players,
-    setSackTimeRemaining,
+    players = [],
+    setSackTimeRemaining = () => {},
     liveCountdown,
     outcomeRef,
-    setPlayers,
+    setPlayers: setPlayersFromContext,
     selectedPlayerId,
-    setSelectedPlayerId,
-    setSelectedZoneId,
-    setDraggingId,
-    fieldSize,
-    setLiveCountdown,
+    setSelectedPlayerId = () => {},
+    setSelectedZoneId = () => {},
+    setDraggingId = () => {},
+    fieldSize = { width: 0, height: 0, area: 0 },
+    setLiveCountdown = () => {},
     routeStarted,
-    setRouteStarted,
-    setPaused,
-    sackTimerRef,
+    setRouteStarted = () => {},
+    setPaused = () => {},
     outcome,
-    setOutcome,
-    inventory,
+    setOutcome = () => {},
     completedYards,
     yardLine,
     routeProgress,
-    setRouteProgress,
-    setOpeness,
-    setDown,
-    setDistance,
-    setYardLine,
+    setRouteProgress = () => {},
+    setOpeness = () => {},
+    setDown = () => {},
+    setDistance = () => {},
+    setYardLine = () => {},
     down,
     distance,
     preSnapPlayers,
     isOffense,
     readyToCatchIds,
-    setReadyToCatchIds,
+    setReadyToCatchIds = () => {},
     switchSides,
     roomId,
     currentYards, 
     isRunPlay,
     firstDownStartY, 
-    setFirstDownStartY,
+    setFirstDownStartY = () => {},
     activePlayId,
-    setActivePlayId,
+    setActivePlayId = () => {},
     thrownBallLine, 
     fieldRef,
     moreRoutes, 
-    setMoreRoutes
+    setMoreRoutes = () => {}
   } = useAppContext();
+  const setPlayers = useCallback((nextPlayersOrUpdater) => {
+    if (typeof setPlayersFromContext === 'function') {
+      setPlayersFromContext(nextPlayersOrUpdater);
+    }
+  }, [setPlayersFromContext]);
 
   const { handleMouseDown, handleTouchStart, handleDragOver, handleDrop } = useHandlerContext();
   const [showThrowAwayButton, setShowThrowAwayButton] = useState(false);
-const [throwAwayPosition, setThrowAwayPosition] = useState({ top: 0, left: 0 });
+  const [throwAwayPosition, setThrowAwayPosition] = useState({ top: 0, left: 0 });
+  const [throwAwayArmed, setThrowAwayArmed] = useState(false);
+  const [phase5EngagementByBlockerId, setPhase5EngagementByBlockerId] = useState({});
   const hasPlacedStaticOffenseRef = useRef(false);
   const readyToCatchTimeoutsRef = useRef(new Map());
   const firstDownStartYRef = useRef(firstDownStartY);
   const lastHandledOutcomeKeyRef = useRef(null);
   const playResetTimeoutRef = useRef(null);
   const stopRouteTimeoutRef = useRef(null);
+  const throwAwayArmTimeoutRef = useRef(null);
+  const throwAwayShowTimeoutRef = useRef(null);
+  const localOutcomeRef = useRef("");
+  const activeOutcomeRef = outcomeRef ?? localOutcomeRef;
+  const playersRef = useRef(players);
+  const routeMotionStateRef = useRef(new Map());
+  const opennessScoresRef = useRef({});
+  const stemDragStateRef = useRef({
+    playerId: null,
+    startClientY: 0,
+    startScale: 1,
+  });
 
-  // Constants
-  const lineOfScrimmageY = fieldSize.height / 2;
-  const oneYardInPixels = fieldSize.height / 40;
+  const STEM_MIN = 0.25;
+  const STEM_MAX = 1.5;
+
+  // Constants in logical space
+  const lineOfScrimmageY = LOGICAL_FIELD_HEIGHT / 2;
+  const oneYardInPixels = LOGICAL_FIELD_HEIGHT / 40;
+  const renderOneYardInPixels = (fieldSize?.height || LOGICAL_FIELD_HEIGHT) / 40;
+  const logicalFieldSize = useMemo(() => ({
+    width: LOGICAL_FIELD_WIDTH,
+    height: LOGICAL_FIELD_HEIGHT,
+    area: LOGICAL_FIELD_WIDTH * LOGICAL_FIELD_HEIGHT,
+  }), []);
+  const toScreenX = useCallback((logicalX) => (logicalX / LOGICAL_FIELD_WIDTH) * fieldSize.width, [fieldSize.width]);
+  const toScreenY = useCallback((logicalY) => (logicalY / LOGICAL_FIELD_HEIGHT) * fieldSize.height, [fieldSize.height]);
 
   // Utility
   const yardsToPixels = useCallback((yards) => {
@@ -83,15 +165,79 @@ const pixelsToYards = useCallback((pixels) => {
   return pixels / oneYardInPixels;
 }, [oneYardInPixels]);
 
+const getEventClientY = (event) => {
+  if ('touches' in event && event.touches.length > 0) {
+    return event.touches[0].clientY;
+  }
+  return event.clientY;
+};
+
+const handleStemDragMove = useCallback((event) => {
+  const { playerId, startClientY, startScale } = stemDragStateRef.current;
+  if (!playerId) return;
+
+  if ('touches' in event) {
+    event.preventDefault();
+  }
+
+  const clientY = getEventClientY(event);
+  const deltaY = clientY - startClientY;
+  const baseDepth = Math.max(fieldSize.height / 4, 1);
+  const nextScale = Math.max(STEM_MIN, Math.min(STEM_MAX, startScale - (deltaY / baseDepth)));
+
+  setPlayers((prevPlayers) =>
+    prevPlayers.map((player) => {
+      if (player.id !== playerId) return player;
+      if (!canStemRoute(player.route)) return player;
+      return {
+        ...player,
+        routeStemScale: Number(nextScale.toFixed(3)),
+      };
+    })
+  );
+}, [fieldSize.height, setPlayers]);
+
+const stopStemDrag = useCallback(() => {
+  stemDragStateRef.current = { playerId: null, startClientY: 0, startScale: 1 };
+  window.removeEventListener('mousemove', handleStemDragMove);
+  window.removeEventListener('mouseup', stopStemDrag);
+  window.removeEventListener('touchmove', handleStemDragMove);
+  window.removeEventListener('touchend', stopStemDrag);
+}, [handleStemDragMove]);
+
+const startStemDrag = useCallback((event, player) => {
+  if (!player?.route || !canStemRoute(player.route) || routeStarted || !isOffense) return;
+
+  const clientY = getEventClientY(event);
+  if (typeof clientY !== 'number') return;
+  if ('touches' in event) {
+    event.preventDefault();
+  }
+
+  stemDragStateRef.current = {
+    playerId: player.id,
+    startClientY: clientY,
+    startScale: Math.max(STEM_MIN, Math.min(STEM_MAX, player.routeStemScale ?? 1)),
+  };
+
+  window.addEventListener('mousemove', handleStemDragMove);
+  window.addEventListener('mouseup', stopStemDrag);
+  window.addEventListener('touchmove', handleStemDragMove, { passive: false });
+  window.addEventListener('touchend', stopStemDrag);
+}, [handleStemDragMove, isOffense, routeStarted, stopStemDrag]);
+
+useEffect(() => () => stopStemDrag(), [stopStemDrag]);
+
 useEffect(() => {
   const timeoutMap = readyToCatchTimeoutsRef.current;
+  const safeReadyToCatchIds = readyToCatchIds instanceof Set ? readyToCatchIds : new Set();
 
   if (routeStarted) {
     players.forEach(player => {
       if (
         player.isOffense &&
         player.moveTarget &&
-        !readyToCatchIds.has(player.id) &&
+        !safeReadyToCatchIds.has(player.id) &&
         !timeoutMap.has(player.id)
       ) {
         const delay = Math.floor(Math.random() * (2000 - 1000 + 1)) + 1000;
@@ -109,7 +255,7 @@ useEffect(() => {
       }
     });
   } else {
-    if (readyToCatchIds.size > 0) {
+    if (safeReadyToCatchIds.size > 0) {
       setReadyToCatchIds(new Set());
     }
 
@@ -128,7 +274,7 @@ useEffect(() => {
 
   useEffect(() => {
     if (!hasInitializedFirstDown.current && fieldSize.height > 0) {
-      setFirstDownStartY(fieldSize.height / 4);
+      setFirstDownStartY(LOGICAL_FIELD_HEIGHT / 4);
       hasInitializedFirstDown.current = true;
     }
   }, [fieldSize.height, setFirstDownStartY]);
@@ -152,11 +298,11 @@ useEffect(() => {
       
       // Wait 3 seconds before executing the switchSides logic
       setTimeout(() => {
-        switchSides(outcome, yardLine, fieldSize.height);
+        switchSides(outcome, yardLine, LOGICAL_FIELD_HEIGHT);
       }, 3000);
     }
   }
-}, [fieldSize.height, outcome, switchSides, yardLine]);
+}, [outcome, switchSides, yardLine]);
 
   // reset
   const handleOutcomeResult = useCallback((outcomeValue, firstDownStartY) => {
@@ -170,17 +316,17 @@ useEffect(() => {
     let newDown = down;
     let newDistance = distance;
     let negativeYards = 0;
-    let newFirstDownStartY = firstDownStartY ?? (fieldSize.height / 4); 
-      if (outcome.includes("yard") && newTotal >= distance) {
+    let newFirstDownStartY = firstDownStartY ?? (LOGICAL_FIELD_HEIGHT / 4);
+      if (outcomeValue.includes("yard") && newTotal >= distance) {
         newYardLine = yardLine + completedYards;
         setYardLine(newYardLine);
-        newFirstDownStartY = fieldSize.height/4
+        newFirstDownStartY = LOGICAL_FIELD_HEIGHT / 4;
         setFirstDownStartY(newFirstDownStartY);
         newDistance = 10;
         setDistance(newDistance);
         newDown = 1
         setDown(newDown);
-      } else if (outcome.includes("yard")) {
+      } else if (outcomeValue.includes("yard")) {
         newYardLine = yardLine + completedYards;
         setYardLine(newYardLine);
         newFirstDownStartY = firstDownStartY + yardsToPixels(completedYards)
@@ -190,7 +336,7 @@ useEffect(() => {
         newDown = down + 1
         setDown(newDown);
       }
-      else if (outcome === "Sacked") {
+      else if (outcomeValue === "Sacked") {
         negativeYards = Math.floor(Math.random() * (8 - 5)) + 5;
         newYardLine = yardLine - negativeYards;
         setYardLine(newYardLine);
@@ -201,20 +347,20 @@ useEffect(() => {
         newDown = down + 1
         setDown(newDown);
       }
-      else if(outcome === "Intercepted" || outcome == "Turnover on Downs") {
+      else if(outcomeValue === "Intercepted" || outcomeValue == "Turnover on Downs") {
         newYardLine = 100 - yardLine;
         setYardLine(newYardLine);
-        newFirstDownStartY = fieldSize.height/4
+        newFirstDownStartY = LOGICAL_FIELD_HEIGHT / 4;
         setFirstDownStartY(newFirstDownStartY);
         newDistance = 10
         setDistance(newDistance);
         newDown = 1
         setDown(newDown);
       }
-      else if(outcome === "Touchdown!") {
+      else if(outcomeValue === "Touchdown!") {
         newYardLine = 25;
         setYardLine(newYardLine);
-        newFirstDownStartY = fieldSize.height/4
+        newFirstDownStartY = LOGICAL_FIELD_HEIGHT / 4;
         setFirstDownStartY(newFirstDownStartY);
         newDistance = 10
         setDistance(newDistance);
@@ -230,6 +376,27 @@ useEffect(() => {
       }
 
     
+    const rbRunCarrier = players.find((p) => p.role === 'RB' && p.route === 'run' && p.position);
+    const qb = players.find((p) => p.role === 'qb' && p.position);
+    const isYardageOutcome = outcomeValue.includes('yard') || outcomeValue === 'Sacked';
+    let downedBallX = null;
+
+    if (isYardageOutcome) {
+      if (outcomeValue === 'Sacked') {
+        downedBallX = qb?.position?.x ?? null;
+      } else if (outcomeValue.includes('run')) {
+        downedBallX = rbRunCarrier?.position?.x ?? null;
+      } else {
+        downedBallX = thrownBallLine?.x ?? null;
+      }
+    }
+
+    const currentCenterX = preSnapPlayers.find((p) => p.id === 'O-L3')?.position?.x ?? (LOGICAL_FIELD_WIDTH / 2);
+    const spottedBallX = isYardageOutcome
+      ? getSpottedBallX(typeof downedBallX === 'number' ? downedBallX : currentCenterX)
+      : currentCenterX;
+    const alignedPreSnapPlayers = realignTrenchToSpot(preSnapPlayers, spottedBallX);
+
     // Reset state
     //setCurrentYards(newTotalYards || 0);
     setRouteProgress({});
@@ -243,9 +410,7 @@ useEffect(() => {
     setShowThrowAwayButton(false)
     setRouteStarted(false);
 
-    if(outcome !== "Intercepted") {
-      setPlayers(preSnapPlayers); 
-    }
+    setPlayers(alignedPreSnapPlayers);
     //if (!["Touchdown!", "Intercepted"].includes(outcome)) {
       logPlaySnapshot({
         socket,
@@ -253,7 +418,7 @@ useEffect(() => {
         payload: {
           playId: activePlayId,
           roomId,
-          previousOutcome: outcome,
+          previousOutcome: outcomeValue,
           completedYards,
           newYardLine,
           newDown,
@@ -266,6 +431,7 @@ useEffect(() => {
           newDown,
           newDistance,
           newFirstDownStartY: pixelsToYards(newFirstDownStartY),
+          ballSpotX: spottedBallX,
           roomId
         });
       setActivePlayId(null);
@@ -278,9 +444,8 @@ useEffect(() => {
     currentYards,
     distance,
     down,
-    fieldSize.height,
-    outcome,
     preSnapPlayers,
+    players,
     roomId,
     setDistance,
     setDown,
@@ -302,6 +467,7 @@ useEffect(() => {
     socket,
     activePlayId,
     pixelsToYards,
+    thrownBallLine,
     yardLine,
     yardsToPixels,
   ]);
@@ -309,10 +475,10 @@ useEffect(() => {
   //Offensive lineman and QB
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (fieldSize?.width && fieldSize?.height && !hasPlacedStaticOffenseRef.current) {
+      if (!hasPlacedStaticOffenseRef.current) {
         hasPlacedStaticOffenseRef.current = true;
-        let width = fieldSize.width
-        let height = fieldSize.height
+        let width = LOGICAL_FIELD_WIDTH;
+        let height = LOGICAL_FIELD_HEIGHT;
         const staticPlayers = [
         {
           id: 'QB',
@@ -322,47 +488,58 @@ useEffect(() => {
         },
         {
           id: 'O-L1',
-          position: { x: width / 2 - (width / 7), y: 25 },
+          position: { x: width / 2 - (width / 7), y: height * 0.0417 },
           isOffense: true,
           role: 'offensive-lineman',
         },
         {
           id: 'O-L2',
-          position: { x: width / 2 - (width / 14), y: 20 },
+          position: { x: width / 2 - (width / 14), y: height * 0.0333 },
           isOffense: true,
           role: 'offensive-lineman',
         },
         {
           id: 'O-L3',
-          position: { x: width / 2, y: 15 },
+          position: { x: width / 2, y: height * 0.025 },
           isOffense: true,
           role: 'offensive-lineman',
         },
         {
           id: 'O-L4',
-          position: { x: width / 2 + (width / 14), y: 20 },
+          position: { x: width / 2 + (width / 14), y: height * 0.0333 },
           isOffense: true,
           role: 'offensive-lineman',
         },
         {
           id: 'O-L5',
-          position: { x: width / 2 + (width / 7), y: 25 },
+          position: { x: width / 2 + (width / 7), y: height * 0.0417 },
           isOffense: true,
           role: 'offensive-lineman',
         }
         ];
 
-        setPlayers(prev => [...prev, ...staticPlayers]);
+        setPlayers((prev) => {
+          const existingIds = new Set(prev.map((player) => player.id));
+          const uniqueStaticPlayers = staticPlayers.filter((player) => !existingIds.has(player.id));
+          return [...prev, ...uniqueStaticPlayers];
+        });
       }
     }, 10);
 
     return () => clearTimeout(timer);
-  }, [fieldSize?.width, fieldSize?.height, setPlayers]);
+  }, [setPlayers]);
 
   // Assign route to player
   const assignRoute = (id, routeName) => {
     setPlayers(prev =>
-      prev.map(p => (p.id === id ? { ...p, route: routeName } : p))
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        return {
+          ...p,
+          route: routeName,
+          routeStemScale: routeName && canStemRoute(routeName) ? (p.routeStemScale ?? 1) : 1,
+        };
+      })
     );
     setSelectedPlayerId(null);
     socket.emit("assign_route", { playerId: id, routeName, room: roomId });
@@ -371,6 +548,7 @@ useEffect(() => {
   // When route starts, set move targets and movement info for players with routes
   useEffect(() => {
     if (routeStarted) {
+      routeMotionStateRef.current = new Map();
       setSelectedPlayerId(null);
       setSelectedZoneId(null);
       setDraggingId(null);
@@ -378,31 +556,22 @@ useEffect(() => {
         prevPlayers.map((p) => {
           if (p.isOffense && p.route) {
             const waypoints = getRouteWaypoints(
-              fieldSize,
+              logicalFieldSize,
               p.position,
               p.route,
               p
             )
-            let durations = [];
-
-            for (let i = 0; i < waypoints.length; i++) {
-              const from = i === 0 ? p.position : waypoints[i - 1];
-              const to = waypoints[i];
-              const dx = to.x - from.x;
-              const dy = to.y - from.y;
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              durations.push(distance / (p.speed * 1.25) * 1000); // in ms
-            }
 
             return {
             ...p,
             waypoints,
-            waypointDurations: durations,
             currentWaypointIndex: 0,
             moveTarget: waypoints[0],
-            moveDuration: durations[0],
-            moveStartTime: performance.now(),
+            moveDuration: null,
+            moveStartTime: null,
             startPosition: { ...p.position },
+            currentSpeed: 0,
+            lastUpdateTime: null,
             routeProgress: 0,
           };
 
@@ -412,9 +581,10 @@ useEffect(() => {
       );
     } else {
       // Reset readyToCatchIds when route is not started
+      routeMotionStateRef.current = new Map();
       setReadyToCatchIds(new Set());
     }
-  }, [fieldSize, offsetX, offsetY, routeStarted, setDraggingId, setPlayers, setReadyToCatchIds, setSelectedPlayerId, setSelectedZoneId]);
+  }, [logicalFieldSize, routeStarted, setDraggingId, setPlayers, setReadyToCatchIds, setSelectedPlayerId, setSelectedZoneId]);
 
   // route running
     useEffect(() => {
@@ -427,92 +597,98 @@ useEffect(() => {
           const movingPlayers = [];
 
           const newPlayers = prevPlayers.map(p => {
-            if (p.moveTarget && p.moveDuration && p.moveStartTime) {
-              if (p.pauseStartTime) {
-                const pauseElapsed = time - p.pauseStartTime;
-                if (pauseElapsed >= p.pauseDuration) {
-                  const nextIndex = (p.currentWaypointIndex ?? 0) + 1;
-
-                  if (p.waypoints && nextIndex < p.waypoints.length) {
-                    anyUpdated = true;
-                    movingPlayers.push({
-                      id: p.id,
-                      position: p.moveTarget,
-                      routeProgress: nextIndex / p.waypoints.length,
-                    });
-                    return {
-                      ...p,
-                      position: { ...p.moveTarget },
-                      currentWaypointIndex: nextIndex,
-                      moveTarget: p.waypoints[nextIndex],
-                      moveDuration: p.waypointDurations[nextIndex],
-                      moveStartTime: time,
-                      startPosition: { ...p.moveTarget },
-                      pauseStartTime: null,
-                      pauseDuration: 0,
-                      routeProgress: nextIndex / p.waypoints.length,
-                    };
-                  } else {
-                    return {
-                      ...p,
-                      position: { ...p.moveTarget },
-                      moveTarget: null,
-                      moveDuration: null,
-                      moveStartTime: null,
-                      startPosition: null,
-                      currentWaypointIndex: null,
-                      waypoints: null,
-                      waypointDurations: null,
-                      routeProgress: 1,
-                      velocity: null,
-                      pauseStartTime: null,
-                      pauseDuration: 0,
-                    };
-                  }
-                } else {
-                  anyUpdated = true;
-                  movingPlayers.push({
-                    id: p.id,
-                    position: p.position,
-                    routeProgress: p.routeProgress,
-                  });
-                  return { ...p };
-                }
-              } else {
-                const elapsed = time - p.moveStartTime;
-                const t = Math.min(elapsed / p.moveDuration, 1);
-                const easedT = getAccelerationEasedProgress(t, p.acceleration, p.speed);
-
-                const newX = p.startPosition.x + (p.moveTarget.x - p.startPosition.x) * easedT;
-                const newY = p.startPosition.y + (p.moveTarget.y - p.startPosition.y) * easedT;
-
-                if (t < 1) {
-                  anyUpdated = true;
-                  movingPlayers.push({
-                    id: p.id,
-                    position: { x: newX, y: newY },
-                    routeProgress: p.waypoints ? (p.currentWaypointIndex + easedT) / p.waypoints.length : 0,
-                  });
-                  return {
-                    ...p,
-                    position: { x: newX, y: newY },
-                    routeProgress: p.waypoints ? (p.currentWaypointIndex + easedT) / p.waypoints.length : 0,
-                  };
-                } else {
-                  anyUpdated = true;
-                  movingPlayers.push({
-                    id: p.id,
-                    position: p.moveTarget,
-                    routeProgress: (p.currentWaypointIndex + 1) / p.waypoints.length,
-                  });
-                  return {
-                    ...p,
-                    position: { ...p.moveTarget },
-                    pauseStartTime: time,
-                    pauseDuration: 200 - (scale(p.routeRunning) * 2),
-                  };
-                }
+            if (p.waypoints && typeof p.currentWaypointIndex === 'number' && p.currentWaypointIndex < p.waypoints.length) {
+              const target = p.waypoints[p.currentWaypointIndex];
+              if (!target || !p.position) {
+                return p;
               }
+
+              const motionState = routeMotionStateRef.current.get(p.id) || { currentSpeed: 0, lastUpdateTime: null };
+              const lastTime = motionState.lastUpdateTime || time;
+              const deltaTime = Math.max((time - lastTime) / 1000, 0.016);
+              const dx = target.x - p.position.x;
+              const dy = target.y - p.position.y;
+              const distance = Math.hypot(dx, dy);
+
+              if (distance <= 0.2) {
+                const nextIndex = p.currentWaypointIndex + 1;
+                const reachedPosition = { x: target.x, y: target.y };
+                if (nextIndex >= p.waypoints.length) {
+                  routeMotionStateRef.current.delete(p.id);
+                  anyUpdated = true;
+                  movingPlayers.push({
+                    id: p.id,
+                    position: reachedPosition,
+                    routeProgress: 1,
+                  });
+                  return {
+                    ...p,
+                    position: reachedPosition,
+                    moveTarget: null,
+                    moveDuration: null,
+                    moveStartTime: null,
+                    startPosition: null,
+                    currentWaypointIndex: null,
+                    waypoints: null,
+                    routeProgress: 1,
+                    currentSpeed: 0,
+                    lastUpdateTime: time,
+                  };
+                }
+
+                anyUpdated = true;
+                routeMotionStateRef.current.set(p.id, {
+                  currentSpeed: motionState.currentSpeed ?? 0,
+                  lastUpdateTime: time,
+                });
+                movingPlayers.push({
+                  id: p.id,
+                  position: reachedPosition,
+                  routeProgress: nextIndex / p.waypoints.length,
+                });
+                return {
+                  ...p,
+                  position: reachedPosition,
+                  currentWaypointIndex: nextIndex,
+                  moveTarget: p.waypoints[nextIndex],
+                  routeProgress: nextIndex / p.waypoints.length,
+                  lastUpdateTime: time,
+                };
+              }
+
+              const maxSpeed = getUnifiedMaxSpeed(p) * SKILL_SPEED_SCALE;
+              const accelerationRate = getUnifiedAccelerationRate(p);
+              const hasTrackingHistory = Boolean(motionState.lastUpdateTime);
+              const launchFloor = hasTrackingHistory ? 0 : (maxSpeed * 0.55);
+              const acceleratedSpeed = (motionState.currentSpeed ?? 0) + (accelerationRate * deltaTime);
+              const currentSpeed = Math.min(maxSpeed, Math.max(launchFloor, acceleratedSpeed));
+              const step = Math.min(currentSpeed * deltaTime, distance);
+              const nx = p.position.x + ((dx / distance) * step);
+              const ny = p.position.y + ((dy / distance) * step);
+
+              routeMotionStateRef.current.set(p.id, {
+                currentSpeed,
+                lastUpdateTime: time,
+              });
+
+              const segmentProgress = distance > 0 ? Math.min(step / distance, 1) : 0;
+              const progress = p.waypoints.length > 0
+                ? (p.currentWaypointIndex + segmentProgress) / p.waypoints.length
+                : 0;
+
+              anyUpdated = true;
+              movingPlayers.push({
+                id: p.id,
+                position: { x: nx, y: ny },
+                routeProgress: progress,
+              });
+              return {
+                ...p,
+                position: { x: nx, y: ny },
+                routeProgress: progress,
+                currentSpeed,
+                lastUpdateTime: time,
+              };
             }
             return p;
           });
@@ -543,28 +719,22 @@ useEffect(() => {
 
 
 
-  // scales value from 60 --> 99 to 0 --> 99
-  function scale(x) {
-    return ((x - 60) / 39) * 99;
-  }
-
-  function getAccelerationEasedProgress(rawT, acceleration, speed) {
-    const clampedT = Math.max(0, Math.min(rawT, 1));
-    const accelerationRating = Math.max(40, Math.min(acceleration ?? speed ?? 75, 99));
-    const normalized = (accelerationRating - 40) / 59;
-    const exponent = 1.22 - (normalized * 0.18);
-    return Math.pow(clampedT, exponent);
-  }
-  
-
   const offensivePlayers = players.filter(p => p.isOffense);
   const defensivePlayers = players.filter(p => !p.isOffense);
   const qbPlayer = offensivePlayers.find((player) => player.role === 'qb');
   const labelOffsetY = Math.max(8, fieldSize.height * 0.014);
   const labelOffsetX = Math.max(6, fieldSize.width * 0.015);
   const opennessScores = useMemo(() => {
-  return calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSize);
-}, [defensivePlayers, fieldSize, offensivePlayers]);
+  return calculateAllOpenness(offensivePlayers, defensivePlayers, logicalFieldSize);
+}, [defensivePlayers, logicalFieldSize, offensivePlayers]);
+
+  useEffect(() => {
+    playersRef.current = players;
+  }, [players]);
+
+  useEffect(() => {
+    opennessScoresRef.current = opennessScores;
+  }, [opennessScores]);
 
 
 const stopAllPlayerMovement = useCallback(() => {
@@ -575,7 +745,6 @@ const stopAllPlayerMovement = useCallback(() => {
 }, [setPlayers]);
 
   const runRouteExists = offensivePlayers.some((p) => p.route === "run");
-
   useOffenseSocketSync({
     socket,
     fieldRef,
@@ -585,7 +754,7 @@ const stopAllPlayerMovement = useCallback(() => {
     stopAllPlayerMovement,
   });
 
-  //Oline and DLine logic
+  // OL/DL movement is handled by DefensiveField trench simulation.
 
   useEffect(() => {
     firstDownStartYRef.current = firstDownStartY;
@@ -593,45 +762,15 @@ const stopAllPlayerMovement = useCallback(() => {
 
   // Keep the ref updated with the latest outcome
   useEffect(() => {
-    outcomeRef.current = outcome;
-  }, [outcome, outcomeRef]);
+    activeOutcomeRef.current = outcome;
+  }, [activeOutcomeRef, outcome]);
 
 useEffect(() => {
-  if (!routeStarted) return;
-
-  const OLineRating = inventory.OLine;
-  const DLineRating = inventory.DLine;
-  const variability = Math.random() * (500 - 200) + 200;
-
-  const sackTime = (OLineRating * 60) - (DLineRating * 30) + variability;
-
-  setSackTimeRemaining((prev) => {
-    const totalTime = prev + sackTime;
-    setLiveCountdown(totalTime);
-    return totalTime;
-  });
-}, [inventory.DLine, inventory.OLine, routeStarted, setLiveCountdown, setSackTimeRemaining]);
-
-useEffect(() => {
-  if (!routeStarted || outcomeRef.current !== "" || !liveCountdown) return;
-
-  if (sackTimerRef.current) clearTimeout(sackTimerRef.current);
-
-  sackTimerRef.current = setTimeout(() => {
-    if (outcomeRef.current === "" && !runRouteExists) {
-      setRouteStarted(false);
-      socket.emit("route_started", { routeStarted: false, roomId });
-      setOutcome("Sacked");
-      socket.emit("play_outcome", {
-        outcome: "Sacked",
-        yardLine,
-        roomId
-      });
-    }
-  }, liveCountdown);
-
-  return () => clearTimeout(sackTimerRef.current);
-}, [liveCountdown, outcome, outcomeRef, roomId, routeStarted, runRouteExists, sackTimerRef, setOutcome, setRouteStarted, socket, yardLine]);
+  // Sack timer removed: sacks are now overlap-only from DefensiveField hitbox checks.
+  setLiveCountdown(null);
+  setSackTimeRemaining(0);
+  setPhase5EngagementByBlockerId({});
+}, [routeStarted, outcome, setLiveCountdown, setSackTimeRemaining]);
 
   useEffect(() => {
     if (!outcome) {
@@ -647,7 +786,11 @@ useEffect(() => {
       return;
     }
 
-    const outcomeKey = `${activePlayId || 'no-play'}:${outcome}`;
+    if (!activePlayId) {
+      return;
+    }
+
+    const outcomeKey = outcome;
     if (lastHandledOutcomeKeyRef.current === outcomeKey) {
       return;
     }
@@ -670,22 +813,64 @@ useEffect(() => {
   }, [activePlayId, handleOutcomeResult, isOffense, outcome, setRouteStarted, stopAllPlayerMovement]);
 
   useEffect(() => {
-  if (!routeStarted || outcomeRef.current !== "" || showThrowAwayButton) return;
+    if (throwAwayArmTimeoutRef.current) {
+      clearTimeout(throwAwayArmTimeoutRef.current);
+      throwAwayArmTimeoutRef.current = null;
+    }
 
-  // Show throw away if <= 1 second left
-  if (liveCountdown <= 1000 && liveCountdown > 0) {
-    const randTop = Math.random() * 80 + 10; 
-    const randLeft = Math.random() * 80 + 10;  
+    if (!routeStarted || activeOutcomeRef.current !== "") {
+      setThrowAwayArmed(false);
+      return;
+    }
+
+    setThrowAwayArmed(false);
+    throwAwayArmTimeoutRef.current = setTimeout(() => {
+      if (activeOutcomeRef.current === "") {
+        setThrowAwayArmed(true);
+      }
+    }, 2500);
+
+    return () => {
+      if (throwAwayArmTimeoutRef.current) {
+        clearTimeout(throwAwayArmTimeoutRef.current);
+        throwAwayArmTimeoutRef.current = null;
+      }
+    };
+  }, [activeOutcomeRef, routeStarted]);
+
+  useEffect(() => {
+    if (throwAwayShowTimeoutRef.current) {
+      clearTimeout(throwAwayShowTimeoutRef.current);
+      throwAwayShowTimeoutRef.current = null;
+    }
+
+    if (!routeStarted || !throwAwayArmed || activeOutcomeRef.current !== "" || isRunPlay) {
+      setShowThrowAwayButton(false);
+      return;
+    }
+
+    if (showThrowAwayButton) {
+      return;
+    }
+
+    const randTop = Math.random() * 80 + 10;
+    const randLeft = Math.random() * 80 + 10;
     const delay = Math.random() * (500 - 50) + 50;
     setThrowAwayPosition({ top: `${randTop}%`, left: `${randLeft}%` });
-    setTimeout(()=>{
-      setShowThrowAwayButton(true);
-    }, delay)
-  } else {
-    setShowThrowAwayButton(false);
-  }
 
-}, [liveCountdown, outcomeRef, routeStarted, showThrowAwayButton]);
+    throwAwayShowTimeoutRef.current = setTimeout(() => {
+      if (activeOutcomeRef.current === "" && routeStarted) {
+        setShowThrowAwayButton(true);
+      }
+    }, delay);
+
+    return () => {
+      if (throwAwayShowTimeoutRef.current) {
+        clearTimeout(throwAwayShowTimeoutRef.current);
+        throwAwayShowTimeoutRef.current = null;
+      }
+    };
+  }, [activeOutcomeRef, isRunPlay, routeStarted, showThrowAwayButton, throwAwayArmed]);
 
   const handleThrowAway = () => {
   setShowThrowAwayButton(false);
@@ -699,16 +884,16 @@ useEffect(() => {
 
   return (
     <>
-      <EndZoneGraphics oneYardInPixels={oneYardInPixels} yardLine={yardLine} />
+      <EndZoneGraphics oneYardInPixels={renderOneYardInPixels} yardLine={yardLine} />
 
       <div
         className={distance < 20 && yardLine < 90 ? "first-down" : "hide"}
-        style={{ top: `${firstDownStartY}px`, position: 'absolute' }}
+        style={{ top: `${toScreenY(firstDownStartY)}px`, position: 'absolute' }}
       ></div>
 
       <div
         className="line-of-scrimage"
-        style={{ top: `${lineOfScrimmageY}px`, position: 'absolute' }}
+        style={{ top: `${toScreenY(lineOfScrimmageY)}px`, position: 'absolute' }}
       ></div>
 
       <div
@@ -753,6 +938,11 @@ useEffect(() => {
 
           return (
             <React.Fragment key={player.id}>
+              {(() => {
+                const isOline = player.role === 'offensive-lineman';
+                const phase5State = isOline ? (phase5EngagementByBlockerId[player.id] ?? 'neutral') : null;
+                const extraClassName = isOline && routeStarted ? `phase5-ol phase5-${phase5State}` : '';
+                return (
               <Player
                 id={player.id}
                 position={player.position}
@@ -764,14 +954,17 @@ useEffect(() => {
                 routeStarted={routeStarted}
                 route={player.route}
                 role={player.role}
+                extraClassName={extraClassName}
               />
+                );
+              })()}
 
               {!routeStarted && isOffense && (player.role == "WR" || player.role == "TE" || player.role == "RB") && (
                 <div
                   style={{
                     position: 'absolute',
-                    left: player.position.x - labelOffsetX,
-                    top: player.position.y + labelOffsetY,
+                    left: toScreenX(player.position.x) - labelOffsetX,
+                    top: toScreenY(player.position.y) + labelOffsetY,
                     color: 'white',
                     fontSize: '75%',
                     fontWeight: 'bold',
@@ -788,15 +981,15 @@ useEffect(() => {
                 if (!thrownBallLine) return;
                 const thrownTargetY =
                   thrownBallLine.targetHalf === 'top'
-                    ? thrownBallLine.y - (fieldSize.height / 2)
+                    ? thrownBallLine.y - (LOGICAL_FIELD_HEIGHT / 2)
                     : thrownBallLine.y;
                 return (
                   <svg className="thrown-line-svg">
                     <line
-                      x1={qbPlayer?.position?.x ?? fieldSize.width / 2}
-                      y1={qbPlayer?.position?.y ?? fieldSize.height / 6}
-                      x2={thrownBallLine.x}
-                      y2={thrownTargetY}
+                      x1={toScreenX(qbPlayer?.position?.x ?? (LOGICAL_FIELD_WIDTH / 2))}
+                      y1={toScreenY(qbPlayer?.position?.y ?? (LOGICAL_FIELD_HEIGHT / 6))}
+                      x2={toScreenX(thrownBallLine.x)}
+                      y2={toScreenY(thrownTargetY)}
                       stroke="white"
                       strokeWidth="5"
                       strokeDasharray="6, 9"
@@ -848,7 +1041,7 @@ useEffect(() => {
                         const angleRad = angleDeg * (Math.PI / 180);
                         const endX = player.position.x + Math.sin(angleRad) * length;
                         const endY = player.position.y - Math.cos(angleRad) * length;
-                        return `M${player.position.x},${player.position.y} L${endX},${endY}`;
+                        return `M${toScreenX(player.position.x)},${toScreenY(player.position.y)} L${toScreenX(endX)},${toScreenY(endY)}`;
                       })()}
                       stroke="red"
                       strokeWidth="5"
@@ -856,40 +1049,68 @@ useEffect(() => {
                       markerEnd="url(#arrow-red)"
                     />
                   ) : (
-                  <path
-                    d={getRoutePath(
-                      fieldSize,
-                      player.position.x,
-                      player.position.y,
-                      player.route,
-                      offsetX,
-                      offsetY
+                  <>
+                    {canStemRoute(player.route) && (
+                      <path
+                        d={getRoutePath(
+                          fieldSize,
+                          toScreenX(player.position.x),
+                          toScreenY(player.position.y),
+                          player.route,
+                          offsetX,
+                          offsetY,
+                          100,
+                          player.routeStemScale ?? 1
+                        )}
+                        stroke="transparent"
+                        strokeWidth="24"
+                        fill="none"
+                        pointerEvents="stroke"
+                        onMouseDown={(event) => startStemDrag(event, player)}
+                        onTouchStart={(event) => startStemDrag(event, player)}
+                        style={{ cursor: 'ns-resize' }}
+                      />
                     )}
-                    stroke={
-                      runRouteExists
-                        ? player.route === "run"
-                          ? "red"
-                          : "gray"
-                        : "yellow"
-                    }
-                    strokeWidth="5"
-                    fill="none"
-                    markerEnd={
-                      runRouteExists
-                        ? player.route === "run"
-                          ? "url(#arrow-red)"
+                    <path
+                      d={getRoutePath(
+                        fieldSize,
+                        toScreenX(player.position.x),
+                        toScreenY(player.position.y),
+                        player.route,
+                        offsetX,
+                        offsetY,
+                        100,
+                        player.routeStemScale ?? 1
+                      )}
+                      stroke={
+                        runRouteExists
+                          ? player.route === "run"
+                            ? "red"
+                            : "gray"
+                          : "yellow"
+                      }
+                      strokeWidth="5"
+                      fill="none"
+                      markerEnd={
+                        runRouteExists
+                          ? player.route === "run"
+                            ? "url(#arrow-red)"
+                            : "url(#arrow-yellow)"
                           : "url(#arrow-yellow)"
-                        : "url(#arrow-yellow)"
-                    }
-                  />
+                      }
+                      onMouseDown={(event) => startStemDrag(event, player)}
+                      onTouchStart={(event) => startStemDrag(event, player)}
+                      style={{ cursor: canStemRoute(player.route) ? 'ns-resize' : 'default' }}
+                    />
+                  </>
                   )}
                 </svg>
               )}
 
-              {player.isBlocking && (
+              {player.isBlocking && !routeStarted && outcome === "" && (
                 <svg className="route-svg">
                   <path
-                    d={getRoutePath(fieldSize, player.position.x, player.position.y, 'block', offsetX, offsetY)}
+                    d={getRoutePath(fieldSize, toScreenX(player.position.x), toScreenY(player.position.y), 'block', offsetX, offsetY)}
                     stroke="gray"
                     strokeWidth="4"
                     fill="none"

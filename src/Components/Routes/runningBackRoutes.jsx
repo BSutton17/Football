@@ -15,6 +15,9 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
   const controlOffsetX = Math.max(20, fieldSize.width * 0.07);
   const controlOffsetY = Math.max(32, fieldSize.height * 0.07);
   const controlGap = Math.max(8, fieldSize.width * 0.02);
+  const screenX = (player.position.x / 800) * fieldSize.width;
+  const screenY = (player.position.y / 600) * fieldSize.height;
+  const isLeftAligned = player.position.x < 400;
 
   const handleRouteClick = (route) => {
     assignRoute(player.id, route);
@@ -63,10 +66,10 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
             onClick={() => handleRouteClick('in')}
             style={{
               left:
-                player.position.x > fieldSize.width / 2
-                  ? player.position.x - offsetX
-                  : player.position.x + offsetX,
-              top: player.position.y - offsetY,
+                !isLeftAligned
+                  ? screenX - offsetX
+                  : screenX + offsetX,
+              top: screenY - offsetY,
             }}
           >
             In
@@ -76,8 +79,8 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
             className="route-btn"
             onClick={() => handleRouteClick('go')}
             style={{
-              left: player.position.x,
-              top: player.position.y - offsetY,
+              left: screenX,
+              top: screenY - offsetY,
             }}
           >
             Seam
@@ -88,10 +91,10 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
             onClick={() => handleRouteClick('out')}
             style={{
               left:
-                player.position.x < fieldSize.width / 2
-                  ? player.position.x - offsetX
-                  : player.position.x + offsetX,
-              top: player.position.y - offsetY,
+                isLeftAligned
+                  ? screenX - offsetX
+                  : screenX + offsetX,
+              top: screenY - offsetY,
             }}
           >
             Out
@@ -102,10 +105,10 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
             onClick={() => handleRouteClick('texas')}
             style={{
               left:
-                player.position.x < fieldSize.width / 2
-                  ? player.position.x + offsetX
-                  : player.position.x - offsetX,
-              top: player.position.y,
+                isLeftAligned
+                  ? screenX + offsetX
+                  : screenX - offsetX,
+              top: screenY,
             }}
           >
             Texas
@@ -116,10 +119,10 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
             onClick={() => handleRouteClick('wheel')}
             style={{
               left:
-                player.position.x < fieldSize.width / 2
-                  ? player.position.x - offsetX
-                  : player.position.x + offsetX,
-              top: player.position.y + offsetY,
+                isLeftAligned
+                  ? screenX - offsetX
+                  : screenX + offsetX,
+              top: screenY + offsetY,
             }}
           >
             Wheel
@@ -152,8 +155,8 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
               );
             }}
             style={{
-              left: player.position.x,
-              top: player.position.y + offsetY,
+              left: screenX,
+              top: screenY + offsetY,
             }}
           >
             Block
@@ -164,10 +167,10 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
             onClick={() => handleRouteClick('swing')}
             style={{
               left:
-                player.position.x > fieldSize.width / 2
-                  ? player.position.x - offsetX
-                  : player.position.x + offsetX,
-              top: player.position.y + offsetY,
+                !isLeftAligned
+                  ? screenX - offsetX
+                  : screenX + offsetX,
+              top: screenY + offsetY,
             }}
           >
             Swing
@@ -178,10 +181,10 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
             onClick={() => handleRouteClick('rb flat')}
             style={{
               left:
-                player.position.x > fieldSize.width / 2
-                  ? player.position.x + offsetX
-                  : player.position.x - offsetX,
-              top: player.position.y,
+                !isLeftAligned
+                  ? screenX + offsetX
+                  : screenX - offsetX,
+              top: screenY,
             }}
           >
             Flat
@@ -200,8 +203,8 @@ const RunningBackRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize })
         <div
           style={{
             position: "absolute",
-            left: `${player.position.x - controlOffsetX}px`,
-            top: `${player.position.y - controlOffsetY}px`,
+            left: `${screenX - controlOffsetX}px`,
+            top: `${screenY - controlOffsetY}px`,
             display: "flex",
             gap: `${controlGap}px`,
             zIndex: 5,

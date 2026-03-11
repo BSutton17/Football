@@ -2,6 +2,10 @@
 import React from 'react';
 
 const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, moreRoutes }) => {
+  const screenX = (player.position.x / 800) * fieldSize.width;
+  const screenY = (player.position.y / 600) * fieldSize.height;
+  const isLeftAligned = player.position.x < 400;
+
   return (
     <div className="route-buttons">
       {!moreRoutes ? (
@@ -11,10 +15,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'corner')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y - offsetY,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY - offsetY,
         }}
       >
         Corner
@@ -23,8 +27,8 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         className="route-btn"
         onClick={() => assignRoute(player.id, 'go')}
         style={{
-          left: player.position.x,
-          top: player.position.y - offsetY,
+          left: screenX,
+          top: screenY - offsetY,
         }}
       >
         Go
@@ -34,10 +38,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'post')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y - offsetY,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY - offsetY,
         }}
       >
         Post
@@ -47,10 +51,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'in')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY,
         }}
       >
         In
@@ -60,10 +64,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'curl')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y + offsetY,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY + offsetY,
         }}
       >
         Curl
@@ -72,8 +76,8 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         className="route-btn"
         onClick={() => assignRoute(player.id, 'slant')}
         style={{
-          left: player.position.x,
-          top: player.position.y + offsetY,
+          left: screenX,
+          top: screenY + offsetY,
         }}
       >
         Slant
@@ -84,10 +88,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'comeback')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y + offsetY,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY + offsetY,
         }}
       >
         Comeback
@@ -97,10 +101,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'out')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY,
         }}
       >
         Out
@@ -114,10 +118,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'speed out')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y - offsetY,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY - offsetY,
         }}
       >
         Speed Out
@@ -127,8 +131,8 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         id="smaller"
         onClick={() => assignRoute(player.id, 'Double Move')}
         style={{
-          left: player.position.x,
-          top: player.position.y - offsetY,
+          left: screenX,
+          top: screenY - offsetY,
         }}
       >
         Double Move
@@ -139,10 +143,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'Deep Cross')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y - offsetY,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY - offsetY,
         }}
       >
         Deep Cross
@@ -152,10 +156,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'drag')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY,
         }}
       >
         Drag
@@ -165,10 +169,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'return')}
         style={{
           left:
-            player.position.x > fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y + offsetY,
+            !isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY + offsetY,
         }}
       >
         Return
@@ -177,8 +181,8 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         className="route-btn"
         onClick={() => assignRoute(player.id, 'fade')}
         style={{
-          left: player.position.x,
-          top: player.position.y + offsetY,
+          left: screenX,
+          top: screenY + offsetY,
         }}
       >
         Fade
@@ -188,10 +192,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'flat')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y + offsetY,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY + offsetY,
         }}
       >
         Flat
@@ -201,10 +205,10 @@ const ReceiverRoutes = ({ player, assignRoute, offsetX, offsetY, fieldSize, more
         onClick={() => assignRoute(player.id, 'zig')}
         style={{
           left:
-            player.position.x < fieldSize.width / 2
-              ? player.position.x - offsetX
-              : player.position.x + offsetX,
-          top: player.position.y,
+            isLeftAligned
+              ? screenX - offsetX
+              : screenX + offsetX,
+          top: screenY,
         }}
       >
         Zig

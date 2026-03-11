@@ -1,4 +1,5 @@
 import React from 'react';
+import { LOGICAL_FIELD_WIDTH, LOGICAL_FIELD_HEIGHT } from './Field';
 import '../App.css';
 import { catchBall } from '../Utils/catchBall';
 import { useAppContext } from '../Context/AppContext';
@@ -17,6 +18,7 @@ export const Player = ({
   openess,
   routeStarted,
   role,
+  extraClassName,
 }) => {
   const {
     outcome,
@@ -70,9 +72,9 @@ export const Player = ({
       });
       result = "Intercepted";
     } else if (catchResult === "Caught") {
-      const lineOfScrimmageY = fieldSize.height / 2;
-      const oneYardInPixels = fieldSize.height / 40;
-      const catchYGlobal = position.y + fieldSize.height / 2;
+      const lineOfScrimmageY = LOGICAL_FIELD_HEIGHT / 2;
+      const oneYardInPixels = LOGICAL_FIELD_HEIGHT / 40;
+      const catchYGlobal = position.y + (LOGICAL_FIELD_HEIGHT / 2);
 
       const yards = calculatePassYardsFromCatch({
         openness: openess,
@@ -138,8 +140,8 @@ export const Player = ({
 
     setOutcome(result);
     const receiver = players.find(p => p.id === id);
-    const normalizedX = position.x / fieldSize.width;
-    const normalizedY = position.y / fieldSize.height;
+    const normalizedX = position.x / LOGICAL_FIELD_WIDTH;
+    const normalizedY = position.y / LOGICAL_FIELD_HEIGHT;
 
     const targetHalf = isNonLinemanDefender ? 'top' : 'bottom';
 
@@ -178,16 +180,20 @@ export const Player = ({
   const isNonLinemanDefender = !isOffense && role !== 'defensive-lineman';
   const canResolvePassOutcome = routeStarted && isUserOffense && (isOffense || isNonLinemanDefender);
 
+  // Convert logical position to screen coordinates for rendering
+  const screenX = (position.x / LOGICAL_FIELD_WIDTH) * fieldSize.width;
+  const screenY = (position.y / LOGICAL_FIELD_HEIGHT) * fieldSize.height;
+
   return (
     <div
       onMouseDown={!routeStarted && !notMoveablePlayer ? (e) => onMouseDown(e, id) : null}
       onTouchStart={!routeStarted && !notMoveablePlayer ? (e) => onTouchStart(e, id) : null}
-      className={`player ${isOffense ? bgColor : "defense"}`}
+      className={`player ${isOffense ? bgColor : "defense"} ${extraClassName ?? ''}`.trim()}
       onMouseUp={canResolvePassOutcome ? handleCatch : null}
       onTouchEnd={canResolvePassOutcome ? handleCatch : null}
       style={{
-        left: position.x,
-        top: position.y,
+        left: screenX,
+        top: screenY,
         position: 'absolute',
       }}
     >

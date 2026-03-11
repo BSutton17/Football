@@ -3,6 +3,9 @@ import React from "react";
 import { useAppContext } from "../../Context/AppContext";
 
 const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
+  const LOGICAL_FIELD_WIDTH = 800;
+  const LOGICAL_FIELD_HEIGHT = 600;
+  const LOGICAL_FIELD_HALF_HEIGHT = 300;
   const {
     socket,
     roomId,
@@ -11,6 +14,15 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
     setSackTimeRemaining,
     setSelectedPlayerId
   } = useAppContext();
+
+  const toDefenseSpaceY = (targetPlayer) => (
+    targetPlayer.isOffense
+      ? targetPlayer.position.y + LOGICAL_FIELD_HALF_HEIGHT
+      : targetPlayer.position.y
+  );
+
+  const toScreenX = (logicalX) => (logicalX / LOGICAL_FIELD_WIDTH) * (fieldSize?.width || LOGICAL_FIELD_WIDTH);
+  const toScreenY = (logicalY) => (logicalY / LOGICAL_FIELD_HEIGHT) * (fieldSize?.height || LOGICAL_FIELD_HEIGHT);
 
     
   // Helper function to find closest offensive player by Euclidean distance
@@ -22,7 +34,7 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
 
         if (p.isOffense && p.role !== 'offensive-lineman' && p.role !== 'qb') {
         const dx = p.position.x - defenderPosition.x;
-        const dy = p.position.y - defenderPosition.y;
+        const dy = toDefenseSpaceY(p) - defenderPosition.y;
         const distance = Math.hypot(dx, dy);
 
         if (distance < closestDistance) {
@@ -37,7 +49,7 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
 
     const assignZone = (id, coverage) => {
       if (coverage === "zone") {
-        const defaultY = fieldSize.height / 4;
+        const defaultY = LOGICAL_FIELD_HEIGHT / 4;
 
         setPlayers((prev) =>
           prev.map((p) =>
@@ -133,7 +145,7 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
           assignZone(player.id, "zone");
           setSelectedPlayerId(null);
         }}
-        style={{ left: player.position.x, top: player.position.y - offsetY }}
+        style={{ left: toScreenX(player.position.x), top: toScreenY(player.position.y) - offsetY }}
       >
         Zone
       </button>
@@ -173,7 +185,7 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
             });
           });
         }}
-        style={{ left: player.position.x + offsetX, top: player.position.y }}
+        style={{ left: toScreenX(player.position.x) + offsetX, top: toScreenY(player.position.y) }}
       >
         {player.isBlitzing ? "Stop Blitz" : "Blitz"}
       </button>
@@ -185,7 +197,7 @@ const DefensiveZones = ({ player, offsetX = 0, offsetY = 0, fieldSize }) => {
           assignZone(player.id, "man");
           setSelectedPlayerId(null);
         }}
-        style={{ left: player.position.x - offsetX, top: player.position.y }}
+        style={{ left: toScreenX(player.position.x) - offsetX, top: toScreenY(player.position.y) }}
       >
         Man
       </button>
