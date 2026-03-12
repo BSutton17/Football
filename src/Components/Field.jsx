@@ -73,20 +73,6 @@ function Field({ socket, room }) {
 
   useEffect(() => {
     activeGameClockRef.current = gameClock;
-    const pendingQuarterEndRef = useRef(false);
-
-    const advanceQuarter = useCallback(() => {
-      setQuarter((prev) => {
-        if (prev < 4) {
-          setGameClock(300000);
-          activeGameClockRef.current = 300000;
-          return prev + 1;
-        }
-
-        setOutcome("Game Over");
-        return prev;
-      });
-    }, [activeGameClockRef, setGameClock, setOutcome, setQuarter]);
   }, [activeGameClockRef, gameClock]);
 
   useEffect(() => {
