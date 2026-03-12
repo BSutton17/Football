@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 const LOGICAL_FIELD_WIDTH = 800;
 const LOGICAL_FIELD_HEIGHT = 600;
 const clampX = (value) => Math.max(0, Math.min(LOGICAL_FIELD_WIDTH, value));
+const POSSESSION_SWITCH_OUTCOMES = new Set(['Touchdown!', 'Safety', 'Turnover on Downs', 'Intercepted']);
 
 const realignTrenchToSpot = (playersList, spotX) => {
   if (!Array.isArray(playersList)) return playersList;
@@ -87,28 +88,6 @@ export function useDefenseSocketSync({
 
     const handleRouteStarted = (data) => {
       setRouteStarted(data);
-      if (!gameIntervalRef.current) {
-        gameIntervalRef.current = setInterval(() => {
-          gameClockRef.current -= 1000;
-          setGameClock(gameClockRef.current);
-
-          if (gameClockRef.current <= 0) {
-            clearInterval(gameIntervalRef.current);
-            gameIntervalRef.current = null;
-
-            setQuarter((prev) => {
-              if (prev < 4) {
-                setGameClock(300000);
-                gameClockRef.current = 300000;
-                return prev + 1;
-              }
-
-              setOutcome('Game Over');
-              return prev;
-            });
-          }
-        }, 1000);
-      }
     };
 
     const handlePlayerPositionsUpdate = (data) => {
@@ -180,23 +159,17 @@ export function useDefenseSocketSync({
       setLiveCountdown(null);
       setQbPenalty(0);
       setRouteStarted(false);
-      const alignedPreSnapPlayers = realignTrenchToSpot(preSnapRef.current, data.ballSpotX);
-      setPlayers(alignedPreSnapPlayers);
-      setOutcome('');
+      const isPossessionSwitch = POSSESSION_SWITCH_OUTCOMES.has(data.outcome);
+      if (!isPossessionSwitch) {
+        const alignedPreSnapPlayers = realignTrenchToSpot(preSnapRef.current, data.ballSpotX);
+        setPlayers(alignedPreSnapPlayers);
+        setOutcome('');
+      }
       setCurrentYards(0);
       setDistance(data.newDistance);
       setDown(data.newDown);
       setYardLine(data.newYardLine);
       setFirstDownStartY(data.newFirstDownStartY * (LOGICAL_FIELD_HEIGHT / 40));
-
-      if (
-        data.outcome === 'Touchdown!' ||
-        data.outcome === 'Safety!' ||
-        data.outcome === 'Turnover on Downs' ||
-        data.outcome === 'Intercepted'
-      ) {
-        setPlayers([]);
-      }
     };
 
     const handleBallThrown = (payloadOrX, maybeY) => {

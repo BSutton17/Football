@@ -6,8 +6,6 @@ import { useHandlerContext } from '../Context/HandlerContext';
 import DefensiveField from './DefensiveField';
 import PlayerInventory from './PlayerInventory';
 import FieldYardLines from './FieldYardLines';
-import { calculateRunPlayResult } from '../Utils/runPlay';
-import { calculateAllOpenness, getLastOpennessDebug } from '../Utils/calculator';
 
 // --- LOGICAL FIELD SIZE CONSTANTS ---
 export const LOGICAL_FIELD_WIDTH = 800;
@@ -37,6 +35,7 @@ function Field({ socket, room }) {
     setOutcome,
     setDistance,
     setDown,
+    thrownBallLine,
     setThrownBallLine,
     setCompletedYards, 
     setPreSnapPlayers,
@@ -74,7 +73,87 @@ function Field({ socket, room }) {
 
   useEffect(() => {
     activeGameClockRef.current = gameClock;
+    const pendingQuarterEndRef = useRef(false);
+
+    const advanceQuarter = useCallback(() => {
+      setQuarter((prev) => {
+        if (prev < 4) {
+          setGameClock(300000);
+          activeGameClockRef.current = 300000;
+          return prev + 1;
+        }
+
+        setOutcome("Game Over");
+        return prev;
+      });
+    }, [activeGameClockRef, setGameClock, setOutcome, setQuarter]);
   }, [activeGameClockRef, gameClock]);
+
+  useEffect(() => {
+    if (!thrownBallLine) return;
+
+    const clearThrownLineTimeout = setTimeout(() => {
+      setThrownBallLine(null);
+    }, 1000);
+
+    return () => clearTimeout(clearThrownLineTimeout);
+  }, [thrownBallLine, setThrownBallLine]);
+
+  const pendingQuarterEndRef = useRef(false);
+
+  const advanceQuarter = useCallback(() => {
+    if (activeGameIntervalRef.current) {
+      clearInterval(activeGameIntervalRef.current);
+      activeGameIntervalRef.current = null;
+    }
+    pendingQuarterEndRef.current = false;
+
+    setQuarter((prev) => {
+      if (prev < 4) {
+        const nextQuarter = prev + 1;
+        activeGameClockRef.current = 300000;
+        setGameClock(300000);
+        if (isOffense && socket) {
+          socket.emit('clock_sync', { roomId, gameClock: 300000, quarter: nextQuarter });
+        }
+        return nextQuarter;
+      }
+
+      setOutcome("Game Over");
+      return prev;
+    });
+  }, [activeGameClockRef, activeGameIntervalRef, isOffense, roomId, setGameClock, setOutcome, setQuarter, socket]);
+
+  const startClock = useCallback(() => {
+    if (!isOffense) return;
+    if (activeGameIntervalRef.current) return;
+
+    activeGameIntervalRef.current = setInterval(() => {
+      const nextClockValue = Math.max((activeGameClockRef.current ?? 0) - 1000, 0);
+      activeGameClockRef.current = nextClockValue;
+      setGameClock(nextClockValue);
+
+      if (socket) {
+        socket.emit('clock_sync', { roomId, gameClock: nextClockValue, quarter });
+      }
+
+      if (nextClockValue <= 0) {
+        clearInterval(activeGameIntervalRef.current);
+        activeGameIntervalRef.current = null;
+        if (routeStarted) {
+          pendingQuarterEndRef.current = true;
+        } else {
+          advanceQuarter();
+        }
+      }
+    }, 1000);
+  }, [activeGameClockRef, activeGameIntervalRef, advanceQuarter, isOffense, quarter, roomId, routeStarted, setGameClock, socket]);
+
+  useEffect(() => {
+    if (!routeStarted && pendingQuarterEndRef.current) {
+      advanceQuarter();
+    }
+  }, [advanceQuarter, routeStarted]);
 
   useEffect(() => {
     setSetButtonEnabled(false);
@@ -104,32 +183,6 @@ function Field({ socket, room }) {
     return () => clearInterval(interval);
   }, [isSetClicked, postSetCountdown, setPostSetCountdown]);
 
-  const startClock = useCallback(() => {
-    if (!activeGameIntervalRef.current) {
-      activeGameIntervalRef.current = setInterval(() => {
-        activeGameClockRef.current -= 1000;
-        setGameClock(activeGameClockRef.current);
-
-        if (activeGameClockRef.current <= 0) {
-          clearInterval(activeGameIntervalRef.current);
-          activeGameIntervalRef.current = null;
-
-          setQuarter((prev) => {
-            if (prev < 4) {
-              setGameClock(300000);
-              activeGameClockRef.current = 300000;
-              return prev + 1;
-            } else {
-              setOutcome("Game Over");
-              return prev;
-            }
-          });
-        }
-      }, 1000);
-    }
-  }, [activeGameClockRef, activeGameIntervalRef, setGameClock, setOutcome, setQuarter]);
-
-  // Show offense inventory if player is currently on offense, else defense inventory
   const inventoryToShow = isOffense ? (inventory?.offense ?? []) : (inventory?.defense ?? []);
   const inventoryType = isOffense ? "offense" : "defense";
 
@@ -169,31 +222,51 @@ function Field({ socket, room }) {
       clearInterval(activeGameIntervalRef.current);
       activeGameIntervalRef.current = null;
       socket.emit("stop_clock", { roomId });
-      setTimeout(() => {
-        startClock();
-      }, 10000);
+      if (isOffense) {
+        setTimeout(() => {
+          startClock();
+        }, 10000);
+      }
     }
   };
 
-    
   useEffect(() => {
     if (!socket) return;
-    
+
     const handleStopClock = () => {
-    if (activeGameIntervalRef.current) {
-      clearInterval(activeGameIntervalRef.current);
-      activeGameIntervalRef.current = null;
-      setTimeout(()=>{
-        startClock()
-      }, 10000)
+      if (activeGameIntervalRef.current) {
+        clearInterval(activeGameIntervalRef.current);
+        activeGameIntervalRef.current = null;
       }
-  };
-    
+
+      if (isOffense) {
+        setTimeout(() => {
+          startClock();
+        }, 10000);
+      }
+    };
+
+    const handleClockSync = ({ gameClock: syncedClock, quarter: syncedQuarter }) => {
+      if (typeof syncedClock === 'number' && !Number.isNaN(syncedClock)) {
+        activeGameClockRef.current = syncedClock;
+        setGameClock(syncedClock);
+      }
+
+      if (typeof syncedQuarter === 'number' && !Number.isNaN(syncedQuarter)) {
+        setQuarter(syncedQuarter);
+      }
+    };
+
   socket.off("stop_clock", handleStopClock);
   socket.on("stop_clock", handleStopClock);
-    
-  return () => socket.off("stop_clock", handleStopClock);
-  }, [activeGameIntervalRef, socket, startClock]);
+  socket.off("clock_sync", handleClockSync);
+  socket.on("clock_sync", handleClockSync);
+
+  return () => {
+    socket.off("stop_clock", handleStopClock);
+    socket.off("clock_sync", handleClockSync);
+  };
+  }, [activeGameClockRef, activeGameIntervalRef, isOffense, setGameClock, setQuarter, socket, startClock]);
 
   const playSequenceRef = useRef(0);
   const playStartTimeRef = useRef(null);
@@ -258,31 +331,16 @@ function Field({ socket, room }) {
       room: roomId
     });
 
-  const runRB = players.find(p => p.role === "RB" && p.route === "run");
-  setIsRunPlay(runRB)
+  const runCarrier = players.find(
+    (p) => p.isOffense && p.route === "run" && p.role !== "qb" && p.role !== "offensive-lineman"
+  );
+  setIsRunPlay(Boolean(runCarrier));
   const playStartNow = performance.now();
   playStartTimeRef.current = playStartNow;
   playPositionHistoryRef.current = [];
   endOfPlayLoggedOutcomeRef.current = null;
   // Reset per-play motion stats so end-of-play logging compares like-for-like.
   playMotionStatsRef.current = new Map();
-if (runRB) {
-  const runPlayResult = calculateRunPlayResult({
-    players,
-    runRB,
-    oneYardInPixels: logicalOneYardInPixels,
-    lineOfScrimmageY,
-    yardLine,
-    viewportWidth: LOGICAL_FIELD_WIDTH,
-  });
-
-  const yardsGained = runPlayResult.yardsGained;
-  setCompletedYards(yardsGained); 
-
-  setTimeout(() => {
-      setOutcome(runPlayResult.outcome);
-    }, runPlayResult.delayMs);
-  }
     setThrownBallLine(null);
     setRouteStarted(true);
 
@@ -312,16 +370,21 @@ if (runRB) {
     }, 100);
 
     socket.emit("route_started", { routeStarted: true, roomId });
-    // Start or resume game clock
-    startClock()
+    // Start or resume game clock (offense client is authoritative)
+    startClock();
   }
 
-    const outcomeRef = useRef(outcome);
-    
-    // Keep the ref updated with the latest outcome
-    useEffect(() => {
-      outcomeRef.current = outcome;
-    }, [outcome]);
+  useEffect(() => {
+    if (!routeStarted) {
+      setIsRunPlay(false);
+      return;
+    }
+
+    const hasActiveRunCarrier = players.some(
+      (p) => p.isOffense && p.route === 'run' && p.role !== 'qb' && p.role !== 'offensive-lineman'
+    );
+    setIsRunPlay(hasActiveRunCarrier);
+  }, [players, routeStarted, setIsRunPlay]);
 
   const formatDown = (down)=> {
   switch (down) {
@@ -333,27 +396,10 @@ if (runRB) {
       }
   }
 
-
   const handleEndOfPlay = useCallback(() => {
     const endTime = performance.now();
     const elapsedMs = playStartTimeRef.current ? (endTime - playStartTimeRef.current) : 0;
     const elapsedSeconds = elapsedMs >= 250 ? (elapsedMs / 1000) : null;
-
-    const getPlayerSnapshot = (id) => preSnapPlayers?.find((p) => p.id === id);
-    const isValidPos = (pos) => pos && typeof pos.x === 'number' && typeof pos.y === 'number';
-    const isDb = (player) => player?.role === 'CB' || player?.role === 'S' || player?.role === 'DB';
-    const getMovementRelation = ({ wrStart, wrEnd, dbEnd }) => {
-      if (!isValidPos(wrStart) || !isValidPos(wrEnd) || !isValidPos(dbEnd)) return 'even';
-      const wrMove = { x: wrEnd.x - wrStart.x, y: wrEnd.y - wrStart.y };
-      const wrTravel = Math.hypot(wrMove.x, wrMove.y);
-      if (wrTravel < 0.05) return 'even';
-
-      const toDb = { x: dbEnd.x - wrEnd.x, y: dbEnd.y - wrEnd.y };
-      const relation = (wrMove.x * toDb.x) + (wrMove.y * toDb.y);
-      if (relation > 0.35) return 'toward';
-      if (relation < -0.35) return 'away';
-      return 'even';
-    };
 
     const history = playPositionHistoryRef.current;
     const targetSnapshotTime = endTime - 500;
@@ -368,56 +414,6 @@ if (runRB) {
     }
     if (!snapshotEntry && history.length > 0) {
       snapshotEntry = history[history.length - 1];
-    }
-
-    const playersForLog = Array.isArray(snapshotEntry?.players) && snapshotEntry.players.length > 0
-      ? snapshotEntry.players
-      : players;
-
-    if (Array.isArray(playersForLog)) {
-      const offensivePlayers = playersForLog.filter((player) => player?.isOffense === true);
-      const defensivePlayers = playersForLog.filter((player) => player?.isOffense === false);
-      const opennessScores = calculateAllOpenness(
-        offensivePlayers,
-        defensivePlayers,
-        { width: LOGICAL_FIELD_WIDTH, height: LOGICAL_FIELD_HEIGHT }
-      );
-
-      const defensiveSkillPlayers = defensivePlayers.filter((player) => isDb(player) && isValidPos(player?.position));
-
-      playersForLog.forEach((player) => {
-        if (player?.role !== 'WR' || !isValidPos(player?.position)) return;
-
-        const wrStart = getPlayerSnapshot(player.id)?.position;
-        const assignedDb = defensiveSkillPlayers.find((defender) => defender.assignedOffensiveId === player.id)
-          ?? defensiveSkillPlayers.reduce((closest, defender) => {
-            if (!closest) return defender;
-            const currentDist = Math.hypot(defender.position.x - player.position.x, defender.position.y - player.position.y);
-            const closestDist = Math.hypot(closest.position.x - player.position.x, closest.position.y - player.position.y);
-            return currentDist < closestDist ? defender : closest;
-          }, null);
-
-        const openness = opennessScores[player.id];
-        const opennessDebug = getLastOpennessDebug(player.id);
-
-        if (!assignedDb || !isValidPos(assignedDb.position)) {
-          console.log(
-            `[OPENNESS LOG] wr=${player.id} route=${player.route ?? 'n/a'} wrFinal=(${player.position.x.toFixed(1)},${player.position.y.toFixed(1)}) assignedDb=n/a movementVsDb=even openness=${typeof openness === 'number' ? openness.toFixed(2) : 'n/a'}`
-          );
-          return;
-        }
-
-        const dbStart = getPlayerSnapshot(assignedDb.id)?.position;
-        const startDistance = isValidPos(wrStart) && isValidPos(dbStart)
-          ? Math.hypot(dbStart.x - wrStart.x, dbStart.y - wrStart.y)
-          : null;
-        const endDistance = Math.hypot(assignedDb.position.x - player.position.x, assignedDb.position.y - player.position.y);
-        const movementVsDb = getMovementRelation({ wrStart, wrEnd: player.position, dbEnd: assignedDb.position });
-
-        console.log(
-          `[OPENNESS LOG] sampleMsBeforeEnd=${snapshotEntry ? Math.max(0, Math.round(endTime - snapshotEntry.time)) : 0} wr=${player.id} route=${player.route ?? 'n/a'} db=${assignedDb.id} wrFinal=(${player.position.x.toFixed(1)},${player.position.y.toFixed(1)}) dbFinal=(${assignedDb.position.x.toFixed(1)},${assignedDb.position.y.toFixed(1)}) movementVsDb=${movementVsDb} startDist=${startDistance !== null ? startDistance.toFixed(2) : 'n/a'} endDist=${endDistance.toFixed(2)} openness=${typeof openness === 'number' ? openness.toFixed(2) : 'n/a'} calc=${opennessDebug ? `base=${opennessDebug.baseScore.toFixed(2)} bucket=${opennessDebug.distanceBucket} leverage=${opennessDebug.leverageAdjustment.toFixed(2)} speed=${opennessDebug.speedAdjustment.toFixed(2)} help=${opennessDebug.helpAdjustment.toFixed(2)} lane=${opennessDebug.laneAdjustment.toFixed(2)} raw=${opennessDebug.rawScore.toFixed(2)} final=${opennessDebug.finalScore.toFixed(2)} primary=${opennessDebug.primaryDefenderId ?? 'n/a'} primaryDist=${opennessDebug.primaryDistance?.toFixed?.(2) ?? 'n/a'} helper=${opennessDebug.helperDefenderId ?? 'n/a'} helperDist=${typeof opennessDebug.helperDistance === 'number' ? opennessDebug.helperDistance.toFixed(2) : 'n/a'} trailing=${opennessDebug.trailingAmount.toFixed(2)} lateral=${opennessDebug.lateralOffset.toFixed(2)} leverageWin=${opennessDebug.leverageWin} helpCount=${opennessDebug.immediateHelpCount}` : 'n/a'}`
-        );
-      });
     }
 
     playStartTimeRef.current = null;

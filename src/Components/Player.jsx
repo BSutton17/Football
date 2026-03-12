@@ -3,10 +3,10 @@ import { LOGICAL_FIELD_WIDTH, LOGICAL_FIELD_HEIGHT } from './Field';
 import '../App.css';
 import { catchBall } from '../Utils/catchBall';
 import { useAppContext } from '../Context/AppContext';
-import { calculatePassYardsFromCatch } from '../Utils/calculator';
 import { useEffect } from 'react'
 import { resetPlayerMovementState } from '../Utils/playerState';
 import { logPlaySnapshot } from '../Utils/playDebug';
+import { CiFootball } from "react-icons/ci";
 
 export const Player = ({
   id,
@@ -34,6 +34,8 @@ export const Player = ({
     roomId,
     activePlayId,
     isOffense: isUserOffense,
+    isRunPlay,
+    setIsRunPlay,
     setThrownBallLine,
     sackTimerRef 
   } = useAppContext();
@@ -72,55 +74,79 @@ export const Player = ({
       });
       result = "Intercepted";
     } else if (catchResult === "Caught") {
-      const lineOfScrimmageY = LOGICAL_FIELD_HEIGHT / 2;
+      const receiverAtCatch = players.find((p) => p.id === id);
+      const fallbackDirection = { x: 0, y: -1 };
+      const moveTarget = receiverAtCatch?.moveTarget;
+      const dx = (moveTarget?.x ?? receiverAtCatch?.position?.x ?? position.x) - position.x;
+      const dy = (moveTarget?.y ?? (position.y - 1)) - position.y;
+      const magnitude = Math.hypot(dx, dy);
+      const racDirection = magnitude > 0.001
+        ? { x: dx / magnitude, y: dy / magnitude }
+        : fallbackDirection;
       const oneYardInPixels = LOGICAL_FIELD_HEIGHT / 40;
-      const catchYGlobal = position.y + (LOGICAL_FIELD_HEIGHT / 2);
+      const lineOfScrimmageSharedY = LOGICAL_FIELD_HEIGHT / 2;
+      const catchSharedY = position.y + (LOGICAL_FIELD_HEIGHT / 2);
+      const passYardsBeforeCatch = Math.round((lineOfScrimmageSharedY - catchSharedY) / oneYardInPixels);
 
-      const yards = calculatePassYardsFromCatch({
-        openness: openess,
-        catchY: catchYGlobal,
-        lineOfScrimmageY,
-        oneYardInPixels,
-        yardLine,
+      logPlaySnapshot({
+        socket,
+        event: 'pass_caught_rac_started',
+        payload: {
+          playerId: id,
+          openness: openess,
+          catchX: position.x,
+          catchY: position.y,
+          yardLine,
+          playId: activePlayId,
+        },
       });
 
-      if (yards === "Touchdown!") {
-        logPlaySnapshot({
-          socket,
-          event: 'pass_touchdown',
-          payload: {
-            playerId: id,
-            openness: openess,
-            catchX: position.x,
-            catchY: position.y,
-            catchYGlobal,
-            lineOfScrimmageY,
-            yardLine,
-            playId: activePlayId,
-          },
-        });
-        result = "Touchdown!";
-      } else {
-        logPlaySnapshot({
-          socket,
-          event: 'pass_completion',
-          payload: {
-            playerId: id,
-            openness: openess,
-            catchX: position.x,
-            catchY: position.y,
-            catchYGlobal,
-            lineOfScrimmageY,
-            passYardsWithoutYac: yards.passYardsWithoutYac,
-            yac: yards.yac,
-            totalYards: yards.totalYards,
-            yardLine,
-            playId: activePlayId,
-          },
-        });
-        result = `${yards.totalYards} yard completion`;
-        setCompletedYards(yards.totalYards);
-      }
+      const receiver = players.find((p) => p.id === id);
+      const normalizedX = position.x / LOGICAL_FIELD_WIDTH;
+      const normalizedY = position.y / LOGICAL_FIELD_HEIGHT;
+
+      setThrownBallLine({
+        x: receiver.position.x,
+        y: receiver.position.y,
+        targetHalf: 'bottom',
+      });
+
+      socket.emit("ball_thrown", {
+        normalizedX,
+        normalizedY,
+        targetHalf: 'bottom',
+        roomId,
+      });
+
+      setPlayers((prevPlayers) =>
+        prevPlayers.map((player) => {
+          if (player.id !== id && player.hasCaughtBall) {
+            return {
+              ...player,
+              hasCaughtBall: false,
+            };
+          }
+
+          if (player.id === id) {
+            return {
+              ...player,
+              hasCaughtBall: true,
+              racTransitionEndsAt: performance.now() + 350,
+              racDirection,
+              racTransitionStartedAt: performance.now(),
+              catchCarrySpeed: player.currentSpeed ?? 0,
+              catchSharedY,
+              passYardsBeforeCatch,
+            };
+          }
+
+          return player;
+        })
+      );
+
+      outcomeRef.current = "";
+      sackTimerRef.current = null;
+      return;
     } else {
       logPlaySnapshot({
         socket,
@@ -176,9 +202,14 @@ export const Player = ({
   };
 
 
+  const hasActiveBallCarrier = players.some((player) => player?.hasCaughtBall === true);
+  const activeRunCarrierId = players.find(
+    (player) => player?.isOffense && player?.route === 'run' && player?.role !== 'qb' && player?.role !== 'offensive-lineman'
+  )?.id;
+  const showFootballIcon = routeStarted && ((id === activeRunCarrierId) || (players.find((player) => player?.id === id)?.hasCaughtBall === true));
   const notMoveablePlayer = role === "qb" || role === "offensive-lineman" || role === "defensive-lineman";
   const isNonLinemanDefender = !isOffense && role !== 'defensive-lineman';
-  const canResolvePassOutcome = routeStarted && isUserOffense && (isOffense || isNonLinemanDefender);
+  const canResolvePassOutcome = routeStarted && !isRunPlay && !hasActiveBallCarrier && isUserOffense && (isOffense || isNonLinemanDefender);
 
   // Convert logical position to screen coordinates for rendering
   const screenX = (position.x / LOGICAL_FIELD_WIDTH) * fieldSize.width;
@@ -201,6 +232,21 @@ export const Player = ({
         <span className="offensive-player">X</span>
       ) : (
         <span className="defensive-player">O</span>
+      )}
+      {showFootballIcon && (
+        <span
+          style={{
+            position: 'absolute',
+            right: '-6px',
+            bottom: '-7px',
+            color: 'white',
+            fontSize: '16px',
+            lineHeight: 1,
+            pointerEvents: 'none',
+          }}
+        >
+          <CiFootball />
+        </span>
       )}
     </div>
   );

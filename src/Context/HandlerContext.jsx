@@ -153,7 +153,7 @@ export const HandlerProvider = ({ children }) => {
     // Emit updated player position
     if (updatedPlayer) {
       // Always emit logical units (0-800, 0-600)
-      socket.emit("update_character_position", {
+      socket?.emit("update_character_position", {
         playerId: updatedPlayer.id,
         logicalX: emittedPlayerPosition?.x ?? updatedPlayer.position.x,
         logicalY: emittedPlayerPosition?.y ?? updatedPlayer.position.y,
@@ -164,7 +164,7 @@ export const HandlerProvider = ({ children }) => {
 
     // Emit updated zone info
     if (updatedZoneEmit) {
-      socket.emit("zone_area_assigned", {
+      socket?.emit("zone_area_assigned", {
         playerId: updatedZoneEmit.playerId,
         zoneType: updatedZoneEmit.zoneType,
         zoneCircle: updatedZoneEmit.zoneCircle,
@@ -290,9 +290,27 @@ export const HandlerProvider = ({ children }) => {
 
   const handleDrop = (e, height) => {
     e.preventDefault();
-    const data = e.dataTransfer.getData('application/json');
+    const data = e.dataTransfer.getData('application/json') || e.dataTransfer.getData('text/plain');
+    if (!data || typeof data !== 'string') {
+      return;
+    }
+
+    let playerData;
+    try {
+      playerData = JSON.parse(data);
+    } catch {
+      return;
+    }
+
+    if (!playerData || typeof playerData !== 'object') {
+      return;
+    }
+
+    if (!fieldRef.current) {
+      return;
+    }
+
     const rect = fieldRef.current.getBoundingClientRect();
-    const playerData = JSON.parse(data);
     const x = e.clientX - rect.left;
     const yValue = e.clientY - rect.top;
     handleDropOnField(playerData, x, height, yValue, rect);
@@ -337,7 +355,7 @@ export const HandlerProvider = ({ children }) => {
       ),
     }));
 
-    socket.emit("place_character", {
+    socket?.emit("place_character", {
       ...playerData,
       position: logicalPosition,
       isOffense,
@@ -404,7 +422,7 @@ export const HandlerProvider = ({ children }) => {
       ),
     }));
   }
-    socket.emit("place_character", {
+    socket?.emit("place_character", {
       ...playerData,
       position: logicalPosition,
       isOffense,

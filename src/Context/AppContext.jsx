@@ -50,7 +50,21 @@ export const Provider = ({ children }) => {
       const [isRunPlay, setIsRunPlay] = useState(false)
       const [activePlayId, setActivePlayId] = useState(null)
       const [otherScore, setOtherScore] = useState(0);
-          const [inventory, setInventory] = useState({
+      const buildInventoryForSide = (userTeamName, opponentTeamName, userOnOffense) => {
+        const offenseTeamOnField = userOnOffense ? userTeamName : opponentTeamName;
+        const defenseTeamOnField = userOnOffense ? opponentTeamName : userTeamName;
+        return {
+          offense: teamData[offenseTeamOnField].offensivePlayers,
+          defense: teamData[defenseTeamOnField].defensivePlayers,
+          offensiveLine: teamData[offenseTeamOnField].offensiveLine ?? [],
+          defensiveLine: teamData[defenseTeamOnField].defensiveLine ?? [],
+          OLine: teamData[offenseTeamOnField].OLine,
+          DLine: teamData[defenseTeamOnField].DLine,
+          Qb: teamData[offenseTeamOnField].Qb
+        };
+      };
+
+      const [inventory, setInventory] = useState({
         offense: teamData[offenseName].offensivePlayers,
         defense: teamData[defenseName].defensivePlayers,
         offensiveLine: teamData[offenseName].offensiveLine ?? [],
@@ -63,17 +77,9 @@ export const Provider = ({ children }) => {
       // Update inventory automatically when offenseName changes
       useEffect(() => {
         if (offenseName) {
-          setInventory({
-            offense: teamData[offenseName].offensivePlayers,
-            defense: teamData[defenseName].defensivePlayers,
-            offensiveLine: teamData[offenseName].offensiveLine ?? [],
-            defensiveLine: teamData[defenseName].defensiveLine ?? [],
-            OLine: teamData[offenseName].OLine,
-            DLine: teamData[defenseName].DLine,
-            Qb: teamData[offenseName].Qb
-          });
+          setInventory(buildInventoryForSide(offenseName, defenseName, isOffense));
         }
-      }, [defenseName, offenseName]);
+      }, [defenseName, offenseName, isOffense]);
       
       // Score updates based on outcome
       useEffect(() => {
@@ -89,35 +95,77 @@ export const Provider = ({ children }) => {
       
       // Switch sides function — swap offense and defense teams & reset field state
       const switchSides = (outcome, yardLine, height) => {
-        const keepCorePlayers = (p) => (
-          p.role === 'qb' ||
-          p.role === 'offensive-lineman' ||
-          p.role === 'defensive-lineman'
-        );
+        const oldUserTeamName = offenseName;
+        const oldOpponentTeamName = defenseName;
+        const oldRoleLabel = isOffense ? 'offense' : 'defense';
+        const nextIsOffense = !isOffense;
+        const nextRoleLabel = nextIsOffense ? 'offense' : 'defense';
+        const fieldWidth = 800;
+        const fieldHeight = 600;
+        const anchoredTrenchById = {
+          QB: { x: fieldWidth / 2, y: fieldHeight / 6 },
+          'O-L1': { x: fieldWidth / 2 - (fieldWidth / 7), y: fieldHeight * 0.0417 },
+          'O-L2': { x: fieldWidth / 2 - (fieldWidth / 14), y: fieldHeight * 0.0333 },
+          'O-L3': { x: fieldWidth / 2, y: fieldHeight * 0.025 },
+          'O-L4': { x: fieldWidth / 2 + (fieldWidth / 14), y: fieldHeight * 0.0333 },
+          'O-L5': { x: fieldWidth / 2 + (fieldWidth / 7), y: fieldHeight * 0.0417 },
+          'D-L1': { x: fieldWidth * 0.5 - (fieldWidth * 0.125), y: fieldHeight * 0.5 - (fieldHeight * 0.02) },
+          'D-L2': { x: fieldWidth * 0.5 - (fieldWidth * 0.044), y: fieldHeight * 0.5 - (fieldHeight * 0.02) },
+          'D-L3': { x: fieldWidth * 0.5 + (fieldWidth * 0.044), y: fieldHeight * 0.5 - (fieldHeight * 0.02) },
+          'D-L4': { x: fieldWidth * 0.5 + (fieldWidth * 0.125), y: fieldHeight * 0.5 - (fieldHeight * 0.02) },
+        };
+        let switchedBoardPlayers = [];
 
         setPlayers((prevPlayers) => {
-          const trimmedPlayers = prevPlayers.filter(keepCorePlayers);
+          const previousById = new Map(prevPlayers.map((player) => [player.id, player]));
+          const coreFormation = [
+            { id: 'QB', role: 'qb', isOffense: true },
+            { id: 'O-L1', role: 'offensive-lineman', isOffense: true },
+            { id: 'O-L2', role: 'offensive-lineman', isOffense: true },
+            { id: 'O-L3', role: 'offensive-lineman', isOffense: true },
+            { id: 'O-L4', role: 'offensive-lineman', isOffense: true },
+            { id: 'O-L5', role: 'offensive-lineman', isOffense: true },
+            { id: 'D-L1', role: 'defensive-lineman', isOffense: false },
+            { id: 'D-L2', role: 'defensive-lineman', isOffense: false },
+            { id: 'D-L3', role: 'defensive-lineman', isOffense: false },
+            { id: 'D-L4', role: 'defensive-lineman', isOffense: false },
+          ];
+
+          const trimmedPlayers = coreFormation.map(({ id, role, isOffense: isCoreOffense }) => {
+            const previous = previousById.get(id) ?? {};
+            const anchored = anchoredTrenchById[id] ?? { x: fieldWidth / 2, y: fieldHeight / 2 };
+            return {
+              ...previous,
+              id,
+              role,
+              isOffense: isCoreOffense,
+              position: { x: anchored.x, y: anchored.y },
+              route: null,
+              moveTarget: null,
+              waypoints: null,
+              currentWaypointIndex: null,
+              currentSpeed: 0,
+              lastUpdateTime: null,
+              heading: null,
+            };
+          });
+          switchedBoardPlayers = trimmedPlayers;
           preSnapRef.current = trimmedPlayers;
           setPreSnapPlayers(trimmedPlayers);
           return trimmedPlayers;
         });
 
-        const newOffenseName = defenseName;
-        const newDefenseName = offenseName;
+        setRouteStarted(false);
+        setOutcome('');
+        setIsRunPlay(false);
+        setActivePlayId(null);
+        setSelectedPlayerId(null);
+        setSelectedZoneId(null);
+        setDraggingId(null);
 
-        setOffenseName(newOffenseName);
-        setDffenseName(newDefenseName);
         setIsOffense(prev => !prev);
 
-        setInventory({
-          offense: teamData[newOffenseName].offensivePlayers,
-          defense: teamData[newDefenseName].defensivePlayers,
-          offensiveLine: teamData[newOffenseName].offensiveLine ?? [],
-          defensiveLine: teamData[newDefenseName].defensiveLine ?? [],
-          OLine: teamData[newOffenseName].OLine,
-          DLine: teamData[newDefenseName].DLine,
-          Qb: teamData[newOffenseName].Qb
-        });
+        setInventory(buildInventoryForSide(oldUserTeamName, oldOpponentTeamName, nextIsOffense));
 
         if (outcome === "Intercepted") {
           setTimeout(() => {

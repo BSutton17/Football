@@ -291,6 +291,11 @@
             : startPos.x - centerX / 4, y: startPos.y - fieldSize.height / 2 },
           ];
 
+        case "block":
+          return [
+            { x: startPos.x, y: startPos.y - (forwardDist / 1.35) },
+          ];
+
         case "run": {
           const angleDeg = player.runAngle ?? 90; 
           const angleRad = (angleDeg * Math.PI) / 180;

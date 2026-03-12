@@ -1,6 +1,8 @@
 // Keep this outside the function to persist across calls
 import { getUnifiedMaxSpeed } from './movementModel';
 
+export const OPENNESS_BUBBLE_RADIUS_BASE = 50;
+
 const previousPositions = new Map();
 const opennessDebugSnapshots = new Map();
 
@@ -46,6 +48,7 @@ export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSi
   const mediumCoverageThreshold = 42 * scale;
   const wideCoverageThreshold = 72 * scale;
   const laneContestThreshold = 14 * scale;
+  const opennessBubbleRadius = OPENNESS_BUBBLE_RADIUS_BASE * scale;
 
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -185,6 +188,35 @@ export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSi
     let speedAdjustment = 0;
     let helpAdjustment = 0;
     let laneAdjustment = 0;
+
+    if (primary.dist > opennessBubbleRadius) {
+      const autoOpenScore = 1;
+      opennessScores[receiver.id] = autoOpenScore;
+      opennessDebugSnapshots.set(receiver.id, {
+        receiverId: receiver.id,
+        route: receiver.route || 'none',
+        primaryDefenderId: primary.defender?.id ?? null,
+        helperDefenderId: helper?.defender?.id ?? null,
+        primaryDistance: Number(primary.dist.toFixed(2)),
+        helperDistance: helper ? Number(helper.dist.toFixed(2)) : null,
+        trailingAmount: Number(trailingAmount.toFixed(2)),
+        lateralOffset: Number(lateralOffset.toFixed(2)),
+        leverageWin,
+        distanceBucket: 'bubble-open',
+        immediateHelpCount: 0,
+        bubbleRadius: Number(opennessBubbleRadius.toFixed(2)),
+        bubbleOpen: true,
+        baseScore: autoOpenScore,
+        leverageAdjustment: 0,
+        speedAdjustment: 0,
+        helpAdjustment: 0,
+        laneAdjustment: 0,
+        rawScore: autoOpenScore,
+        finalScore: autoOpenScore,
+      });
+      return;
+    }
+
     if (primary.dist <= closeCoverageThreshold) {
       coverageScore = 9.3;
       distanceBucket = 'tight';
@@ -319,7 +351,7 @@ export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSi
     }
 
     const unclampedCoverageScore = coverageScore;
-    coverageScore = clamp(coverageScore, 1, 10);
+    coverageScore = clamp(coverageScore - 0.7, 1, 10);
     opennessScores[receiver.id] = coverageScore;
     opennessDebugSnapshots.set(receiver.id, {
       receiverId: receiver.id,
@@ -333,6 +365,8 @@ export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSi
       leverageWin,
       distanceBucket,
       immediateHelpCount,
+      bubbleRadius: Number(opennessBubbleRadius.toFixed(2)),
+      bubbleOpen: false,
       baseScore: Number((unclampedCoverageScore - leverageAdjustment - speedAdjustment - helpAdjustment - laneAdjustment).toFixed(2)),
       leverageAdjustment: Number(leverageAdjustment.toFixed(2)),
       speedAdjustment: Number(speedAdjustment.toFixed(2)),
@@ -342,28 +376,6 @@ export function calculateAllOpenness(offensivePlayers, defensivePlayers, fieldSi
       finalScore: Number(coverageScore.toFixed(2)),
     });
 
-    // const bucket = getCoverageBucket(coverageScore);
-    // if (shouldLogOpenness(receiver.id, bucket)) {
-    //   console.log('[OPENNESS DEBUG]', {
-    //     receiverId: receiver.id,
-    //     route: receiver.route || 'none',
-    //     role: receiver.role,
-    //     coverageBucket: bucket,
-    //     coverageScore: Number(coverageScore.toFixed(2)),
-    //     primaryDefenderId: primary.defender.id,
-    //     primaryDistance: Number(primary.dist.toFixed(2)),
-    //     trailingAmount: Number(trailingAmount.toFixed(2)),
-    //     leverageWin,
-    //     lateralOffset: Number(lateralOffset.toFixed(2)),
-    //     helpDefendersInWindow: immediateHelpCount,
-    //     adjustments: {
-    //       leverage: Number(leverageAdjustment.toFixed(2)),
-    //       speed: Number(speedAdjustment.toFixed(2)),
-    //       help: Number(helperAdjustment.toFixed(2)),
-    //       lane: Number(laneAdjustment.toFixed(2)),
-    //     },
-    //   });
-    // }
   });
 
   return opennessScores;

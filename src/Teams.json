@@ -8,7 +8,7 @@
     {"id":  "O-1WR4", "role":  "WR", "speed":  90, "routeRunning":  85, "acceleration":  90},
     {"id":  "O-1TE1", "role":  "TE", "speed":  75, "routeRunning":  77, "blocking":  88, "isBlocking":  false, "acceleration":  69},
     {"id":  "O-1TE2", "role":  "TE", "speed":  74, "routeRunning":  78, "blocking":  85, "isBlocking":  false, "acceleration":  68},
-    {"id":  "O-1RB1", "role":  "RB", "strength":  85, "speed":  85, "routeRunning":  82, "blocking":  79, "isBlocking":  false, "acceleration":  82},
+    {"id":  "O-1RB1", "role":  "RB", "strength":  85, "speed":  85, "routeRunning":  82, "blocking":  79, "isBlocking":  false, "acceleration":  87},
     {"id":  "O-1RB2", "role":  "RB", "strength":  91, "speed":  83, "routeRunning":  80, "blocking":  76, "isBlocking":  false, "acceleration":  80}
   ],
   "defensivePlayers":  [

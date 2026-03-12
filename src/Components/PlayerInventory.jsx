@@ -72,7 +72,9 @@ const PlayerInventory = ({ players, type }) => {
                 }}
                 onDragStart={(event) => {
                   const dataWithType = { ...player, type };
-                  event.dataTransfer.setData('application/json', JSON.stringify(dataWithType));
+                  const payload = JSON.stringify(dataWithType);
+                  event.dataTransfer.setData('application/json', payload);
+                  event.dataTransfer.setData('text/plain', payload);
                 }}
               >
                 <div className="inventory-player-image-slot" aria-hidden="true" />
