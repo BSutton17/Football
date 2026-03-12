@@ -12,7 +12,7 @@
     {"id":  "O-1RB2", "role":  "RB", "strength":  91, "speed":  83, "routeRunning":  80, "blocking":  76, "isBlocking":  false, "acceleration":  80}
   ],
   "defensivePlayers":  [
-    {"id":  "D-1CB1", "role":  "CB", "speed":  70, "reactionTime":  88, "blitzing":  72, "isBlitzing":  false, "acceleration":  70},
+    {"id":  "D-1CB1", "role":  "CB", "speed":  90, "reactionTime":  88, "blitzing":  72, "isBlitzing":  false, "acceleration":  85},
     {"id":  "D-1CB2", "role":  "CB", "speed":  90, "reactionTime":  86, "blitzing":  70, "isBlitzing":  false, "acceleration":  90},
     {"id":  "D-1CB3", "role":  "CB", "speed":  90, "reactionTime":  87, "blitzing":  74, "isBlitzing":  false, "acceleration":  90},
     {"id":  "D-1S1", "role":  "S", "speed":  86, "reactionTime":  90, "blitzing":  83, "isBlitzing":  false, "acceleration":  82},

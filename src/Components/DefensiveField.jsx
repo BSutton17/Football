@@ -1560,7 +1560,7 @@ useEffect(() => {
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {player.role?.toUpperCase()} - {player.speed}
+                  {player.role?.toUpperCase()}
                 </div>
               )
             }
