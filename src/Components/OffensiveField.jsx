@@ -610,6 +610,10 @@ useEffect(() => () => {
 
   // When route starts, set move targets and movement info for players with routes
   useEffect(() => {
+    if (!isOffense) {
+      return;
+    }
+
     if (routeStarted) {
       routeMotionStateRef.current = new Map();
       runVisionStateRef.current = new Map();
@@ -678,10 +682,14 @@ useEffect(() => () => {
       };
       setReadyToCatchIds(new Set());
     }
-  }, [logicalFieldSize, routeStarted, setDraggingId, setPlayers, setReadyToCatchIds, setSelectedPlayerId, setSelectedZoneId]);
+  }, [isOffense, logicalFieldSize, routeStarted, setDraggingId, setPlayers, setReadyToCatchIds, setSelectedPlayerId, setSelectedZoneId]);
 
   // route running
     useEffect(() => {
+      if (!isOffense) {
+        return;
+      }
+
       let lastEmitTime = 0;
       let animationFrameId = null;
 
@@ -1238,7 +1246,7 @@ useEffect(() => () => {
           cancelAnimationFrame(animationFrameId);
         }
       };
-    }, [fieldSize.height, fieldSize.width, roomId, routeStarted, setPlayers, socket]);
+    }, [fieldSize.height, fieldSize.width, isOffense, roomId, routeStarted, setPlayers, socket]);
 
 
 

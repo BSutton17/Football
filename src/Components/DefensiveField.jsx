@@ -137,6 +137,8 @@ function DefensiveField({ offsetX, offsetY, socket}) {
 
     //route starts
 useEffect(() => {
+  if (isOffense) return;
+
   if (!routeStarted) return;
   const toDefenseSpaceYForAssignment = (candidate) => (
     candidate.isOffense
@@ -180,7 +182,7 @@ useEffect(() => {
       return p;
     })
   );
-}, [routeStarted, setPlayers]);
+}, [isOffense, routeStarted, setPlayers]);
 
     useEffect(() => {
       const timer = setTimeout(() => {
@@ -237,6 +239,10 @@ useEffect(() => {
 
     // route duration
     useEffect(() => {
+    if (isOffense) {
+      return;
+    }
+
     if (!routeStarted) {
       return;
     }
@@ -1522,7 +1528,7 @@ useEffect(() => {
       };
       cancelAnimationFrame(animationFrameId);
     };
-  }, [dLineRating, defensiveLineProfiles, isRunPlay, oLineRating, offensiveLineProfiles, outcome, roomId, routeStarted, setCompletedYards, setOutcome, setPlayers, setRouteStarted, setSackTimeRemaining, socket, toDefenseSpaceY, yardLine]);
+  }, [dLineRating, defensiveLineProfiles, isOffense, isRunPlay, oLineRating, offensiveLineProfiles, outcome, roomId, routeStarted, setCompletedYards, setOutcome, setPlayers, setRouteStarted, setSackTimeRemaining, socket, toDefenseSpaceY, yardLine]);
 
   return (
     <div className="half top-half"
