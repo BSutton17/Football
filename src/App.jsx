@@ -4,8 +4,34 @@ import io from "socket.io-client";
 import Field from './Components/Field';
 import { useAppContext } from './Context/AppContext';
 
-const socket = io.connect("https://football-server-63f55d8fa79f.herokuapp.com/")
-// const socket = io.connect("http://localhost:3001/");
+const getSocketBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_SOCKET_URL;
+  if (typeof envUrl === 'string' && envUrl.trim().length > 0) {
+    return envUrl;
+  }
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    const isNetlifyHost = host.endsWith('netlify.app');
+
+    if (isNetlifyHost) {
+      return 'https://football-server-63f55d8fa79f.herokuapp.com';
+    }
+
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:3001';
+    }
+
+    return `http://${host}:3001`;
+  }
+
+  return 'http://localhost:3001';
+};
+
+const socket = io.connect(getSocketBaseUrl(), {
+  withCredentials: true,
+  timeout: 12000,
+});
 function App() {
   const [room, setRoom] = useState("");      
   const [isJoining, setIsJoining] = useState(false); 
@@ -21,6 +47,23 @@ function App() {
 
 
   useEffect(() => {
+    const handleConnect = () => {
+      console.log('[SOCKET] connected', { id: socket.id, url: getSocketBaseUrl() });
+    };
+
+    const handleConnectError = (error) => {
+      console.error('[SOCKET] connect_error', {
+        message: error?.message,
+        description: error?.description,
+        context: error?.context,
+        url: getSocketBaseUrl(),
+      });
+    };
+
+    const handleDisconnect = (reason) => {
+      console.warn('[SOCKET] disconnected', { reason });
+    };
+
     socket.on("assigned_player", (playerNumber) => {
       const amPlayerOne = playerNumber === 1;
       setIsOffense(playerNumber === 1);
@@ -34,8 +77,15 @@ function App() {
       setSocket(socket);
     });
 
+    socket.on('connect', handleConnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('disconnect', handleDisconnect);
+
     return () => {
       socket.off("assigned_player");
+      socket.off('connect', handleConnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('disconnect', handleDisconnect);
     };
   }, [setIsPlayerOne, setOffenseName, setDffenseName, setIsOffense, setSocket]);
 

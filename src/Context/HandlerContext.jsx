@@ -3,6 +3,8 @@ import { useAppContext } from './AppContext';
 
 const LOGICAL_FIELD_WIDTH = 800;
 const LOGICAL_FIELD_HEIGHT = 600;
+const MOBILE_DRAG_VISUAL_OFFSET_PX = 36;
+const TOUCH_DRAG_START_THRESHOLD_PX = 14;
 
 const noop = () => {};
 
@@ -54,7 +56,8 @@ export const HandlerProvider = ({ children }) => {
     }
   };
 
-  const placePlayers = (initialX, initialY, rect) => {
+  const placePlayers = (initialX, initialY, rect, options = {}) => {
+    const { lockedLogicalY } = options;
     if (!draggingId) return;
 
     // Calculate drop position relative to the field's bounding rect
@@ -90,9 +93,11 @@ export const HandlerProvider = ({ children }) => {
           let newPosition;
           // Update player position with normalized coords
           if (draggingId.startsWith('O')) {
-            newPosition = { x: dropLogicalX, y: dropLogicalY - (half - half / 15) };
+            const defaultY = dropLogicalY - (half - half / 15);
+            newPosition = { x: dropLogicalX, y: typeof lockedLogicalY === 'number' ? lockedLogicalY : defaultY };
           } else if (draggingId.startsWith('D')) {
-            newPosition = { x: dropLogicalX, y: dropLogicalY - half / 15 };
+            const defaultY = dropLogicalY - half / 15;
+            newPosition = { x: dropLogicalX, y: typeof lockedLogicalY === 'number' ? lockedLogicalY : defaultY };
           } else {
             newPosition = { x: dropLogicalX, y: dropLogicalY };
           }
@@ -197,24 +202,36 @@ export const HandlerProvider = ({ children }) => {
   };
 
   const handleTouchEnd = () => {
-    if (draggingId?.startsWith('D-') || draggingId?.startsWith('O')) {
-      setSelectedPlayerId(draggingId);
-    } else if (draggingId?.startsWith('DZ')) {
-      setSelectedZoneId(draggingId);
+    const touchState = touchedPlayerRef.current;
+    const activeDraggingId = draggingId;
+    const wasDragged = touchState?.wasDragged === true;
+    const isTap = Boolean(touchState?.id) && !wasDragged;
+
+    if (isTap) {
+      if (touchState.id?.startsWith('D-') || touchState.id?.startsWith('O')) {
+        setSelectedPlayerId(touchState.id);
+      } else if (touchState.id?.startsWith('DZ')) {
+        setSelectedZoneId(touchState.id);
+      }
     }
 
-    if (touchedPlayerRef.current && touchedPlayerRef.current.lastTouch) {
-      const { x, y } = touchedPlayerRef.current.lastTouch;
+    if (
+      touchState?.source === 'inventory'
+      && touchState?.dragIntent
+      && touchState?.lastTouch
+      && fieldRef.current
+      && !activeDraggingId?.startsWith('DZ')
+    ) {
+      const { x, y } = touchState.lastTouch;
       const rect = fieldRef.current.getBoundingClientRect();
+      const targetElement = document.elementFromPoint(x, y);
+      const endedInInventory = Boolean(targetElement?.closest?.('.inventory-container'));
 
-      // Check if this was a NEW player (not on field yet)
-      const isExistingPlayer = players.some(p => p.id === touchedPlayerRef.current.id);
-
-      if (!isExistingPlayer && !draggingId?.startsWith('DZ')) {
+      if (!endedInInventory) {
         const dropX = x - rect.left;
         const dropY = y - rect.top;
         handleDropOnFieldTouch(
-          touchedPlayerRef.current,
+          touchState,
           dropX,
           dropY,
           dropY,
@@ -231,45 +248,89 @@ export const HandlerProvider = ({ children }) => {
     if (isOffense && isSetClicked) return; // disable drag
     e.preventDefault();
     setDraggingId(id);
-    setSelectedPlayerId(null);
+    const touchedPlayer = players.find((player) => player.id === id);
     touchedPlayerRef.current = {
       id,
-      startTouch: null,
-      lastTouch: null,
+      source: 'field',
+      startTouch: {
+        x: e.touches?.[0]?.clientX ?? 0,
+        y: e.touches?.[0]?.clientY ?? 0,
+      },
+      lastTouch: {
+        x: e.touches?.[0]?.clientX ?? 0,
+        y: e.touches?.[0]?.clientY ?? 0,
+      },
       wasDragged: false,
+      dragIntent: true,
+      lockedLogicalY: touchedPlayer?.position?.y,
     };
   };
 
 
   const handleTouchMove = (e) => {
-    e.preventDefault();
-    if (!draggingId || !fieldRef.current) return;
-
-
+    const touchState = touchedPlayerRef.current;
+    if (!touchState || !fieldRef.current) return;
     const touch = e.touches[0];
-    const rect = fieldRef.current.getBoundingClientRect();
+    if (!touch) return;
 
     const currentTouch = {
       x: touch.clientX,
       y: touch.clientY,
     };
 
+    if (touchState.source === 'inventory' && !touchState.dragIntent) {
+      const start = touchState.startTouch || currentTouch;
+      const dx = currentTouch.x - start.x;
+      const dy = currentTouch.y - start.y;
+      const distance = Math.hypot(dx, dy);
+      const verticalScrollIntent = Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx) * 1.2;
+
+      if (verticalScrollIntent) {
+        touchedPlayerRef.current = null;
+        setDraggingId(null);
+        return;
+      }
+
+      if (distance >= TOUCH_DRAG_START_THRESHOLD_PX) {
+        touchState.dragIntent = true;
+        touchState.wasDragged = true;
+        setDraggingId(touchState.id);
+      } else {
+        touchState.lastTouch = currentTouch;
+        touchedPlayerRef.current = touchState;
+        return;
+      }
+    }
+
+    if (!draggingId && !touchState.dragIntent) {
+      return;
+    }
+
+    e.preventDefault();
+    const rect = fieldRef.current.getBoundingClientRect();
+
     // Store lastTouch and also detect actual movement
-    if (touchedPlayerRef.current) {
-      const start = touchedPlayerRef.current.startTouch;
+    if (touchState) {
+      const start = touchState.startTouch;
       if (!start) {
-        touchedPlayerRef.current.startTouch = currentTouch;
+        touchState.startTouch = currentTouch;
       } else {
         const dx = currentTouch.x - start.x;
         const dy = currentTouch.y - start.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        touchedPlayerRef.current.wasDragged = distance > 5; // 5px threshold
+        const distance = Math.hypot(dx, dy);
+        touchState.wasDragged = distance > 5;
       }
 
-      touchedPlayerRef.current.lastTouch = currentTouch;
+      touchState.lastTouch = currentTouch;
+      touchedPlayerRef.current = touchState;
     }
 
-    placePlayers(touch.clientX, touch.clientY, rect);
+    placePlayers(
+      touch.clientX,
+      touch.clientY - MOBILE_DRAG_VISUAL_OFFSET_PX,
+      rect,
+      { lockedLogicalY: touchState.lockedLogicalY }
+    );
   };
 
   const handleDragOver = (e) => {
@@ -277,14 +338,15 @@ export const HandlerProvider = ({ children }) => {
   };
 
   const handleTouchStartCustom = (e, data) => {
-    e.preventDefault();
-    setDraggingId(data.id);
-    setSelectedPlayerId(null);
+    const touch = e.touches?.[0];
     touchedPlayerRef.current = {
       ...data,
-      startTouch: null,
-      lastTouch: null,
+      source: 'inventory',
+      startTouch: touch ? { x: touch.clientX, y: touch.clientY } : null,
+      lastTouch: touch ? { x: touch.clientX, y: touch.clientY } : null,
       wasDragged: false,
+      dragIntent: false,
+      lockedLogicalY: null,
     };
   };
 

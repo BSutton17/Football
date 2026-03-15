@@ -93,7 +93,7 @@ function DefensiveField({ offsetX, offsetY, socket}) {
     const pendingRunOutcomeRef = useRef(null);
     const safetyPursuitDebugRef = useRef({
       lastLogByPlayerId: new Map(),
-      delayEligibleByPlayerId: new Map(),
+      delayMsByPlayerId: new Map(),
     });
     const runPursuitPredictionRef = useRef({
       lastByRunnerId: new Map(),
@@ -466,14 +466,22 @@ useEffect(() => {
             const oneYardPixels = LOGICAL_FIELD_HEIGHT / 40;
             const lineOfScrimmageSharedY = LOGICAL_FIELD_HEIGHT / 2;
             const delayThresholdSharedY = lineOfScrimmageSharedY - (oneYardPixels * 8);
-            const delayEligibleByPlayerId = new Map();
+            const delayMsByPlayerId = new Map();
             prevPlayers.forEach((candidate) => {
               if (candidate.isOffense || !candidate.position || candidate.role === 'defensive-lineman') {
                 return;
               }
-              delayEligibleByPlayerId.set(candidate.id, candidate.position.y <= delayThresholdSharedY);
+
+              let delayMs = 0;
+              if (candidate.role === 'LB') {
+                delayMs = 700;
+              } else if (candidate.role === 'S' && candidate.position.y <= delayThresholdSharedY) {
+                delayMs = 2000;
+              }
+
+              delayMsByPlayerId.set(candidate.id, delayMs);
             });
-            safetyPursuitDebugRef.current.delayEligibleByPlayerId = delayEligibleByPlayerId;
+            safetyPursuitDebugRef.current.delayMsByPlayerId = delayMsByPlayerId;
             runPlayStateRef.current = {
               runnerId: runCarrier.id,
               startSharedX: runCarrierShared?.x ?? null,
@@ -484,7 +492,7 @@ useEffect(() => {
           }
         } else if (runPlayStateRef.current.runnerId !== null) {
           runPlayStateRef.current = { runnerId: null, startSharedX: null, startSharedY: null, startTimeMs: null, tackledLogged: false };
-          safetyPursuitDebugRef.current.delayEligibleByPlayerId = new Map();
+          safetyPursuitDebugRef.current.delayMsByPlayerId = new Map();
         }
 
         // Rushers: pass = DL + blitzers; run = all defenders pursue the ball carrier.
@@ -704,6 +712,7 @@ useEffect(() => {
             const targetRusher = rushers.find((rusher) => rusher.id === targetRusherId);
             const blockerShared = { x: player.position.x, y: getSharedY(player) };
             const olProfile = getOlProfile(player);
+            const runBlockingBoost = (isRunPlay && (player.role === 'offensive-lineman' || player.role === 'TE')) ? 1.2 : 1;
             const anchorSharedY = anchor.y + (LOGICAL_FIELD_HEIGHT / 2);
             const isWideReceiverBlocker = player.role === 'WR';
             const isSupportBlocker = player.role === 'TE' || player.role === 'RB' || isWideReceiverBlocker;
@@ -750,7 +759,7 @@ useEffect(() => {
                 const engageDistance = Math.hypot(dxEngage, dyEngage);
                 if (engageDistance <= LOGICAL_FIELD_WIDTH * 0.027) {
                   const rusherProfile = getRusherProfile(targetRusher);
-                  const blockerForce = ((olProfile.blocking * 1.1) + (olProfile.strength * 1.1) + (olProfile.technique));
+                  const blockerForce = (((olProfile.blocking * 1.1) + (olProfile.strength * 1.1) + (olProfile.technique)) * runBlockingBoost);
                   const rushForce = (rusherProfile.power) + (rusherProfile.strength) + (rusherProfile.technique);
                   const contest = blockerForce - rushForce;
                   const drivePush = contest >= 0
@@ -777,7 +786,7 @@ useEffect(() => {
               const engageDistance = Math.hypot(dxEngage, dyEngage);
               if (engageDistance <= LOGICAL_FIELD_WIDTH * 0.027) {
                 const rusherProfile = getRusherProfile(targetRusher);
-                const blockerForce = ((olProfile.blocking) + (olProfile.strength) + (olProfile.technique));
+                const blockerForce = (((olProfile.blocking) + (olProfile.strength) + (olProfile.technique)) * runBlockingBoost);
                 const rushForce = (rusherProfile.power) + (rusherProfile.strength) + (rusherProfile.technique);
                 const contest = blockerForce - rushForce;
                 const contestPush = contest >= 0
@@ -918,14 +927,15 @@ useEffect(() => {
              const elapsedSinceSnapMs = Math.max(0, time - playStartTimeMs);
              const oneYardPixels = LOGICAL_FIELD_HEIGHT / 40;
              const lineOfScrimmageSharedY = LOGICAL_FIELD_HEIGHT / 2;
-             const hasDelayEligibility = safetyPursuitDebugRef.current.delayEligibleByPlayerId.get(player.id) === true;
+             const pursuitDelayMs = safetyPursuitDebugRef.current.delayMsByPlayerId.get(player.id) ?? 0;
+             const hasDelayEligibility = pursuitDelayMs > 0;
              const inRunLateralOnlyWindow = isRunPlay
                && hasDelayEligibility
-               && elapsedSinceSnapMs < 2000;
+               && player.role === 'S'
+               && elapsedSinceSnapMs < pursuitDelayMs;
              const isSafetyPursuitEligible = isRunPlay
                && player.role !== 'defensive-lineman';
              const yardsFromLos = (player.position.y - lineOfScrimmageSharedY) / oneYardPixels;
-             const pursuitDelayMs = hasDelayEligibility ? 2000 : 0;
              const delayRemainingMs = Math.max(0, pursuitDelayMs - elapsedSinceSnapMs);
              const shouldFollowX = inRunLateralOnlyWindow;
              const currentlyPursuing = isRunPlay && !inRunLateralOnlyWindow;
@@ -940,6 +950,11 @@ useEffect(() => {
                  safetyPursuitDebugRef.current.lastLogByPlayerId.set(player.id, time);
                }
              }
+
+             if (isRunPlay && player.role === 'LB' && elapsedSinceSnapMs < pursuitDelayMs) {
+               return player;
+             }
+
              if (!isRunPlay && isEdgeRusher) {
                const phantomWindowMs = 250 + Math.random() * 150; // 250–400ms
                if (elapsedSinceSnapMs < phantomWindowMs) {
@@ -1518,7 +1533,7 @@ useEffect(() => {
       trenchAnchorsRef.current = new Map();
       safetyPursuitDebugRef.current = {
         lastLogByPlayerId: new Map(),
-        delayEligibleByPlayerId: new Map(),
+          delayMsByPlayerId: new Map(),
       };
       sackDebugRef.current = { sackedLogged: false };
       runPlayStateRef.current = { runnerId: null, startSharedX: null, startSharedY: null, startTimeMs: null, tackledLogged: false };
