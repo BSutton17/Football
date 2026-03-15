@@ -7,7 +7,10 @@ import { useAppContext } from './Context/AppContext';
 const getSocketBaseUrl = () => {
   const envUrl = import.meta.env.VITE_SOCKET_URL;
   if (typeof envUrl === 'string' && envUrl.trim().length > 0) {
-    return envUrl;
+    const normalizedEnvUrl = envUrl.trim();
+    if (!normalizedEnvUrl.includes('your-production-server.com')) {
+      return normalizedEnvUrl;
+    }
   }
 
   if (typeof window !== 'undefined') {
