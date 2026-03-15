@@ -249,6 +249,7 @@ export const HandlerProvider = ({ children }) => {
     e.preventDefault();
     setDraggingId(id);
     const touchedPlayer = players.find((player) => player.id === id);
+    const shouldLockYAxis = typeof id === 'string' && id.startsWith('O');
     touchedPlayerRef.current = {
       id,
       source: 'field',
@@ -262,7 +263,7 @@ export const HandlerProvider = ({ children }) => {
       },
       wasDragged: false,
       dragIntent: true,
-      lockedLogicalY: touchedPlayer?.position?.y,
+      lockedLogicalY: shouldLockYAxis ? touchedPlayer?.position?.y : null,
     };
   };
 
