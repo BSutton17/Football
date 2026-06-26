@@ -52,6 +52,12 @@ export function placePlayer(data: PlacePlayerPayload): void {
   if (socket.connected) socket.emit('place_player', data)
 }
 
+// [Special Teams][12][14][21] Send a kick input — directional aim (left/right) or the punt backspin
+// toggle. The server is authoritative for the outcome; the client only transmits intent.
+export function sendSpecialTeamsInput(data: { aim?: 'left' | 'right'; backspin?: boolean }): void {
+  if (socket.connected) socket.emit('special_teams_input', data)
+}
+
 export function removePlayer(id: string): void {
   if (socket.connected) socket.emit('remove_player', id)
 }
@@ -68,8 +74,9 @@ export function snapBall(): void {
   if (socket.connected) socket.emit('snap_ball')
 }
 
-export function punt(): void {
-  if (socket.connected) socket.emit('punt')
+// [Special Teams][2][3] The offense's 4th-down menu choice (server validates + is authoritative).
+export function sendDecision(option: import('../types/game.ts').DecisionOption): void {
+  if (socket.connected) socket.emit('special_teams_choice', { option })
 }
 
 export function throwToReceiver(receiverId: string): void {

@@ -700,25 +700,6 @@ body {
   box-shadow: none;
 }
 
-/* Hike button — shown to offense during countdown phase */
-.punt-btn {
-  position: absolute;
-  bottom: max(108px, calc(env(safe-area-inset-bottom) + 96px));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 18;
-  padding: 9px 24px;
-  border: none;
-  border-radius: 999px;
-  background: #475569;
-  color: #fff;
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  touch-action: manipulation;
-}
-
 .hike-btn {
   position: absolute;
   bottom: max(60px, calc(env(safe-area-inset-bottom) + 48px));
@@ -1450,4 +1431,230 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .vs2, .vs2-band--top, .vs2-band--bottom, .vs2-phrase, .vs2-row, .vs2-badge, .vs2-band-beam, .vs2-band-particles, .vs2-hint { animation: none; }
+}
+
+/* ── Special teams ([Special Teams][1]) ─────────────────────────────────────── */
+/* Foundational kicking-UI overlay. Per-kick tickets refine the aim/power meter and result UI. */
+.special-teams {
+  position: absolute;
+  left: 50%;
+  bottom: 92px;
+  transform: translateX(-50%);
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(10, 12, 18, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f3f4f6;
+  font-size: 13px;
+  min-width: 220px;
+  text-align: center;
+}
+.special-teams__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.special-teams__kind { font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+.special-teams__role { font-size: 11px; opacity: 0.7; text-transform: uppercase; }
+.special-teams__controls { display: flex; flex-direction: column; gap: 6px; }
+.special-teams__meter { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; }
+.special-teams__meter input { flex: 1; }
+.special-teams__kick {
+  margin-top: 4px;
+  padding: 8px 0;
+  border: none;
+  border-radius: 8px;
+  background: #f59e0b;
+  color: #1a1206;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.special-teams__kick:active { transform: translateY(1px); }
+.special-teams__status { opacity: 0.85; }
+
+/* ── 4th-down decision menu ([Special Teams][2][3][4]) ──────────────────────── */
+.fourth-down {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(8, 10, 16, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f3f4f6;
+  min-width: 240px;
+}
+.fourth-down__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.fourth-down__title { font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+.fourth-down__timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  font-size: 1.1rem;
+  color: #fbbf24;
+}
+.fourth-down__options { display: flex; gap: 8px; }
+.fourth-down__btn {
+  flex: 1;
+  padding: 10px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: #1f2937;
+  color: #f3f4f6;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.fourth-down__btn--default { border-color: #fbbf24; }
+.fourth-down__btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.fourth-down__btn:not(:disabled):active { transform: translateY(1px); }
+
+
+
+/* ── Special teams kicking interface ([Special Teams][10]-[14]) ──────────────── */
+/* Full-screen kicker overlay: left/right halves capture aim taps; the arrow fills (power) + rotates (aim). */
+.kick-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+}
+.kick-half {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.kick-half--left  { left: 0;  }
+.kick-half--right { right: 0; }
+.kick-half:active { background: rgba(255, 255, 255, 0.04); }
+
+.kick-center {
+  position: absolute;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;   /* let taps fall through to the left/right halves */
+  text-align: center;
+}
+.kick-label {
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f3f4f6;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+.kick-arrow {
+  position: relative;
+  width: 74px;
+  height: 120px;
+  clip-path: polygon(50% 0, 100% 42%, 72% 42%, 72% 100%, 28% 100%, 28% 42%, 0 42%);
+  background: rgba(255, 255, 255, 0.16);
+  transition: transform 0.06s linear;
+  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.6));
+}
+.kick-arrow__fill {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background: linear-gradient(0deg, #ef4444 0%, #f59e0b 55%, #22c55e 100%);
+}
+.kick-hint {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.8);
+}
+
+/* [18] aiming arrow + target line wrapper */
+.kick-arrow-wrap {
+  position: relative;
+  width: 74px;
+  height: 120px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.kick-arrow-wrap .kick-arrow { position: absolute; inset: 0; }
+.kick-target {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 3px;
+  height: 100%;
+  margin-left: -1.5px;
+  background: repeating-linear-gradient(0deg, rgba(96,165,250,0.9) 0 7px, transparent 7px 14px);
+  transform-origin: bottom center;
+  pointer-events: none;
+}
+
+.kick-arrow { transform-origin: bottom center; }
+
+/* [21] Punt backspin toggle */
+.kick-backspin {
+  pointer-events: auto;
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(20, 24, 33, 0.92);
+  color: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.kick-backspin--on {
+  background: #2563eb;
+  border-color: #60a5fa;
+  color: #fff;
+}
+
+/* [Special Teams] "KICKED" banner — top of screen, both players, when the kick is away */
+.kicked-banner {
+  position: fixed;
+  top: max(70px, calc(env(safe-area-inset-top) + 58px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 980;
+  padding: 8px 28px;
+  border-radius: 999px;
+  background: rgba(8, 10, 16, 0.92);
+  border: 1px solid #fbbf24;
+  color: #fbbf24;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  animation: kicked-pop 0.18s ease-out;
+}
+@keyframes kicked-pop {
+  from { transform: translateX(-50%) scale(0.8); opacity: 0; }
+  to   { transform: translateX(-50%) scale(1);   opacity: 1; }
 }

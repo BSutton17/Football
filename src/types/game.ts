@@ -15,6 +15,29 @@ export interface Score {
   defense: number
 }
 
+// [Special Teams][1] Kinds of kick and the sub-phases of a kicking play. Mirror the server's
+// game/specialTeams.js (KICK / ST_PHASE) — keep in sync.
+export type KickType = 'kickoff' | 'punt' | 'field_goal' | 'extra_point'
+export type SpecialTeamsPhase = 'setup' | 'kicking' | 'resolved'
+
+// Viewer-relative special-teams snapshot from the server. Present only while a kick is in progress.
+export interface SpecialTeamsState {
+  kickType: KickType
+  label: string              // display name, e.g. "Field Goal"
+  phase: SpecialTeamsPhase
+  kicking: boolean           // is THIS viewer the kicking team?
+  returnable: boolean        // can the receiving team run it back?
+  points: number             // points a make is worth (FG 3, XP 1, else 0)
+  playerControlled: boolean  // [5] false for an automatic kickoff; true for punt/FG/XP
+  power: number              // [9] 0 … 1; full at the start, drains over the kick timer
+  angle: number              // [7] −1 (left) … +1 (right); 0 = centered aiming arrow
+  started: boolean           // [8] has the kick timer begun (input given / inactivity elapsed)?
+  secondsRemaining: number   // [8] kick-timer seconds left
+  targetAngle: number        // [18] aim (−1..1) that splits the uprights from this hash (FG/XP); 0 otherwise
+  backspin: boolean          // [21] punt backspin toggle (only meaningful for punts)
+  result: unknown | null     // outcome, populated once resolved
+}
+
 export interface GameState {
   phase: PlayPhase
   quarter: Quarter
@@ -22,6 +45,10 @@ export interface GameState {
   down: Down
   distance: number    // yards needed for first down
   yardLine: number    // current yard line (0–100, offense perspective)
+  ballX?: number      // [hash] lateral spot the next formation lines up on (absolute X, yards)
+  playClock?: number  // [play-clock] starting play-clock value for this snap (40 on a drive start, else 25)
+  specialTeams?: SpecialTeamsState | null   // [Special Teams][1] non-null while a kick is in progress
+  decision?: PlayDecision | null            // [Special Teams][2][3] 4th-down menu (offense only)
   score: Score
   role: TeamRole      // this viewer's current role — offense or defense
   fatigue?: Record<string, number>   // [fatigue] playerId → current stamina (0–100); drives the bars
@@ -66,6 +93,7 @@ export type PlayOutcome =
   | 'touchdown'
   | 'safety'
   | 'punt'
+  | 'field_goal'   // [Special Teams] 4th-down FG attempt (detail 'made' | 'missed')
 
 export interface PlayResult {
   outcome: PlayOutcome
@@ -75,7 +103,18 @@ export interface PlayResult {
   yardLine: number
   firstDown?: boolean       // [224][225] this play moved the chains
   newPossession?: TeamRole  // set on interception, safety, turnover on downs
-  detail?: 'broken_up' | 'drop' | null   // [pass-outcome] why an incompletion fell — defended vs dropped
+  detail?: 'broken_up' | 'drop' | 'made' | 'missed' | 'out_of_bounds' | 'touchback' | null   // incompletion reason, FG result, or punt result
+}
+
+// [Special Teams][2][3][4] The 4th-down decision menu the offense is shown.
+export type DecisionOption = 'go_for_it' | 'punt' | 'field_goal'
+
+export interface PlayDecision {
+  context: 'fourth_down'
+  secondsRemaining: number          // server countdown before the default is auto-picked
+  defaultOption: DecisionOption
+  fieldGoalDistance: number         // straight-line yards, for the FG button readout
+  options: { id: DecisionOption; label: string; legal: boolean }[]
 }
 
 export type GameResult = 'win' | 'loss' | 'tie'

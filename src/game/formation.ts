@@ -8,23 +8,26 @@ const MID = FIELD.WIDTH / 2  // 26.665 — center of the field
 // The offensive line locks on the LOS.  Standard 5-man spread:
 //   C at center, guards 1.5 yd out, tackles 3.0 yd out.
 // QB lines up in shotgun, 5 yards behind the LOS.
+//
+// [hash] centerX is the lateral ball spot for this snap (a hash mark, or midfield). The whole auto
+// formation is built around it so it lines up on the spotted ball; defaults to midfield.
 
-export function getOLQBPlayers(yardLine: number): PositionUpdate[] {
-  return offenseAutoPlaced(yardLine)
+export function getOLQBPlayers(yardLine: number, centerX: number = MID): PositionUpdate[] {
+  return offenseAutoPlaced(yardLine, centerX)
 }
 
-export function getDLPlayers(yardLine: number): PositionUpdate[] {
-  return defenseAutoPlaced(yardLine)
+export function getDLPlayers(yardLine: number, centerX: number = MID): PositionUpdate[] {
+  return defenseAutoPlaced(yardLine, centerX)
 }
 
-function offenseAutoPlaced(yardLine: number): PositionUpdate[] {
+function offenseAutoPlaced(yardLine: number, centerX: number = MID): PositionUpdate[] {
   return [
-    { id: 'auto_ol_lt', x: MID - 3.5,  y: yardLine - 1, team: 'o', label: 'OL' },
-    { id: 'auto_ol_lg', x: MID - 1.75, y: yardLine - 1, team: 'o', label: 'OL' },
-    { id: 'auto_ol_c',  x: MID,        y: yardLine - 1, team: 'o', label: 'OL' },
-    { id: 'auto_ol_rg', x: MID + 1.75, y: yardLine - 1, team: 'o', label: 'OL' },
-    { id: 'auto_ol_rt', x: MID + 3.5,  y: yardLine - 1, team: 'o', label: 'OL' },
-    { id: 'auto_qb',    x: MID,       y: yardLine - 6, team: 'o', label: 'QB' },
+    { id: 'auto_ol_lt', x: centerX - 3.5,  y: yardLine - 1, team: 'o', label: 'OL' },
+    { id: 'auto_ol_lg', x: centerX - 1.75, y: yardLine - 1, team: 'o', label: 'OL' },
+    { id: 'auto_ol_c',  x: centerX,        y: yardLine - 1, team: 'o', label: 'OL' },
+    { id: 'auto_ol_rg', x: centerX + 1.75, y: yardLine - 1, team: 'o', label: 'OL' },
+    { id: 'auto_ol_rt', x: centerX + 3.5,  y: yardLine - 1, team: 'o', label: 'OL' },
+    { id: 'auto_qb',    x: centerX,        y: yardLine - 6, team: 'o', label: 'QB' },
   ]
 }
 
@@ -34,19 +37,19 @@ function offenseAutoPlaced(yardLine: number): PositionUpdate[] {
 // up outside the offensive tackles (±3) so they can rush the edge, while the two
 // interior linemen sit over the guards.
 
-function defenseAutoPlaced(yardLine: number): PositionUpdate[] {
+function defenseAutoPlaced(yardLine: number, centerX: number = MID): PositionUpdate[] {
   return [
-    { id: 'auto_dl1', x: MID - 3.25, y: yardLine + 1, team: 'd', label: 'DL' },
-    { id: 'auto_dl2', x: MID - 1.25, y: yardLine + 1, team: 'd', label: 'DL' },
-    { id: 'auto_dl3', x: MID + 1.25, y: yardLine + 1, team: 'd', label: 'DL' },
-    { id: 'auto_dl4', x: MID + 3.25, y: yardLine + 1, team: 'd', label: 'DL' },
+    { id: 'auto_dl1', x: centerX - 3.25, y: yardLine + 1, team: 'd', label: 'DL' },
+    { id: 'auto_dl2', x: centerX - 1.25, y: yardLine + 1, team: 'd', label: 'DL' },
+    { id: 'auto_dl3', x: centerX + 1.25, y: yardLine + 1, team: 'd', label: 'DL' },
+    { id: 'auto_dl4', x: centerX + 3.25, y: yardLine + 1, team: 'd', label: 'DL' },
   ]
 }
 
 // Returns all auto-placed players for both teams.
 // These are always on the field and cannot be moved by either player.
-export function getAutoPlacedPlayers(yardLine: number): PositionUpdate[] {
-  return [...offenseAutoPlaced(yardLine), ...defenseAutoPlaced(yardLine)]
+export function getAutoPlacedPlayers(yardLine: number, centerX: number = MID): PositionUpdate[] {
+  return [...offenseAutoPlaced(yardLine, centerX), ...defenseAutoPlaced(yardLine, centerX)]
 }
 
 // ── Placement bounds ──────────────────────────────────────────────────────────

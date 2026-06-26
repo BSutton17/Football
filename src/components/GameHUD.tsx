@@ -19,10 +19,11 @@ const PLAY_CLOCK_SECONDS = 25
 export default function GameHUD({ gameState }: Props) {
   const [playClock, setPlayClock] = useState(PLAY_CLOCK_SECONDS)
 
-  // Reset to 25 at the start of each pre_snap.
+  // Reset at the start of each pre_snap to the server's starting value for this snap (40 on a drive
+  // start so there's time to set the formation, 25 otherwise).
   useEffect(() => {
-    if (gameState?.phase === 'pre_snap') setPlayClock(PLAY_CLOCK_SECONDS)
-  }, [gameState?.phase])
+    if (gameState?.phase === 'pre_snap') setPlayClock(gameState.playClock ?? PLAY_CLOCK_SECONDS)
+  }, [gameState?.phase, gameState?.playClock])
 
   // Server is authoritative — update display whenever a tick arrives.
   useEffect(() => {

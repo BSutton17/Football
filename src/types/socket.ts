@@ -1,5 +1,5 @@
 import type { TeamRole, PlayerRatings } from './player.ts'
-import type { Quarter, Score, GameState, GameOver, PlayResult, PositionUpdate, CarrierVision } from './game.ts'
+import type { Quarter, Score, GameState, GameOver, PlayResult, PositionUpdate, CarrierVision, SpecialTeamsState, KickType, DecisionOption } from './game.ts'
 import type { RouteType, CoverageType, ZoneType } from './routes.ts'
 
 // ─── Shared payload shapes ────────────────────────────────────────────────────
@@ -103,6 +103,9 @@ export interface ServerToClientEvents {
   switch_sides:     (data: { role: TeamRole }) => void   // [192] possession changed — each side's new role
   halftime:         () => void   // [218] Q2 → Q3 break (foundation for halftime UI)
   game_over:        (data: GameOver) => void
+
+  // Special teams ([Special Teams][1]) — viewer-relative kick state; null clears the kicking UI.
+  special_teams_update: (data: SpecialTeamsState | null) => void
 }
 
 // ─── Client → Server ─────────────────────────────────────────────────────────
@@ -127,9 +130,6 @@ export interface ClientToServerEvents {
   assign_coverage:  (data: AssignCoveragePayload) => void
   clear_coverage:   (data: { playerId: string }) => void
 
-  // Pre-snap — Offense
-  punt:               () => void   // [punt] 4th-down punt
-
   // In-play — Offense
   snap_ball:          () => void
   throw_to_receiver:  (receiverId: string) => void
@@ -139,11 +139,19 @@ export interface ClientToServerEvents {
 
 
 
+  // Special teams ([Special Teams][12][14][21]) — directional aim ('left'/'right', each rotates +
+  // refills 2% power) or the punt backspin toggle. The server owns everything else.
+  special_teams_input: (data: { aim?: 'left' | 'right'; backspin?: boolean }) => void
+
+  // 4th-down decision ([Special Teams][2][3]) — the offense picks Go For It / Punt / Field Goal.
+  special_teams_choice: (data: { option: DecisionOption }) => void
+
   // Postgame
   reset_game:         () => void   // [222] start a fresh game on the same room
 
   // Dev mode — one-click playtest setup (offense-relative coords). Not in the real game.
   dev_quick_setup:    (data: DevSetupPayload) => void
+  dev_special_teams:  (data: { kickType: KickType; kickingSlot?: number }) => void   // stage a kick (dev only)
 }
 
 export interface DevSetupPayload {

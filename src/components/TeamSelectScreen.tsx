@@ -198,11 +198,11 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
             aria-pressed={!railVisible}
             title={railVisible ? 'Hide teams' : 'Show teams'}
           >
-            {railVisible ? '🙈 Hide' : '👁 Teams'}
+            {railVisible ? 'Hide' : 'Teams'}
           </button>
           {myLocked ? (
             <div className="ts2-locked">
-              <span className="ts2-locked-team">✓ {nameOf(myPick?.teamId)} locked</span>
+              <span className="ts2-locked-team">{nameOf(myPick?.teamId)} locked</span>
               <button className="ts2-change" onClick={() => onSelect(focused.id)}>Change</button>
             </div>
           ) : (
