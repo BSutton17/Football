@@ -5,10 +5,23 @@ export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
 export const SESSION_KEY = 'ef2_session'
 
-// Server to connect to. Set VITE_SERVER_URL (e.g. the deployed Heroku server) to use a remote server;
-// otherwise default to the local dev server. The Netlify build sets VITE_SERVER_URL to the live URL,
-// so production talks to Heroku while local dev (no env var) talks to localhost.
-const SERVER_URL: string = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'
+// Which server to connect to, decided AT RUNTIME (not baked in at build time) so the deployed site
+// always reaches the live server without needing build-time env config:
+//   1. VITE_SERVER_URL — an explicit override (handy for pointing local dev at a remote server), else
+//   2. localhost        — when the app itself is being served from localhost (local dev), else
+//   3. the production server (the deployed client is anywhere but localhost → talk to Heroku).
+const LOCAL_SERVER = 'http://localhost:3001'
+const PROD_SERVER  = 'https://football-server-3a8e8a32d792.herokuapp.com'
+
+function resolveServerUrl(): string {
+  const override = import.meta.env.VITE_SERVER_URL
+  if (override) return override
+  const host = typeof window !== 'undefined' ? window.location.hostname : ''
+  const isLocal = host === 'localhost' || host === '127.0.0.1'
+  return isLocal ? LOCAL_SERVER : PROD_SERVER
+}
+
+const SERVER_URL: string = resolveServerUrl()
 
 const socket: GameSocket = io(SERVER_URL, {
   autoConnect: false,
