@@ -57,7 +57,11 @@ export function computeCamera(cssW: number, cssH: number, losYardLine: number): 
   // field fits comfortably with dark pillarbox bars on the sides.  In portrait
   // the width constraint wins instead, keeping the full field visible
   // side-to-side at the cost of showing more yards vertically.
-  const yardPx     = Math.min(cssW / FIELD.WIDTH, cssH / VIEWPORT.TARGET_VISIBLE_YARDS)
+  // On a short, landscape viewport (a phone held sideways) target a few fewer yards so the field
+  // renders a bit wider (less pillarboxing). The Math.min still prevents it from exceeding the width.
+  const landscapeMobile = cssW > cssH && cssH <= 500
+  const targetYards = landscapeMobile ? VIEWPORT.TARGET_VISIBLE_YARDS * 0.85 : VIEWPORT.TARGET_VISIBLE_YARDS
+  const yardPx     = Math.min(cssW / FIELD.WIDTH, cssH / targetYards)
   const offsetX    = (cssW - FIELD.WIDTH * yardPx) / 2
   const totalYards = cssH / yardPx
 

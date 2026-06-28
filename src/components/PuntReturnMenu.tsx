@@ -30,6 +30,9 @@ export default function PuntReturnMenu({ decision }: Props) {
     sendPuntReturnChoice(option)
   }
 
+  // Hide the menu once a choice is committed (the resulting play clears it shortly after).
+  if (sent) return null
+
   return (
     <div className="fourth-down" role="dialog" aria-label="Punt return decision">
       <div className="fourth-down__header">

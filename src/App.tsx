@@ -188,6 +188,12 @@ export default function App() {
   const [gameOver, setGameOver] = useState<GameOver | null>(null)
   // [224][225] short play-by-play notice (e.g. "First down!", "Intercepted!"). Cleared next snap.
   const [playNotice, setPlayNotice] = useState<string | null>(null)
+  // Any notice auto-dismisses after 3 seconds (the next snap's game_state may clear it sooner).
+  useEffect(() => {
+    if (!playNotice) return
+    const t = setTimeout(() => setPlayNotice(null), 3000)
+    return () => clearTimeout(t)
+  }, [playNotice])
   // The play has ended (between play_result and the next snap) — raises a click-blocker over the
   // field so stray taps can't fire actions the server would reject. Cleared at the next game_state.
   const [playOver, setPlayOver] = useState(false)

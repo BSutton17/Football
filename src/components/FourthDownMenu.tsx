@@ -31,6 +31,9 @@ export default function FourthDownMenu({ decision }: Props) {
     sendDecision(option)
   }
 
+  // Hide the menu the moment a choice is committed (the server's game_state clears it shortly after).
+  if (sent) return null
+
   const isConversion = decision.context === 'conversion'
   return (
     <div className="fourth-down" role="dialog" aria-label={isConversion ? 'Extra point decision' : 'Fourth down decision'}>

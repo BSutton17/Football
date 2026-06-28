@@ -9,7 +9,7 @@ interface Props {
 // Mirror the server ([Special Teams] specialTeams.js) so the local display matches; the SERVER is
 // authoritative for the actual kick ([14]).
 const KICK_TIMER_SECONDS  = 3.5
-const POWER_DRAIN_PER_SEC  = 1 / KICK_TIMER_SECONDS
+const POWER_DRAIN_PER_SEC  = (1 / KICK_TIMER_SECONDS) * 0.9   // eased 10% (mirror server)
 const POWER_REFILL         = 0.02
 const AIM_STEP             = 0.1
 const AIM_MAX_DEGREES      = 30

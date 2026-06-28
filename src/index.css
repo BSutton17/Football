@@ -730,6 +730,27 @@ body {
   cursor: default;
 }
 
+/* Mobile / short viewport (e.g. a landscape phone): the pre-snap controls sit dead-center over the
+   formation. Push the run/pass + angle toggle to the bottom-LEFT and the Set Formation / Hike action
+   to the bottom-RIGHT so the middle of the field stays clear. */
+@media (max-height: 600px) {
+  .play-design-controls {
+    left: 10px;
+    right: auto;
+    transform: none;
+    bottom: 6px;
+    align-items: flex-start;
+  }
+  .formation-ready-btn,
+  .hike-btn {
+    left: auto;
+    right: 10px;
+    transform: none;
+    bottom: 8px;
+  }
+  .hike-btn:active { transform: scale(0.97); }   /* drop the centering translate from the active state */
+}
+
 /* Scramble button — offense, live pass play. Lets the QB take off as a runner ([184]). */
 .scramble-btn {
   position: absolute;
