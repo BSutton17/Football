@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { FaFootballBall } from 'react-icons/fa'
 import type { GameState, PositionUpdate } from '../types/game.ts'
-import { drawFrame, computeCamera, drawRushVisualizer, drawRunningVisualizer, drawPassLine } from '../game/renderer.ts'
+import { drawFrame, computeCamera, drawRushVisualizer, drawPassLine } from '../game/renderer.ts'
+import type { TeamPaint } from '../game/renderer.ts'
 import type { CarrierVision } from '../types/game.ts'
 import { PLAYER, FIELD } from '../constants/simulation.ts'
 import { createCamera, snapCamera, setCameraTarget, stepCamera } from '../game/camera.ts'
@@ -37,13 +38,15 @@ interface Props {
   carrierVision?: CarrierVision | null
   showFatigue?: boolean
   fatigue?: Record<string, number>
+  ownTeam?: TeamPaint
+  oppTeam?: TeamPaint
 }
 
 function isDLPlayer(id: string)  { return id.startsWith('auto_dl') }
 // QB and OL are fully locked; DL can slide horizontally
 function isLockedAuto(id: string) { return id.startsWith('auto_') && !isDLPlayer(id) }
 
-export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue }: Props) {
+export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const ballIconRef  = useRef<HTMLDivElement>(null)
   const gameStateRef = useRef(gameState)
@@ -110,6 +113,10 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
   showFatigueRef.current = showFatigue ?? false
   const fatigueRef = useRef<Record<string, number>>(fatigue ?? {})
   fatigueRef.current = fatigue ?? {}
+  const ownTeamRef = useRef(ownTeam)
+  ownTeamRef.current = ownTeam
+  const oppTeamRef = useRef(oppTeam)
+  oppTeamRef.current = oppTeam
 
   // Live route depth drag — mirrors how canvasDragRef works for player drags
   const routeDepthDragRef = useRef<{
@@ -293,7 +300,7 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
             if (!p.route || p.route === 'block' || p.team !== 'o') continue
             if (!p.label || !RECEIVER_LABELS.has(p.label)) continue
             const depth = routeDepthsRef.current[p.id] ?? 1
-            const path  = getRoutePath(p.route, p, depth)
+            const path  = getRoutePath(p.route, p, depth, gs.ballX)
             if (path.length === 0) continue
             const ep   = path[path.length - 1]
             const dx   = ep.x - fieldX
@@ -422,11 +429,12 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
           spyIdsRef.current,
           showFatigueRef.current,
           fatigueRef.current,
+          ownTeamRef.current,
+          oppTeamRef.current,
         )
 
         if (gameStateRef.current?.phase === 'live') {
           drawRushVisualizer(x, cssW, cssH, renderPositions, cameraRef.current.currentY)
-          drawRunningVisualizer(x, cssW, cssH, renderPositions, carrierVisionRef.current, cameraRef.current.currentY)
           drawPassLine(x, cssW, cssH, renderPositions, targetReceiverIdRef.current, cameraRef.current.currentY)
         }
 

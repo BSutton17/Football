@@ -46,7 +46,9 @@ export default function GameHUD({ gameState }: Props) {
 
   const { score, quarter, clock, down, distance, yardLine, role, phase } = gameState
   const onOffense = role === 'offense'
-  const showPlayClock = phase === 'pre_snap' || phase === 'countdown'
+  // Hide the play clock during a special-teams play — the kick runs on its own timer, so a frozen
+  // play-clock number up top is just clutter ([41]).
+  const showPlayClock = (phase === 'pre_snap' || phase === 'countdown') && !gameState.specialTeams
   const playClockColor = playClock <= 5 ? '#ef4444' : playClock <= 10 ? '#f97316' : undefined
 
   return (

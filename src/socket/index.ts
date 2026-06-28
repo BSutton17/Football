@@ -79,6 +79,16 @@ export function sendDecision(option: import('../types/game.ts').DecisionOption):
   if (socket.connected) socket.emit('special_teams_choice', { option })
 }
 
+// [Special Teams][28] The receiving team's punt-return choice (server validates + is authoritative).
+export function sendPuntReturnChoice(option: import('../types/game.ts').PuntReturnOption): void {
+  if (socket.connected) socket.emit('punt_return_choice', { option })
+}
+
+// [Special Teams][46][49] The defender's FG/XP block attempt at a normalized bar position (0..1).
+export function sendFieldGoalBlock(position: number): void {
+  if (socket.connected) socket.emit('fg_block', { position })
+}
+
 export function throwToReceiver(receiverId: string): void {
   if (socket.connected) socket.emit('throw_to_receiver', receiverId)
 }
@@ -98,10 +108,6 @@ export function throwAway(): void {
 
 export function resetGame(): void {
   if (socket.connected) socket.emit('reset_game')
-}
-
-export function devQuickSetup(payload: import('../types/socket.ts').DevSetupPayload): void {
-  if (socket.connected) socket.emit('dev_quick_setup', payload)
 }
 
 // On every (re)connect: if a session token is stored, attempt to restore the session

@@ -66,7 +66,7 @@ export interface ServerToClientEvents {
   opponent_disconnected:() => void
   opponent_reconnected: () => void
   game_abandoned:       () => void
-  reconnect_success:    (data: { roomId: string; role: TeamRole }) => void
+  reconnect_success:    (data: { roomId: string; role: TeamRole; slot?: number }) => void
   reconnect_failed:     () => void
   game_state:           (state: GameState) => void  // full snapshot on start or reconnect
 
@@ -146,19 +146,15 @@ export interface ClientToServerEvents {
   // 4th-down decision ([Special Teams][2][3]) — the offense picks Go For It / Punt / Field Goal.
   special_teams_choice: (data: { option: DecisionOption }) => void
 
+  // Punt return decision ([Special Teams][28]) — the receiving team picks Return / Fair Catch / Let It Bounce.
+  punt_return_choice: (data: { option: import('./game.ts').PuntReturnOption }) => void
+
+  // Field goal block ([Special Teams][46][49]) — the defender commits a timing tap at bar position 0..1.
+  fg_block: (data: { position: number }) => void
+
   // Postgame
   reset_game:         () => void   // [222] start a fresh game on the same room
 
-  // Dev mode — one-click playtest setup (offense-relative coords). Not in the real game.
-  dev_quick_setup:    (data: DevSetupPayload) => void
-  dev_special_teams:  (data: { kickType: KickType; kickingSlot?: number }) => void   // stage a kick (dev only)
-}
-
-export interface DevSetupPayload {
-  offense:  { id: string; x: number; y: number; label: string; route?: string }[]
-  defense:  { id: string; x: number; y: number; label: string }[]
-  coverage: {
-    playerId: string; type: string; targetId?: string
-    zoneType?: string; zoneCenterX?: number; zoneCenterY?: number
-  }[]
+  // Dev mode — stage a kick scenario (dev only). Not in the real game.
+  dev_special_teams:  (data: { kickType: KickType; kickingSlot?: number }) => void
 }

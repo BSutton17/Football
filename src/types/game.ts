@@ -34,8 +34,32 @@ export interface SpecialTeamsState {
   started: boolean           // [8] has the kick timer begun (input given / inactivity elapsed)?
   secondsRemaining: number   // [8] kick-timer seconds left
   targetAngle: number        // [18] aim (−1..1) that splits the uprights from this hash (FG/XP); 0 otherwise
+  fieldGoalDistance?: number | null   // [41] official FG/XP distance in yards (incl. end zone + holder); null otherwise
+  blockAttempted?: boolean   // [46][49] defender has committed their FG/XP block attempt (bar locks)
+  kickDistance?: number | null   // how far the punt travelled, shown to both players once kicked
   backspin: boolean          // [21] punt backspin toggle (only meaningful for punts)
-  result: unknown | null     // outcome, populated once resolved
+  result: PuntPreview | Record<string, unknown> | null   // [27] in-flight info (punt = projected landing + hang)
+  returnDecision?: PuntReturnDecision | null  // [28] in-field punt menu — set only for the receiving team
+}
+
+// [28][29] The receiving team's Return / Fair Catch / Let It Bounce menu. Present only when an
+// in-field punt awaits a choice; every listed option is legal (illegal scenarios never arm it).
+export type PuntReturnOption = 'return' | 'fair_catch' | 'let_it_bounce'
+
+export interface PuntReturnDecision {
+  secondsRemaining: number
+  defaultOption: PuntReturnOption
+  options: { id: PuntReturnOption; label: string; legal: boolean }[]
+}
+
+// [27] What the receiving team sees about a punt in the air — projected (air) landing + hang time.
+// The final bounce/roll distance is deliberately NOT included.
+export interface PuntPreview {
+  kickType: 'punt'
+  landingYardLine: number    // projected air landing, receiving frame (own goal 0 → opp goal 100)
+  hangTime: number
+  touchback: boolean
+  outOfBounds: boolean
 }
 
 export interface GameState {
@@ -49,6 +73,7 @@ export interface GameState {
   playClock?: number  // [play-clock] starting play-clock value for this snap (40 on a drive start, else 25)
   specialTeams?: SpecialTeamsState | null   // [Special Teams][1] non-null while a kick is in progress
   decision?: PlayDecision | null            // [Special Teams][2][3] 4th-down menu (offense only)
+  xfActiveIds?: string[]                     // [294] players with an active X-Factor (star shows pre-snap too)
   score: Score
   role: TeamRole      // this viewer's current role — offense or defense
   fatigue?: Record<string, number>   // [fatigue] playerId → current stamina (0–100); drives the bars
@@ -93,7 +118,9 @@ export type PlayOutcome =
   | 'touchdown'
   | 'safety'
   | 'punt'
-  | 'field_goal'   // [Special Teams] 4th-down FG attempt (detail 'made' | 'missed')
+  | 'field_goal'   // [Special Teams] 4th-down FG attempt (detail 'made' | 'missed' | 'blocked' | miss reason)
+  | 'extra_point'  // [Special Teams][51][52] extra-point kick (detail 'made' | 'missed')
+  | 'two_point'    // [Special Teams][51] two-point conversion (detail 'made' | 'missed')
 
 export interface PlayResult {
   outcome: PlayOutcome
@@ -103,17 +130,18 @@ export interface PlayResult {
   yardLine: number
   firstDown?: boolean       // [224][225] this play moved the chains
   newPossession?: TeamRole  // set on interception, safety, turnover on downs
-  detail?: 'broken_up' | 'drop' | 'made' | 'missed' | 'out_of_bounds' | 'touchback' | null   // incompletion reason, FG result, or punt result
+  detail?: 'broken_up' | 'drop' | 'made' | 'missed' | 'short' | 'wide_left' | 'wide_right' | 'blocked' | 'out_of_bounds' | 'touchback' | 'fair_catch' | 'return' | null   // incompletion reason, FG result, or punt result
 }
 
-// [Special Teams][2][3][4] The 4th-down decision menu the offense is shown.
-export type DecisionOption = 'go_for_it' | 'punt' | 'field_goal'
+// [Special Teams][2][3][4] The 4th-down menu, or [51] the post-TD extra-point / 2-pt menu — both
+// render through the same component.
+export type DecisionOption = 'go_for_it' | 'punt' | 'field_goal' | 'extra_point' | 'two_point'
 
 export interface PlayDecision {
-  context: 'fourth_down'
+  context: 'fourth_down' | 'conversion'
   secondsRemaining: number          // server countdown before the default is auto-picked
   defaultOption: DecisionOption
-  fieldGoalDistance: number         // straight-line yards, for the FG button readout
+  fieldGoalDistance?: number        // straight-line yards, for the FG button readout (4th-down only)
   options: { id: DecisionOption; label: string; legal: boolean }[]
 }
 

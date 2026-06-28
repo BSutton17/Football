@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
-import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, devQuickSetup, SESSION_KEY } from './socket/index.ts'
+import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, SESSION_KEY } from './socket/index.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
 import RoomScreen from './components/RoomScreen.tsx'
 import TeamSelectScreen from './components/TeamSelectScreen.tsx'
@@ -9,6 +9,7 @@ import GameCanvas from './components/GameCanvas.tsx'
 import GameHUD from './components/GameHUD.tsx'
 import SpecialTeamsView from './components/SpecialTeamsView.tsx'
 import FourthDownMenu from './components/FourthDownMenu.tsx'
+import PuntReturnMenu from './components/PuntReturnMenu.tsx'
 import { getSpecialTeamsFormation } from './game/specialTeamsFormation.ts'
 import { getTeamSpecialists } from './data/specialists.ts'
 import RosterSidebar from './components/RosterSidebar.tsx'
@@ -16,6 +17,7 @@ import RouteMenu from './components/RouteMenu.tsx'
 import CoverageMenu from './components/CoverageMenu.tsx'
 import type { RouteType, CoverageType, ZoneType } from './types/routes.ts'
 import { loadTeamRoster } from './game/teamRoster.ts'
+import { teamColors, textColorOn } from './data/teamColors.ts'
 import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveFormation, validateOffensiveFormation, validateDefensiveFormation } from './game/formation.ts'
 import { computeCamera } from './game/renderer.ts'
 import { FIELD } from './constants/simulation.ts'
@@ -38,8 +40,19 @@ function summarizePlay(r: PlayResult): string {
     case 'safety':       return 'Safety!'
     case 'punt':         return r.detail === 'out_of_bounds' ? 'Punt out of bounds'
                               : r.detail === 'touchback'     ? 'Touchback'
+                              : r.detail === 'fair_catch'    ? 'Fair catch'
+                              : r.detail === 'return'        ? 'Punt returned'
                               : 'Punt!'
-    case 'field_goal':   return r.detail === 'made' ? 'Field goal is good!' : 'Field goal is no good'
+    case 'field_goal':   return r.detail === 'made'       ? 'Field goal is good!'
+                              : r.detail === 'blocked'     ? 'Field goal BLOCKED!'
+                              : r.detail === 'wide_left'   ? 'Field goal wide left'
+                              : r.detail === 'wide_right'  ? 'Field goal wide right'
+                              : r.detail === 'short'       ? 'Field goal short'
+                              : 'Field goal is no good'
+    case 'extra_point':  return r.detail === 'made'    ? 'Extra point good!'
+                              : r.detail === 'blocked'  ? 'Extra point BLOCKED!'
+                              : 'Extra point no good'
+    case 'two_point':    return r.detail === 'made' ? 'Two-point conversion good!' : 'Two-point conversion failed'
     case 'interception': return 'Intercepted!'
     case 'incomplete':
       if (r.newPossession)          return 'Turnover on downs'
@@ -56,61 +69,12 @@ function summarizePlay(r: PlayResult): string {
   }
 }
 
-// ── Dev-only quick playtest ─────────────────────────────────────────────────────
-//
-// Builds a canned pass play vs. a man-heavy coverage so a developer can jump straight into a
-// live rep. Coordinates are offense-relative (y from the LOS, x absolute). OL/QB and DL are
-// the standard auto-placed sets so the ids line up with what the client already renders.
-const DEV_MID = FIELD.WIDTH / 2
-
 // [hash] Lateral ball spot defaults to midfield. A player's body is ~1.5 yd, so a shifted player is
 // kept between these bounds rather than being pushed out of bounds.
 const FIELD_MID = FIELD.WIDTH / 2
 const MIN_X = 1.5
 const MAX_X = FIELD.WIDTH - 1.5
 const clampX = (x: number) => Math.max(MIN_X, Math.min(MAX_X, x))
-
-function buildDevPlaytest() {
-  const yl = YARD_LINE
-  const skill: PositionUpdate[] = [
-    { id: 'o_wr1', x: 4,           y: yl - 1, team: 'o', label: 'WR' },  // outside left
-    { id: 'o_wr2', x: 11,          y: yl - 1, team: 'o', label: 'WR' },  // slot left
-    { id: 'o_wr3', x: 49,          y: yl - 1, team: 'o', label: 'WR' },  // right
-    { id: 'o_te1', x: DEV_MID + 5, y: yl - 1, team: 'o', label: 'TE' },  // on the LOS, right side
-    { id: 'o_rb1', x: DEV_MID - 2, y: yl - 6, team: 'o', label: 'RB' },  // by the QB
-  ]
-  const routes: Record<string, RouteType> = {
-    o_wr1: 'go', o_wr2: 'dig', o_wr3: 'post', o_rb1: 'out', o_te1: 'block',
-  }
-  const defense: PositionUpdate[] = [
-    { id: 'd_cb1', x: 4,           y: yl + 7,  team: 'd', label: 'CB' }, // on outside-left WR
-    { id: 'd_cb2', x: 49,          y: yl + 7,  team: 'd', label: 'CB' }, // on right WR
-    { id: 'd_s1',  x: 11,          y: yl + 8,  team: 'd', label: 'S'  }, // on slot WR
-    { id: 'd_lb1', x: DEV_MID - 3, y: yl + 5,  team: 'd', label: 'LB' }, // on RB
-    { id: 'd_lb2', x: DEV_MID + 5, y: yl + 5,  team: 'd', label: 'LB' }, // on TE
-    { id: 'd_s2',  x: DEV_MID,     y: yl + 20, team: 'd', label: 'S'  }, // deep zone (over the top)
-    { id: 'd_lb3', x: DEV_MID,     y: yl + 6,  team: 'd', label: 'LB' }, // middle curl zone
-  ]
-  const coverage = [
-    { playerId: 'd_cb1', type: 'man',  targetId: 'o_wr1' },
-    { playerId: 'd_cb2', type: 'man',  targetId: 'o_wr3' },
-    { playerId: 'd_s1',  type: 'man',  targetId: 'o_wr2' },
-    { playerId: 'd_lb1', type: 'man',  targetId: 'o_rb1' },
-    { playerId: 'd_lb2', type: 'man',  targetId: 'o_te1' },
-    { playerId: 'd_s2',  type: 'zone', zoneType: 'deep', zoneCenterX: DEV_MID, zoneCenterY: yl + 20 },
-    { playerId: 'd_lb3', type: 'zone', zoneType: 'curl', zoneCenterX: DEV_MID, zoneCenterY: yl + 8 },
-  ]
-  // Server payload includes the auto OL/QB and DL so its player set matches the client's render.
-  const offensePayload = [
-    ...getOLQBPlayers(yl).map(p => ({ id: p.id, x: p.x, y: p.y, label: p.label ?? 'OL' })),
-    ...skill.map(s => ({ id: s.id, x: s.x, y: s.y, label: s.label ?? 'WR', route: routes[s.id] })),
-  ]
-  const defensePayload = [
-    ...getDLPlayers(yl).map(p => ({ id: p.id, x: p.x, y: p.y, label: p.label ?? 'DL' })),
-    ...defense.map(d => ({ id: d.id, x: d.x, y: d.y, label: d.label ?? 'LB' })),
-  ]
-  return { skill, routes, defense, coverage, offensePayload, defensePayload }
-}
 
 export default function App() {
   const room = useRoom()
@@ -123,6 +87,11 @@ export default function App() {
   // Uses the loader's nameById so the auto-placed QB is labeled by name too.
   const rosterName = useMemo(
     () => new Map(Object.entries(teamRoster.nameById)),
+    [teamRoster],
+  )
+  // [run] Overall rating per player — used to pick the ball carrier when two RBs are on the field.
+  const rosterOvr = useMemo(
+    () => new Map(teamRoster.offense.map(p => [p.id, p.ovr ?? 0])),
     [teamRoster],
   )
 
@@ -173,12 +142,26 @@ export default function App() {
   const [decision, setDecision] = useState<PlayDecision | null>(null)
   // [Special Teams formations] Purely-visual ST formation, animated into place while a player kick is up.
   const [stFormation, setStFormation] = useState<PositionUpdate[]>([])
+  // [294] Ids of players whose X-Factor is active — drives the gold star before AND after the snap.
+  const [xfActiveIds, setXfActiveIds] = useState<string[]>([])
   // True while a punt / FG / XP kicking interface is up (kickoffs are automatic — no formation).
   const kickInProgress = !!(specialTeams && specialTeams.playerControlled)
   const kickFormationType = kickInProgress ? specialTeams!.kickType : null
   // The kicking team is whoever is on offense — its real Kicker/Punter name shows in the formation.
   const oppTeamId     = room.picks[1 - (room.slot ?? 0)]?.teamId ?? null
   const kickingTeamId = (room.role ?? 'offense') === 'offense' ? myTeamId : oppTeamId
+  // [team colors] Each team keeps its colors all game (own vs opponent), regardless of side. The room
+  // creator (slot 0) is HOME: primary body + a contrasting O/X. The other player is AWAY: white body
+  // with its primary as the O/X. The selection border is the team's secondary either way.
+  const ownIsHome = (room.slot ?? 0) === 0
+  const paintFor = (teamId: string | null, isHome: boolean) => {
+    const { primary, secondary } = teamColors(teamId ?? '')
+    return isHome
+      ? { fill: primary,    text: textColorOn(primary), ring: secondary }
+      : { fill: '#ffffff',  text: primary,              ring: secondary }
+  }
+  const ownTeam = paintFor(myTeamId,  ownIsHome)
+  const oppTeam = paintFor(oppTeamId, !ownIsHome)
   useEffect(() => {
     if (!kickFormationType) { setStFormation(prev => (prev.length ? [] : prev)); return }
     // Both teams jog out from the ball spot into their NFL special-teams alignment (visual only).
@@ -300,6 +283,9 @@ export default function App() {
     function onScoreUpdate(s: Score) { setScore(s) }   // [195] touchdown / scoring sync
     function onHalftime() { setHalftime(true) }         // [218] cleared at the next snap (game_state)
     function onSpecialTeamsUpdate(st: SpecialTeamsState | null) { setSpecialTeams(st) }   // [Special Teams][1]
+    // [delay of game] Play clock hit zero — the server applied a 5-yard penalty (it sends the updated
+    // game_state first, then this), so show the notice.
+    function onPlayClockExpired() { setPlayNotice('Delay of game — 5 yard penalty') }
     function onGameOver(data: GameOver) { gameOverRef.current = true; setGameOver(data); setPhase('dead') }   // [219] no more snaps
     // [224][225] The play is over — show the notice and raise the click-blocker so taps on the field
     // can't fire throw/scramble actions during the dead window (the server would reject them, and a
@@ -380,6 +366,7 @@ export default function App() {
       setFatigue(gs.fatigue ?? {})   // [fatigue] authoritative stamina snapshot for the bars
       setSpecialTeams(gs.specialTeams ?? null)   // [Special Teams][1] sync the kicking state on play boundaries / reconnect
       setDecision(gs.decision ?? null)           // [Special Teams][2][3] 4th-down menu (offense only; cleared once chosen)
+      setXfActiveIds(gs.xfActiveIds ?? [])       // [294] active X-Factors — star shows pre-snap too
       setTouchdownBanner(null)    // [196] clear the celebration once the next play is set up
       setHalftime(false)          // [218] halftime ends when the next drive lines up
       setPlayNotice(null)         // [224][225] clear the play notice for the new play
@@ -423,6 +410,7 @@ export default function App() {
     socket.on('play_result', onPlayResult)
     socket.on('game_state', onGameState)
     socket.on('special_teams_update', onSpecialTeamsUpdate)
+    socket.on('play_clock_expired', onPlayClockExpired)
     return () => {
       socket.off('player_placed', onPlayerPlaced)
       socket.off('player_removed', onPlayerRemoved)
@@ -444,6 +432,7 @@ export default function App() {
       socket.off('play_result', onPlayResult)
       socket.off('game_state', onGameState)
       socket.off('special_teams_update', onSpecialTeamsUpdate)
+      socket.off('play_clock_expired', onPlayClockExpired)
     }
   }, [room.role])
 
@@ -591,22 +580,28 @@ export default function App() {
 
   const role = room.role ?? 'offense'
 
-  const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams }
+  const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX }
   const isPreSnap = phase === 'pre_snap'
 
-  // QB is always at MID, 6 yards behind the LOS (matches offenseAutoPlaced)
-  const QB_X = FIELD.WIDTH / 2
+  // The QB lines up at the ball's hash (ballX), 6 yards behind the LOS — so the backfield (and the
+  // runner's bounds) follow the ball laterally instead of sitting at the field middle.
+  const QB_X = ballX
   const QB_Y = losYardLine - 6
 
-  // On run plays, the first RB placed is the designated ball carrier
+  // On a run, the ball carrier is the HIGHER-OVR RB on the field (so two-back sets hand to the better
+  // back); ties keep placement order.
   const placedRBs = placedPlayers.filter(p => p.label === 'RB')
-  const runnerId  = playType === 'run' && placedRBs.length > 0 ? placedRBs[0].id : null
+  const runnerRB  = placedRBs.length > 0
+    ? [...placedRBs].sort((a, b) => (rosterOvr.get(b.id) ?? 0) - (rosterOvr.get(a.id) ?? 0))[0]
+    : null
+  const runnerId  = playType === 'run' && runnerRB ? runnerRB.id : null
 
-  // Runner must stay within 2 yards of QB horizontally and behind or level with QB
+  // Runner must stay within 2 yards of QB horizontally and behind or level with QB (the own end zone
+  // is fair game when backed up, matching getPositionYBounds).
   const runnerBounds = {
     minX: QB_X - 2,
     maxX: QB_X + 2,
-    minY: Math.max(0.5, losYardLine - 10),
+    minY: Math.max(-9.5, losYardLine - 10),
     maxY: QB_Y,
   }
 
@@ -617,14 +612,19 @@ export default function App() {
   // During live play, positions_update moves players; outside live, use design positions.
   // The ball carrier ([193]) is tagged 'ball' so the renderer draws the football on them and
   // the camera follows them.
+  const xfActiveSet = new Set(xfActiveIds)
   const applyLivePos = (p: PositionUpdate): PositionUpdate => {
-    if (phase !== 'live') return p
+    // [294] The gold star shows BEFORE and after the snap: pre-snap from the server's active set,
+    // during live from the per-tick xfActive flag.
+    const starred = xfActiveSet.has(p.id)
+    if (phase !== 'live') return starred ? { ...p, xfActive: true } : p
     const lp = livePositions[p.id]
     // Carry the server-computed openness so the renderer can color pass catchers ([169]); it's
     // only present once the receiver has declared (first cut / 1.3s), so before that the receiver
     // keeps its base color.
     const base = lp ? { ...p, x: lp.x, y: lp.y, openness: lp.openness, xfActive: lp.xfActive } : p
-    return p.id === liveCarrierId ? { ...base, state: 'ball' } : base
+    const withStar = (starred || base.xfActive) ? { ...base, xfActive: true } : base
+    return p.id === liveCarrierId ? { ...withStar, state: 'ball' } : withStar
   }
 
   const allPositions = [
@@ -800,6 +800,25 @@ export default function App() {
   function handlePlayType(type: 'run' | 'pass') {
     setPlayType(type)
     setLockedFormation(null)
+    if (type !== 'run' || role !== 'offense') return
+    // [run] Switching to a run: drop the ball carrier into a legal backfield spot if it's out of
+    // position (e.g. split out wide on the previous pass call). The higher-OVR RB is the carrier and
+    // the one moved; a back already legally placed is left where the user put it.
+    const rbs = placedPlayers.filter(p => p.label === 'RB')
+    if (rbs.length === 0) return
+    const runner = [...rbs].sort((a, b) => (rosterOvr.get(b.id) ?? 0) - (rosterOvr.get(a.id) ?? 0))[0]
+    const inX = Math.abs(runner.x - ballX) <= 2
+    const inY = runner.y >= losYardLine - 10 && runner.y <= losYardLine - 6
+    if (inX && inY) return   // already legal — leave the user's placement
+    const next     = placedPlayers.map(p => p.id === runner.id ? { ...p, x: clampX(ballX), y: losYardLine - 8 } : p)
+    const enforced = enforceOffensiveFormation(next, losYardLine)
+    setPlacedPlayers(enforced)
+    // Broadcast the adjusted formation so the SERVER and the DEFENSE see the RB in its new backfield
+    // spot — without this the auto-move only lived on the offense's screen.
+    for (const p of enforced) {
+      placePlayer({ id: p.id, x: p.x, y: p.y, label: p.label ?? '', team: 'o',
+        ratings: teamRoster.ratingsById[p.id], xFactor: teamRoster.xFactorById[p.id] })
+    }
   }
 
   function handleRunAngle(delta: number) {
@@ -956,39 +975,6 @@ export default function App() {
     throwAway()
   }
 
-  // Dev-only: stage the canned formation (offense, routes, defense, coverages) in PRE-SNAP.
-  // Does NOT start the play — use the normal Set Offense → Hike controls to snap it.
-  function handleDevPlaytest() {
-    const setup = buildDevPlaytest()
-    setPlacedPlayers(enforceOffensiveFormation(setup.skill, YARD_LINE))
-    setPlayerRoutes(setup.routes)
-    setOpponentPositions(setup.defense)
-    setDlPositions(getDLPlayers(YARD_LINE))
-    setPlayType('pass')
-    setLockedFormation(null)   // staged only — the formation isn't "set" until the dev toggles it
-    thrownRef.current = false
-    setTargetReceiverId(null)
-
-    // Show the coverage assignments locally (handy for debugging the defense).
-    const man: Record<string, string> = {}
-    const zt:  Record<string, ZoneType> = {}
-    const zc:  Record<string, { x: number; y: number }> = {}
-    const pc:  Record<string, CoverageType> = {}
-    for (const c of setup.coverage) {
-      pc[c.playerId] = c.type as CoverageType
-      if (c.type === 'man' && c.targetId) man[c.playerId] = c.targetId
-      if (c.type === 'zone') {
-        zt[c.playerId] = c.zoneType as ZoneType
-        zc[c.playerId] = { x: c.zoneCenterX as number, y: c.zoneCenterY as number }
-      }
-    }
-    setManTargets(man); setZoneTypes(zt); setZoneCenters(zc); setPlayerCoverage(pc)
-
-    // Place the defense + coverage on the server (the offense client can't); offense follows
-    // through the normal Set Offense path when the dev starts the play.
-    devQuickSetup({ offense: setup.offensePayload, defense: setup.defensePayload, coverage: setup.coverage })
-  }
-
   return (
     <div className="game-screen">
       {/* Post-play click-blocker: once a play ends, swallow every tap on the field until the next
@@ -1019,10 +1005,23 @@ export default function App() {
         carrierVision={carrierVision}
         showFatigue={fatigueVisible}
         fatigue={fatigue}
+        ownTeam={ownTeam}
+        oppTeam={oppTeam}
       />
       <GameHUD gameState={gameState} />
+      {/* [41] Official field-goal distance, shown to BOTH teams while a FG/XP is being set up. */}
+      {specialTeams
+        && (specialTeams.kickType === 'field_goal' || specialTeams.kickType === 'extra_point')
+        && specialTeams.phase === 'setup'
+        && typeof specialTeams.fieldGoalDistance === 'number' && (
+        <div className="fg-distance" aria-live="polite">
+          <span className="fg-distance__num">{Math.round(specialTeams.fieldGoalDistance)}</span>
+          <span className="fg-distance__label">yd {specialTeams.kickType === 'extra_point' ? 'extra point' : 'field goal'}</span>
+        </div>
+      )}
       {specialTeams && <SpecialTeamsView st={specialTeams} />}
       {decision && role === 'offense' && <FourthDownMenu decision={decision} />}
+      {specialTeams?.returnDecision && <PuntReturnMenu decision={specialTeams.returnDecision} />}
       {touchdownBanner && (
         <div className={`touchdown-banner${touchdownBanner.scored ? ' touchdown-banner--scored' : ' touchdown-banner--against'}`}>
           <div className="touchdown-banner-title">TOUCHDOWN!</div>
@@ -1056,17 +1055,6 @@ export default function App() {
           </div>
           <button className="gameover-btn" onPointerDown={handlePlayAgain}>Play Again</button>
         </div>
-      )}
-      {role === 'offense' && import.meta.env.DEV && (
-        <button
-          className="dev-playtest-btn"
-          style={{ position: 'absolute', top: 8, left: 8, zIndex: 20, padding: '6px 10px',
-                   background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6,
-                   font: 'bold 12px sans-serif', cursor: 'pointer' }}
-          onPointerDown={handleDevPlaytest}
-        >
-          ⚡ Dev Playtest
-        </button>
       )}
       {formationErrors.length > 0 && (
         <div className="formation-banner" aria-live="polite">

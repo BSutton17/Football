@@ -31,16 +31,17 @@ export default function FourthDownMenu({ decision }: Props) {
     sendDecision(option)
   }
 
+  const isConversion = decision.context === 'conversion'
   return (
-    <div className="fourth-down" role="dialog" aria-label="Fourth down decision">
+    <div className="fourth-down" role="dialog" aria-label={isConversion ? 'Extra point decision' : 'Fourth down decision'}>
       <div className="fourth-down__header">
-        <span className="fourth-down__title">4th Down</span>
+        <span className="fourth-down__title">{isConversion ? 'After TD' : '4th Down'}</span>
         <span className="fourth-down__timer">{secondsLeft}</span>
       </div>
       <div className="fourth-down__options">
         {decision.options.map(o => {
           const isDefault = o.id === decision.defaultOption
-          const label = o.id === 'field_goal' && o.legal
+          const label = o.id === 'field_goal' && o.legal && decision.fieldGoalDistance != null
             ? `${o.label} · ${Math.round(decision.fieldGoalDistance)} yd`
             : o.label
           return (

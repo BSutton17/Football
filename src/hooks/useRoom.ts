@@ -93,10 +93,11 @@ export function useRoom() {
       setState(s => ({ ...s, status: 'vs' }))
     }
 
-    function onReconnectSuccess({ roomId, role }: { roomId: string; role: TeamRole }) {
+    function onReconnectSuccess({ roomId, role, slot }: { roomId: string; role: TeamRole; slot?: number }) {
       // Restore as 'ready'; if the room is actually still in team selection the server follows up
-      // with team_select_start, which flips status back to 'team_select'.
-      setState(s => ({ ...s, status: 'ready', roomId, role, error: null }))
+      // with team_select_start, which flips status back to 'team_select'. Restoring the slot (and the
+      // team_selected picks the server re-sends) recovers team colors / roster after a refresh.
+      setState(s => ({ ...s, status: 'ready', roomId, role, slot: slot ?? s.slot, error: null }))
     }
 
     // [192] Possession changed (interception / turnover on downs) — adopt the new role so the

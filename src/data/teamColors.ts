@@ -58,10 +58,16 @@ export function teamColors(teamId: string): TeamColors {
 }
 
 // Perceived brightness (0–1) of a #rrggbb color — weighted for human perception.
-function brightness(hex: string): number {
+export function brightness(hex: string): number {
   const n = parseInt(hex.replace('#', ''), 16)
   const r = (n >> 16) & 0xff, g = (n >> 8) & 0xff, b = n & 0xff
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255
+}
+
+// Legible text/icon color (black or white) to draw ON a given fill — black on light fills, white on
+// dark ones. Used for the O/X marker so it stays readable on any team color.
+export function textColorOn(hex: string): string {
+  return brightness(hex) >= 0.55 ? '#000000' : '#ffffff'
 }
 
 // A legible accent color for text/phrases on the dark stadium background. Several teams use black

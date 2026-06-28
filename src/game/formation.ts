@@ -65,19 +65,23 @@ export function getPositionYBounds(
   role: 'offense' | 'defense',
   yardLine: number,
 ): PositionBounds {
+  // End zones are fair game: the offense may back into its own (down to −9.5) and the defense may
+  // drop into the one it's defending (up to 109.5). Only the LOS and the back lines bound placement.
+  const EZ_BACK_OWN = -9.5
+  const EZ_BACK_OPP = 109.5
   if (role === 'offense') {
     switch (position) {
-      case 'WR': return { minY: Math.max(0.5, yardLine - 7),  maxY: yardLine }
-      case 'TE': return { minY: Math.max(0.5, yardLine - 5),  maxY: yardLine }
-      case 'RB': return { minY: Math.max(0.5, yardLine - 10), maxY: yardLine - 2 }
-      default:   return { minY: Math.max(0.5, yardLine - 15), maxY: yardLine }
+      case 'WR': return { minY: Math.max(EZ_BACK_OWN, yardLine - 7),  maxY: yardLine }
+      case 'TE': return { minY: Math.max(EZ_BACK_OWN, yardLine - 5),  maxY: yardLine }
+      case 'RB': return { minY: Math.max(EZ_BACK_OWN, yardLine - 10), maxY: yardLine - 2 }
+      default:   return { minY: Math.max(EZ_BACK_OWN, yardLine - 15), maxY: yardLine }
     }
   } else {
     switch (position) {
-      case 'LB': return { minY: yardLine, maxY: Math.min(99.5, yardLine + 10) }
-      case 'CB': return { minY: yardLine, maxY: Math.min(99.5, yardLine + 20) }
-      case 'S':  return { minY: yardLine, maxY: Math.min(99.5, yardLine + 25) }
-      default:   return { minY: yardLine, maxY: Math.min(99.5, yardLine + 15) }
+      case 'LB': return { minY: yardLine, maxY: Math.min(EZ_BACK_OPP, yardLine + 10) }
+      case 'CB': return { minY: yardLine, maxY: Math.min(EZ_BACK_OPP, yardLine + 20) }
+      case 'S':  return { minY: yardLine, maxY: Math.min(EZ_BACK_OPP, yardLine + 25) }
+      default:   return { minY: yardLine, maxY: Math.min(EZ_BACK_OPP, yardLine + 15) }
     }
   }
 }

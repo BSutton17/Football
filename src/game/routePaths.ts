@@ -51,12 +51,14 @@ export function getRoutePath(
   route: string,
   player: PositionUpdate,
   depthScale = 1,
+  pivotX: number = MID,
 ): RoutePoint[] {
   const waypoints = ROUTE_WAYPOINTS[route]
   if (!waypoints || waypoints.length === 0) return []
 
-  // Mirror routes for players left of center so "outward" always faces the sideline
-  const dir = player.x >= MID ? 1 : -1
+  // Mirror routes around the BALL'S spot (hash), not the field middle — the ball shifts laterally
+  // through the game, so "outward" should face the sideline relative to where the ball is.
+  const dir = player.x >= pivotX ? 1 : -1
 
   return waypoints.map(([outward, forward]) => ({
     x: Math.max(0.5, Math.min(FIELD.WIDTH - 0.5, player.x + outward * dir)),

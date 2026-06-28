@@ -2,6 +2,7 @@ import { FIELD, VIEWPORT, PLAYER } from '../constants/simulation.ts'
 import type { GameState, PositionUpdate, CarrierVision } from '../types/game.ts'
 import { getRoutePath } from './routePaths.ts'
 import { ZONE_CONFIGS } from './zones.ts'
+import { textColorOn } from '../data/teamColors.ts'
 
 const RECEIVER_LABELS = new Set(['WR', 'TE', 'RB'])
 
@@ -189,6 +190,59 @@ function drawField(ctx: CanvasRenderingContext2D, cam: Camera, cssH: number) {
   ctx.stroke()
 }
 
+// ── Field goal uprights ([Special Teams][40]) ─────────────────────────────────
+//
+// Yellow goalposts at the opponent's end line, shown while a field goal / extra point is being set
+// up. The uprights sit at the CENTER of the field (the kick's real target — the make/miss math splits
+// the centered posts, [18]). Because the field renders at absolute X with the ball on its hash, a
+// left-hash kick visibly approaches the centered goal FROM THE LEFT and a right-hash kick from the
+// right — the hash drives the approach angle, no separate mechanic needed.
+const GOAL_POST_COLOR = '#ffd400'   // yellow
+// Half-width of the posts in yards — matches the server's UPRIGHT_HALF_WIDTH so the visible gap reads
+// as the actual make zone.
+const GOAL_HALF_WIDTH = 6
+
+function drawGoalposts(ctx: CanvasRenderingContext2D, cam: Camera, uprightsX: number) {
+  const leftX   = fieldXToCanvas(uprightsX - GOAL_HALF_WIDTH, cam)
+  const rightX  = fieldXToCanvas(uprightsX + GOAL_HALF_WIDTH, cam)
+  const centerX = fieldXToCanvas(uprightsX, cam)
+
+  // The posts live at the back of the opponent end zone; clamp the fixture near the top of the screen
+  // so it always reads as the target even when the goal line is framed above the visible area.
+  const postH      = Math.max(14, cam.yardPx * 4)     // vertical posts
+  const supportLen = Math.max(10, cam.yardPx * 2.5)   // support pole dropping toward the field
+  const crossbarY  = Math.max(relYToCanvas(110, cam), postH + 4)
+  const postTopY   = crossbarY - postH
+
+  ctx.save()
+  ctx.strokeStyle = GOAL_POST_COLOR
+  ctx.lineCap     = 'round'
+  ctx.setLineDash([])
+
+  // Crossbar
+  ctx.lineWidth = Math.max(3, cam.yardPx * 0.5)
+  ctx.beginPath()
+  ctx.moveTo(leftX, crossbarY)
+  ctx.lineTo(rightX, crossbarY)
+  ctx.stroke()
+
+  // Uprights rising above the crossbar + the support pole dropping toward the field
+  ctx.lineWidth = Math.max(3, cam.yardPx * 0.45)
+  ctx.beginPath()
+  ctx.moveTo(leftX,   crossbarY); ctx.lineTo(leftX,   postTopY)
+  ctx.moveTo(rightX,  crossbarY); ctx.lineTo(rightX,  postTopY)
+  ctx.moveTo(centerX, crossbarY); ctx.lineTo(centerX, crossbarY + supportLen)
+  ctx.stroke()
+
+  // Base pad
+  ctx.fillStyle = GOAL_POST_COLOR
+  ctx.beginPath()
+  ctx.arc(centerX, crossbarY + supportLen, Math.max(3, cam.yardPx * 0.4), 0, Math.PI * 2)
+  ctx.fill()
+
+  ctx.restore()
+}
+
 // ── LOS and first-down marker ─────────────────────────────────────────────────
 
 function drawLos(ctx: CanvasRenderingContext2D, cam: Camera, cssH: number, yardLine: number) {
@@ -226,15 +280,22 @@ function opennessFill(openness: number): string {
   return C.COVERED
 }
 
-function playerFill(p: PositionUpdate, colorByOpenness: boolean): string {
-  // During a live pass play, color the offense's own pass catchers by how open they are ([169]).
+// How a team is painted all game (home vs away), independent of which side of the ball it's on:
+//   fill — the body color (home = primary, away = white)
+//   text — the O / X mark color (home = black/white by primary brightness, away = the primary)
+//   ring — the selection border (the team's secondary)
+export interface TeamPaint { fill: string; text: string; ring: string }
+
+// The fill that OVERRIDES a team's body color: a pass catcher colored by openness on a live pass
+// play, or the ball/coverage state colors. Null when the player should wear its plain team color.
+function stateFill(p: PositionUpdate, colorByOpenness: boolean): string | null {
   if (colorByOpenness && typeof p.openness === 'number') return opennessFill(p.openness)
   switch (p.state) {
-    case 'ball':       return C.BALL_CARRIER
-    case 'open':       return C.OPEN
-    case 'contested':  return C.CONTESTED
-    case 'covered':    return C.COVERED
-    default:           return p.team === 'o' ? C.OFFENSE : C.DEFENSE
+    case 'ball':      return C.BALL_CARRIER
+    case 'open':      return C.OPEN
+    case 'contested': return C.CONTESTED
+    case 'covered':   return C.COVERED
+    default:          return null
   }
 }
 
@@ -287,6 +348,9 @@ function drawPlayers(
   colorByOpenness: boolean,
   showFatigue = false,
   fatigue: Record<string, number> = {},
+  ownTeam: TeamPaint = { fill: C.OFFENSE, text: '#ffffff', ring: C.SELECTED_RING },
+  oppTeam: TeamPaint = { fill: C.DEFENSE, text: '#ffffff', ring: C.SELECTED_RING },
+  ownIsOffense = true,
 ) {
   const r          = Math.max(4, cam.yardPx * PLAYER.RADIUS)
   const innerSize  = Math.max(8, r * 1.3)   // O / X inside circle
@@ -304,6 +368,15 @@ function drawPlayers(
     // Client selection OR server-flagged selected state both trigger the ring
     const selected = p.id === selectedId || p.state === 'selected'
 
+    // Team paint all game: a player on the offense ('o') is the viewer's team when the viewer is on
+    // offense, and vice versa. Openness / ball state can override the body fill (and then the O/X
+    // contrasts that override instead of using the team's own mark color).
+    const isOwnTeam = (p.team === 'o') === ownIsOffense
+    const paint     = isOwnTeam ? ownTeam : oppTeam
+    const override  = stateFill(p, colorByOpenness)
+    const fill      = override ?? paint.fill
+    const textColor = override ? textColorOn(fill) : paint.text
+
     // Collision boundary ring — drawn first so the body circle sits on top
     const cr = r + Math.max(3, cam.yardPx * 0.2)
     ctx.beginPath()
@@ -320,7 +393,7 @@ function drawPlayers(
       ctx.shadowColor = '#ffd24a'
       ctx.shadowBlur  = Math.max(6, cam.yardPx * 0.5)
       starPath(ctx, cx, cy, r * 1.35)
-      ctx.fillStyle   = playerFill(p, colorByOpenness)
+      ctx.fillStyle   = fill
       ctx.strokeStyle = '#ffd24a'
       ctx.lineWidth   = selected ? 3 : 2
       ctx.fill()
@@ -329,8 +402,9 @@ function drawPlayers(
     } else {
       ctx.beginPath()
       ctx.arc(cx, cy, r, 0, Math.PI * 2)
-      ctx.fillStyle   = playerFill(p, colorByOpenness)
-      ctx.strokeStyle = selected ? C.SELECTED_RING : C.PLAYER_RING
+      ctx.fillStyle   = fill
+      // Selection border = the team's secondary color; plain white ring otherwise.
+      ctx.strokeStyle = selected ? paint.ring : C.PLAYER_RING
       ctx.lineWidth   = selected ? 3 : 1.5
       ctx.fill()
       ctx.stroke()
@@ -338,10 +412,11 @@ function drawPlayers(
 
     if (!showInner) continue
 
-    // O / X centered inside circle
+    // O / X centered inside circle — the team's mark color (home contrasts its primary; away shows its
+    // primary on white), or a contrast color when an openness / ball fill is overriding the body.
     ctx.font         = `bold ${innerSize}px sans-serif`
     ctx.textBaseline = 'middle'
-    ctx.fillStyle    = '#ffffff'
+    ctx.fillStyle    = textColor
     ctx.fillText(p.team === 'o' ? 'O' : 'X', cx, cy)
 
     // Name/position label below circle — last name for skill players, position for OL/DL.
@@ -401,6 +476,7 @@ function drawRoutes(
   selectedId: string | null,
   routeDepths: Record<string, number>,
   isRun: boolean,
+  pivotX: number,
 ) {
   const GRAY = 'rgba(170,170,170,0.75)'
   for (const p of positions) {
@@ -413,14 +489,14 @@ function drawRoutes(
 
     // Run play: every WR runs a gray go route.
     if (isRun && p.label === 'WR') {
-      drawRoutePath(ctx, cam, p, getRoutePath('go', p, 0.5), GRAY, p.id === selectedId ? 2.5 : 1.5)
+      drawRoutePath(ctx, cam, p, getRoutePath('go', p, 0.5, pivotX), GRAY, p.id === selectedId ? 2.5 : 1.5)
       continue
     }
 
     // Pass play: draw the assigned route in yellow (block handled above).
     if (!isRun && p.route && p.route !== 'block' && RECEIVER_LABELS.has(p.label)) {
       const sel = p.id === selectedId
-      drawRoutePath(ctx, cam, p, getRoutePath(p.route, p, routeDepths[p.id] ?? 1),
+      drawRoutePath(ctx, cam, p, getRoutePath(p.route, p, routeDepths[p.id] ?? 1, pivotX),
         `rgba(250,204,21,${sel ? 0.9 : 0.5})`, sel ? 2.5 : 1.5)
     }
   }
@@ -747,6 +823,8 @@ export function drawFrame(
   spyIds: string[] = [],
   showFatigue = false,
   fatigue: Record<string, number> = {},
+  ownTeam: TeamPaint = { fill: C.OFFENSE, text: '#ffffff', ring: C.SELECTED_RING },
+  oppTeam: TeamPaint = { fill: C.DEFENSE, text: '#ffffff', ring: C.SELECTED_RING },
 ) {
   ctx.fillStyle = C.BG
   ctx.fillRect(0, 0, cssW, cssH)
@@ -760,6 +838,13 @@ export function drawFrame(
     drawFirstDown(ctx, cam, cssH, gameState.yardLine, gameState.distance)
   }
 
+  // [Special Teams][39][40] During a field goal / extra point, render the yellow uprights as the
+  // target (centered; the ball's hash creates the left/right approach).
+  const stKick = gameState?.specialTeams?.kickType
+  if (stKick === 'field_goal' || stKick === 'extra_point') {
+    drawGoalposts(ctx, cam, FIELD.WIDTH / 2)
+  }
+
   // Design overlays (routes, run direction, coverage) stay up through the hike countdown, not just
   // pre-snap, so the offense's run angle/routes and the defense's coverage remain visible after the
   // formation is set. (The run arrow is gated to the offense via the runAngle prop; each side only
@@ -768,7 +853,7 @@ export function drawFrame(
     const losY = gameState?.yardLine ?? 0
     if (Object.keys(zoneTypes).length > 0) drawZones(ctx, cam, positions, zoneTypes, zoneCenters, losY)
     // runAngle is non-null only for the offense on a run play, so it doubles as the run-play flag.
-    drawRoutes(ctx, cam, positions, selectedId, routeDepths, runAngle !== null)
+    drawRoutes(ctx, cam, positions, selectedId, routeDepths, runAngle !== null, gameState?.ballX ?? FIELD.WIDTH / 2)
     if (runAngle !== null) drawRunDirection(ctx, cam, positions, runAngle)
     if (Object.keys(manTargets).length > 0) drawManCoverage(ctx, cam, positions, manTargets)
     drawBlitz(ctx, cam, positions, blitzIds)
@@ -776,7 +861,10 @@ export function drawFrame(
   }
   // Color the offense's own pass catchers by openness during a live pass play ([169]).
   const colorByOpenness = gameState?.role === 'offense' && gameState?.phase === 'live'
-  drawPlayers(ctx, cam, cssH, positions, selectedId, colorByOpenness, showFatigue, fatigue)
+  // The viewer's team is the offense this play iff the viewer's role is offense — that maps p.team
+  // ('o'/'d') to own vs opponent color so a team keeps its color all game.
+  const ownIsOffense = gameState?.role !== 'defense'
+  drawPlayers(ctx, cam, cssH, positions, selectedId, colorByOpenness, showFatigue, fatigue, ownTeam, oppTeam, ownIsOffense)
 }
 
 // ── Pass-rush visualizer ──────────────────────────────────────────────────────

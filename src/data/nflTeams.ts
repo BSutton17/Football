@@ -231,7 +231,7 @@ export const NFL_TEAMS: NflTeam[] = [
       { id: 'bal_te1', name: 'Mark Andrews',     position: 'TE', ovr: 91, xFactor: 'Fast Thinking', ratings: { stamina: 92, speed: 84, acceleration: 86, catching: 95, routeRunning: 92, strength: 78, runBlock: 68, passBlock: 70 } },
       { id: 'bal_te2', name: 'Isaiah Likely',    position: 'TE', ovr: 84, xFactor: 'Mossed', ratings: { stamina: 90, speed: 86, acceleration: 88, catching: 86, routeRunning: 84, strength: 74, runBlock: 63, passBlock: 64 } },
       { id: 'bal_te3', name: 'Durham Smythe',    position: 'TE', ovr: 77, ratings: { stamina: 88, speed: 78, acceleration: 80, catching: 74, routeRunning: 72, strength: 78, runBlock: 79, passBlock: 77 } },
-      { id: 'bal_rb1', name: 'Derrick Henry',    position: 'RB', ovr: 98, xFactor: 'Trucked', ratings: { stamina: 94, speed: 90, acceleration: 92, runPower: 99, vision: 93, catching: 68 } },
+      { id: 'bal_rb1', name: 'Derrick Henry',    position: 'RB', ovr: 97, xFactor: 'Trucked', ratings: { stamina: 94, speed: 90, acceleration: 92, runPower: 99, vision: 93, catching: 68 } },
       { id: 'bal_rb2', name: 'Keaton Mitchell',  position: 'RB', ovr: 81, ratings: { speed: 96, acceleration: 98, runPower: 76, vision: 80, catching: 71 } },
     ],
     oline: [
@@ -246,7 +246,7 @@ export const NFL_TEAMS: NflTeam[] = [
       { id: 'bal_cb2', name: 'Nate Wiggins',        position: 'CB', ovr: 86, xFactor: 'Deep Pass Demon', ratings: { stamina: 91, speed: 96, acceleration: 97, awareness: 82, press: 83 } },
       { id: 'bal_cb3', name: 'Chidobe Awuzie',      position: 'CB', ovr: 81, ratings: { stamina: 89, speed: 91, acceleration: 92, awareness: 84, press: 85 } },
       { id: 'bal_cb4', name: 'Jalyn Armour-Davis',  position: 'CB', ovr: 74, ratings: { stamina: 84, speed: 92, acceleration: 93, awareness: 72, press: 74 } },
-      { id: 'bal_s1',  name: 'Kyle Hamilton',       position: 'S',  ovr: 98, xFactor: 'Ball Hawk', ratings: { stamina: 96, speed: 91, acceleration: 93, awareness: 98, press: 92 } },
+      { id: 'bal_s1',  name: 'Kyle Hamilton',       position: 'S',  ovr: 97, xFactor: 'Ball Hawk', ratings: { stamina: 96, speed: 91, acceleration: 93, awareness: 98, press: 92 } },
       { id: 'bal_s2',  name: 'Jaylon Hawkins',      position: 'S',  ovr: 79, xFactor: 'Ball Hawk', ratings: { stamina: 87, speed: 90, acceleration: 91, awareness: 79, press: 75 } },
       { id: 'bal_s3',  name: 'Beau Brade',          position: 'S',  ovr: 74, ratings: { stamina: 84, speed: 88, acceleration: 89, awareness: 73, press: 70 } },
       { id: 'bal_lb1', name: 'Roquan Smith',        position: 'LB', ovr: 95, ratings: { stamina: 96, speed: 88, acceleration: 90, awareness: 97, strength: 80 } },
