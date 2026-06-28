@@ -25,7 +25,9 @@ const SERVER_URL: string = resolveServerUrl()
 
 const socket: GameSocket = io(SERVER_URL, {
   autoConnect: false,
-  transports: ['websocket'],
+  // Prefer a persistent WebSocket, but fall back to long-polling if the WS upgrade is blocked (some
+  // proxies/CDNs do). Without a fallback the connection just fails outright.
+  transports: ['websocket', 'polling'],
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
