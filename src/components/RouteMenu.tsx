@@ -25,6 +25,7 @@ const TE_ROUTES: RouteOption[] = [
   { route: "drag", label: "Drag" },
   { route: "flat", label: "Flat" },
   { route: "angle", label: "Angle" },
+  { route: "curl", label: "Curl" },
   { route: "out", label: "Out" },
   { route: "cross", label: "Cross" },
   { route: "deep_cross", label: "D-Cross" },
