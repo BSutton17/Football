@@ -46,6 +46,12 @@ export default function GameHUD({ gameState }: Props) {
 
   const { score, quarter, clock, down, distance, yardLine, role, phase } = gameState
   const onOffense = role === 'offense'
+  // Yard line in football convention: counts up to 50 at midfield, then back down (so the opponent's
+  // 5 reads "5", not "95"; their 40 reads "40", not "60").
+  const yl = Math.round(yardLine)
+  const fieldYard = yl <= 50 ? yl : 100 - yl
+  // Goal-to-go: the first-down line is at or past the goal, so the goal IS the marker → "& Goal".
+  const goalToGo = yardLine + distance >= 100
   // Hide the play clock during a special-teams play — the kick runs on its own timer, so a frozen
   // play-clock number up top is just clutter ([41]).
   const showPlayClock = (phase === 'pre_snap' || phase === 'countdown') && !gameState.specialTeams
@@ -81,8 +87,8 @@ export default function GameHUD({ gameState }: Props) {
       </div>
 
       <div className="hud-bottom">
-        <span className="hud-down">{down}{DOWN_SUFFIX[down]} &amp; {distance < 1 ? 'inches' : Math.round(distance)}</span>
-        <span className="hud-yard-line">Ball on {Math.round(yardLine)}</span>
+        <span className="hud-down">{down}{DOWN_SUFFIX[down]} &amp; {goalToGo ? 'Goal' : distance < 1 ? 'inches' : Math.round(distance)}</span>
+        <span className="hud-yard-line">Ball on {fieldYard}</span>
       </div>
     </>
   )

@@ -274,9 +274,10 @@ body {
   border-radius: 7px;
   background: rgba(255, 255, 255, 0.06);
   cursor: grab;
-  /* pan-y so a vertical swipe scrolls the roster; a sideways drag still pulls the player onto the
-     field ([289]). */
-  touch-action: pan-y;
+  /* none, NOT pan-y: with pan-y the browser hijacked any drag that had a vertical component as a
+     scroll and cancelled the player drag (the "sometimes it just scrolls" bug). Dragging a card now
+     always pulls the player out in any direction; the roster still scrolls on the gaps/gutters. */
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   transition: opacity 0.1s;
@@ -323,6 +324,16 @@ body {
   font-weight: 700;
   color: rgba(255, 255, 255, 0.55);
   letter-spacing: 0.04em;
+}
+
+/* Short viewport (landscape phone): compact the cards so the whole roster fits without scrolling,
+   since dragging a card no longer scrolls. */
+@media (max-height: 600px) {
+  .roster-list { gap: 2px; padding: 3px 4px; }
+  .roster-card { padding: 2px; gap: 0; }
+  .roster-pos  { width: 30px; height: 15px; font-size: 0.52rem; border-radius: 3px; }
+  .roster-name { font-size: 0.44rem; }
+  .roster-ovr  { font-size: 0.44rem; }
 }
 
 .roster-count {
