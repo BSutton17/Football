@@ -5,7 +5,12 @@ export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
 export const SESSION_KEY = 'ef2_session'
 
-const socket: GameSocket = io({
+// Server to connect to. Set VITE_SERVER_URL (e.g. the deployed Heroku server) to use a remote server;
+// otherwise default to the local dev server. The Netlify build sets VITE_SERVER_URL to the live URL,
+// so production talks to Heroku while local dev (no env var) talks to localhost.
+const SERVER_URL: string = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001'
+
+const socket: GameSocket = io(SERVER_URL, {
   autoConnect: false,
   transports: ['websocket'],
   reconnection: true,
