@@ -76,6 +76,9 @@ const MIN_X = 1.5
 const MAX_X = FIELD.WIDTH - 1.5
 const clampX = (x: number) => Math.max(MIN_X, Math.min(MAX_X, x))
 
+// Offensive skill positions whose names a defender is allowed to see on the field.
+const NAME_REVEAL_LABELS = new Set(['RB', 'WR', 'TE'])
+
 export default function App() {
   const room = useRoom()
 
@@ -93,6 +96,15 @@ export default function App() {
   const rosterOvr = useMemo(
     () => new Map(teamRoster.offense.map(p => [p.id, p.ovr ?? 0])),
     [teamRoster],
+  )
+  // The OPPONENT's roster names — the only place we expose the other team's names: a defender gets to
+  // read the offense's skill-position (RB/WR/TE) names. Same teamId → same ids on both clients, so the
+  // ids on the broadcast offensive players resolve here.
+  const oppTeamId   = room.picks[1 - (room.slot ?? 0)]?.teamId ?? null
+  const oppRoster   = useMemo(() => loadTeamRoster(oppTeamId), [oppTeamId])
+  const oppNameById = useMemo(
+    () => new Map(Object.entries(oppRoster.nameById)),
+    [oppRoster],
   )
 
   const [placedPlayers, setPlacedPlayers] = useState<PositionUpdate[]>([])
@@ -148,7 +160,7 @@ export default function App() {
   const kickInProgress = !!(specialTeams && specialTeams.playerControlled)
   const kickFormationType = kickInProgress ? specialTeams!.kickType : null
   // The kicking team is whoever is on offense — its real Kicker/Punter name shows in the formation.
-  const oppTeamId     = room.picks[1 - (room.slot ?? 0)]?.teamId ?? null
+  // (oppTeamId is declared above with the opponent roster.)
   const kickingTeamId = (room.role ?? 'offense') === 'offense' ? myTeamId : oppTeamId
   // [team colors] Each team keeps its colors all game (own vs opponent), regardless of side. The room
   // creator (slot 0) is HOME: primary body + a contrasting O/X. The other player is AWAY: white body
@@ -639,7 +651,13 @@ export default function App() {
     ...dlPositions.map(p => applyLivePos(opponentMap.get(p.id) ?? p)),
     // Attach the roster name so the field can show the player's last name (renderer uses position for OL/DL).
     ...placedPlayers.map(p => applyLivePos({ ...p, route: playerRoutes[p.id], name: rosterName.get(p.id) })),
-    ...opponentPositions.filter(p => !p.id.startsWith('auto_dl')).map(applyLivePos),
+    // On defense, reveal the offense's RB/WR/TE names (only those positions, only for the defender).
+    ...opponentPositions.filter(p => !p.id.startsWith('auto_dl')).map(p => {
+      const lp = applyLivePos(p)
+      return role === 'defense' && NAME_REVEAL_LABELS.has(lp.label ?? '')
+        ? { ...lp, name: oppNameById.get(lp.id) }
+        : lp
+    }),
   ]
 
   const availableOffense = teamRoster.offense.filter(p => !placedIds.has(p.id))

@@ -1333,7 +1333,7 @@ body {
   touch-action: pan-x;
   scrollbar-width: none;
 }
-.ts2-rail::-webkit-scrollbar { display:; }
+.ts2-rail::-webkit-scrollbar { display:none; }
 .ts2-chip {
   position: relative; flex: none;
   background: none; border: none; padding: 2px; cursor: pointer;
