@@ -69,6 +69,23 @@ function summarizePlay(r: PlayResult): string {
   }
 }
 
+// A prominent, longer-lived result banner for kicks. These resolve while the special-teams overlay is
+// up, and the ensuing kickoff's game_state wipes the normal play-notice almost immediately — so kick
+// outcomes get their own banner that isn't cleared by game_state. Returns null for non-kick plays.
+function kickResultText(r: PlayResult): string | null {
+  switch (r.outcome) {
+    case 'field_goal':
+    case 'extra_point':
+      return r.detail === 'made'    ? "It's good!"
+           : r.detail === 'blocked' ? 'Blocked!'
+           :                          'Missed!'   // wide_left | wide_right | short | missed
+    case 'punt':
+      return r.detail === 'touchback' ? 'Touchback!' : null
+    default:
+      return null
+  }
+}
+
 // [hash] Lateral ball spot defaults to midfield. A player's body is ~1.5 yd, so a shifted player is
 // kept between these bounds rather than being pushed out of bounds.
 const FIELD_MID = FIELD.WIDTH / 2
@@ -206,6 +223,14 @@ export default function App() {
     const t = setTimeout(() => setPlayNotice(null), 3000)
     return () => clearTimeout(t)
   }, [playNotice])
+  // Prominent kick-result banner ("It's good!", "Missed!", "Blocked!", "Touchback!"). Unlike the play
+  // notice, game_state does NOT clear it — only this timer does — so it survives the ensuing kickoff.
+  const [kickResult, setKickResult] = useState<string | null>(null)
+  useEffect(() => {
+    if (!kickResult) return
+    const t = setTimeout(() => setKickResult(null), 3500)
+    return () => clearTimeout(t)
+  }, [kickResult])
   // The play has ended (between play_result and the next snap) — raises a click-blocker over the
   // field so stray taps can't fire actions the server would reject. Cleared at the next game_state.
   const [playOver, setPlayOver] = useState(false)
@@ -309,7 +334,10 @@ export default function App() {
     // can't fire throw/scramble actions during the dead window (the server would reject them, and a
     // rejection used to disconnect the player). Cleared when the next snap's game_state arrives.
     function onPlayResult(r: PlayResult) {
-      setPlayNotice(summarizePlay(r))
+      // Kicks get the dedicated, game_state-proof banner; everything else uses the play notice.
+      const kr = kickResultText(r)
+      if (kr) { setKickResult(kr); setPlayNotice(null) }
+      else      setPlayNotice(summarizePlay(r))
       setPlayOver(true)
     }
     function onTouchdown({ scored, score }: { scored: boolean; score: Score }) {
@@ -1052,6 +1080,9 @@ export default function App() {
           <div className="touchdown-banner-sub">{touchdownBanner.scored ? 'You scored' : 'Opponent scored'}</div>
         </div>
       )}
+      {kickResult && !gameOver && (
+        <div className="kick-result-banner" aria-live="polite">{kickResult}</div>
+      )}
       {playNotice && !gameOver && !touchdownBanner && (
         <div className="play-notice" aria-live="polite">{playNotice}</div>
       )}
@@ -1123,7 +1154,7 @@ export default function App() {
           className={`formation-ready-btn${lockedFormation ? ' formation-ready-btn--set' : ''}`}
           onPointerDown={lockedFormation ? undefined : handleLockFormation}
         >
-          {lockedFormation ? '✓ Formation Set' : 'Set Formation'}
+          {lockedFormation ? 'Formation Set' : 'Set Formation'}
         </button>
       )}
       {phase === 'countdown' && hikeCount !== null && hikeCount > 0 && (
