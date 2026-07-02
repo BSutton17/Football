@@ -31,6 +31,10 @@ body {
 /* ─── Room Screen ─────────────────────────────────────────────────────────── */
 
 .room-screen {
+  background-image: url('https://www.theunforgettablebuzz.com/wp-content/uploads/2014/09/Pit-Dal-1.jpg');
+  color: white;
+  text-shadow: 0 2px 5px rgba(0,0,0,0.8);
+  background-size: cover;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -44,7 +48,7 @@ body {
 }
 
 .room-title {
-  font-size: 2rem;
+  font-size: 4rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
