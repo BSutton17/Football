@@ -93,6 +93,13 @@ const FIELD_MID = FIELD.WIDTH / 2
 const MIN_X = 1.5
 const MAX_X = FIELD.WIDTH - 1.5
 const clampX = (x: number) => Math.max(MIN_X, Math.min(MAX_X, x))
+// [2pt] Absolute-Y field limits (back of each end zone). A big LOS jump — e.g. lining up on the
+// opponent's 3 for a two-point try — must never shift a carried-over player off the field / clean
+// through the end zone. Own placed players get their precise per-position bounds (below); everyone
+// else is at least kept between the end-zone backs.
+const MIN_FIELD_Y = -9.5
+const MAX_FIELD_Y = 109.5
+const clampFieldY = (y: number) => Math.max(MIN_FIELD_Y, Math.min(MAX_FIELD_Y, y))
 
 // Offensive skill positions whose names a defender is allowed to see on the field.
 const NAME_REVEAL_LABELS = new Set(['RB', 'WR', 'TE'])
@@ -423,9 +430,15 @@ export default function App() {
       if (!resetting && (losDelta !== 0 || xDelta !== 0)) {
         // [hash] Shift carried-over players by the LOS (vertical) and ball (lateral) deltas. A player
         // that would be pushed out of bounds is clamped to where its body still fits (1.5 yd).
-        setPlacedPlayers(prev => prev.map(p => ({ ...p, x: clampX(p.x + xDelta), y: p.y + losDelta })))
-        setDlPositions(prev => prev.map(p => ({ ...p, x: clampX(p.x + xDelta), y: p.y + losDelta })))
-        setOpponentPositions(prev => prev.map(p => ({ ...p, x: clampX(p.x + xDelta), y: p.y + losDelta })))
+        // [2pt] Y is clamped too: a large jump (e.g. onto the opponent's 3 for a two-point try) must
+        // land players legally, not fling them through the end zone. Own players use their exact
+        // per-position bounds so the formation stays valid on the new LOS.
+        setPlacedPlayers(prev => prev.map(p => {
+          const b = getPositionYBounds(p.label ?? '', room.role ?? 'offense', gs.yardLine)
+          return { ...p, x: clampX(p.x + xDelta), y: Math.max(b.minY, Math.min(b.maxY, p.y + losDelta)) }
+        }))
+        setDlPositions(prev => prev.map(p => ({ ...p, x: clampX(p.x + xDelta), y: clampFieldY(p.y + losDelta) })))
+        setOpponentPositions(prev => prev.map(p => ({ ...p, x: clampX(p.x + xDelta), y: clampFieldY(p.y + losDelta) })))
         // Zone landmarks live in offense-relative yards too, so they ride up the field with the
         // new LOS (and sideways with the ball) instead of being left behind on the old spot.
         setZoneCenters(prev => {
@@ -683,6 +696,11 @@ export default function App() {
   if (room.status !== 'ready') return <RoomScreen {...room} />
 
   const role = room.role ?? 'offense'
+
+  // [midfield logos] Absolute travel direction of the current offense (slot 0 attacks +1, slot 1 −1),
+  // derived from the viewer's slot + role. Mirrors the 50-yard-line logos so they don't flip per side.
+  const offenseSlot   = role === 'offense' ? (room.slot ?? 0) : (1 - (room.slot ?? 0))
+  const fieldDirection = offenseSlot === 0 ? 1 : -1
 
   const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX, timeouts }
   const isPreSnap = phase === 'pre_snap'
@@ -1180,6 +1198,8 @@ export default function App() {
         fatigue={fatigue}
         ownTeam={ownTeam}
         oppTeam={oppTeam}
+        logoTeamId={ownIsHome ? myTeamId : oppTeamId}
+        fieldDirection={fieldDirection}
       />
       <GameHUD gameState={gameState} ownTeamId={myTeamId} oppTeamId={oppTeamId} />
       {/* [41] Official field-goal distance, shown to BOTH teams while a FG/XP is being set up. */}

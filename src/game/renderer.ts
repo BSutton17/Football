@@ -3,8 +3,25 @@ import type { GameState, PositionUpdate, CarrierVision } from '../types/game.ts'
 import { getRoutePath } from './routePaths.ts'
 import { ZONE_CONFIGS } from './zones.ts'
 import { textColorOn } from '../data/teamColors.ts'
+import { teamLogo } from '../data/teamLogos.ts'
 
 const RECEIVER_LABELS = new Set(['WR', 'TE', 'RB'])
+
+// ── Team logo image cache ([midfield logos]) ────────────────────────────────────
+// Load each team's logo once and reuse the <img> every frame. drawImage is a no-op until the image
+// has decoded (guarded by .complete/.naturalWidth), and the canvas redraws each frame, so the logo
+// simply pops in once ready. A missing logo caches null so we don't retry.
+const logoCache = new Map<string, HTMLImageElement | null>()
+function getLogoImage(teamId: string | null | undefined): HTMLImageElement | null {
+  if (!teamId) return null
+  if (logoCache.has(teamId)) return logoCache.get(teamId) ?? null
+  const src = teamLogo(teamId)
+  if (!src) { logoCache.set(teamId, null); return null }
+  const img = new Image()
+  img.src = src
+  logoCache.set(teamId, img)
+  return img
+}
 
 // ── Colors ────────────────────────────────────────────────────────────────────
 
@@ -192,6 +209,30 @@ function drawField(ctx: CanvasRenderingContext2D, cam: Camera, cssH: number) {
   ctx.moveTo(x1 + 1, 0); ctx.lineTo(x1 + 1, cssH)
   ctx.moveTo(x2 - 1, 0); ctx.lineTo(x2 - 1, cssH)
   ctx.stroke()
+}
+
+// ── Midfield team logo ([midfield logos]) ───────────────────────────────────────
+//
+// The HOME team's logo, one large mark centered on the 50-yard line (both players see the same one).
+// Rotated 90° (it reads sideline-to-sideline, like the yard numbers) and MIRRORED by the travel
+// direction, so it keeps a consistent orientation whether the offense is driving north or south (the
+// offense-relative view flips the field between the two directions).
+function drawMidfieldLogo(
+  ctx: CanvasRenderingContext2D, cam: Camera,
+  logoTeamId: string | null | undefined, direction: number,
+) {
+  const img = getLogoImage(logoTeamId)
+  if (!img || !img.complete || !img.naturalWidth) return
+  const cx   = fieldXToCanvas(FIELD.WIDTH / 2, cam)
+  const cy   = relYToCanvas(50, cam)
+  const size = Math.max(60, cam.yardPx * 18)   // ~18 yards — big, centered on the 50
+  ctx.save()
+  ctx.globalAlpha = 0.5
+  ctx.translate(cx, cy)
+  ctx.rotate(Math.PI / 2)      // 90° — reads sideline-to-sideline
+  ctx.scale(1, direction)      // direction −1 → mirror, so it isn't flipped when driving the other way
+  ctx.drawImage(img, -size / 2, -size / 2, size, size)
+  ctx.restore()
 }
 
 // ── Field goal uprights ([Special Teams][40]) ─────────────────────────────────
@@ -829,6 +870,8 @@ export function drawFrame(
   fatigue: Record<string, number> = {},
   ownTeam: TeamPaint = { fill: C.OFFENSE, text: '#ffffff', ring: C.SELECTED_RING },
   oppTeam: TeamPaint = { fill: C.DEFENSE, text: '#ffffff', ring: C.SELECTED_RING },
+  logoTeamId: string | null = null,
+  fieldDirection = 1,
 ) {
   ctx.fillStyle = C.BG
   ctx.fillRect(0, 0, cssW, cssH)
@@ -836,6 +879,7 @@ export function drawFrame(
   const cam = computeCamera(cssW, cssH, cameraY)
 
   drawField(ctx, cam, cssH)
+  drawMidfieldLogo(ctx, cam, logoTeamId, fieldDirection)
 
   if (gameState) {
     drawLos(ctx, cam, cssH, gameState.yardLine)

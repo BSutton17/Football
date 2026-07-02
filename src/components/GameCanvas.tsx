@@ -40,13 +40,15 @@ interface Props {
   fatigue?: Record<string, number>
   ownTeam?: TeamPaint
   oppTeam?: TeamPaint
+  logoTeamId?: string | null           // [midfield logos] home team's logo drawn at the 50
+  fieldDirection?: number              // +1 / −1 absolute travel direction — mirrors the logo
 }
 
 function isDLPlayer(id: string)  { return id.startsWith('auto_dl') }
 // QB and OL are fully locked; DL can slide horizontally
 function isLockedAuto(id: string) { return id.startsWith('auto_') && !isDLPlayer(id) }
 
-export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam }: Props) {
+export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const ballIconRef  = useRef<HTMLDivElement>(null)
   const gameStateRef = useRef(gameState)
@@ -117,6 +119,10 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
   ownTeamRef.current = ownTeam
   const oppTeamRef = useRef(oppTeam)
   oppTeamRef.current = oppTeam
+  const logoTeamIdRef = useRef(logoTeamId)
+  logoTeamIdRef.current = logoTeamId
+  const fieldDirectionRef = useRef(fieldDirection)
+  fieldDirectionRef.current = fieldDirection
 
   // Live route depth drag — mirrors how canvasDragRef works for player drags
   const routeDepthDragRef = useRef<{
@@ -431,6 +437,8 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
           fatigueRef.current,
           ownTeamRef.current,
           oppTeamRef.current,
+          logoTeamIdRef.current,
+          fieldDirectionRef.current ?? 1,
         )
 
         if (gameStateRef.current?.phase === 'live') {
