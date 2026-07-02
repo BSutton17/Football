@@ -11,7 +11,7 @@ interface Props extends RoomState {
 export default function RoomScreen({ status, roomId, role, error, createRoom, joinRoom, leaveRoom }: Props) {
   const [inputCode, setInputCode] = useState('')
 
-  const inputFilled  = inputCode.length === 6
+  const inputFilled  = inputCode.length === 4
   const inputInvalid = inputFilled && !isValidRoomCode(inputCode)
   const canJoin      = inputFilled && !inputInvalid
 
@@ -32,9 +32,10 @@ export default function RoomScreen({ status, roomId, role, error, createRoom, jo
               className={`room-input${inputInvalid ? ' invalid' : ''}`}
               placeholder="Room code"
               value={inputCode}
-              maxLength={6}
-              autoCapitalize="characters"
-              onChange={e => setInputCode(e.target.value.toUpperCase())}
+              maxLength={4}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              onChange={e => setInputCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
             />
             <button
               className="room-btn join"
@@ -46,7 +47,7 @@ export default function RoomScreen({ status, roomId, role, error, createRoom, jo
           </div>
 
           {inputInvalid && (
-            <p className="room-input-error">Invalid code — use letters and numbers only</p>
+            <p className="room-input-error">Invalid code — enter the 4-digit number</p>
           )}
         </div>
       )}

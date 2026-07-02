@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Local env files — NEVER commit. A localhost VITE_SERVER_URL committed here would be inlined into
+# the production (Netlify) build and break prod. `.env.example` is the only tracked env file.
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

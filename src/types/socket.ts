@@ -89,6 +89,11 @@ export interface ServerToClientEvents {
   play_clock_update:  (data: { playClock: number }) => void
   play_clock_expired: () => void
 
+  // Timeouts ([69][70]) — a stoppage began (byYou = this viewer called it) with the updated counts,
+  // or the stoppage elapsed and play resumes. Counts are viewer-relative (own = this player's team).
+  timeout_started:    (data: { byYou: boolean; seconds: number; timeouts: { own: number; opp: number } }) => void
+  timeout_ended:      () => void
+
   // Live play
   positions_update: (positions: PositionUpdate[]) => void
   carrier_vision:   (vision: CarrierVision | null) => void   // [163] run visualizer debug rays
@@ -101,7 +106,9 @@ export interface ServerToClientEvents {
   clock_update:     (data: { quarter: Quarter; clock: number }) => void
   score_update:     (score: Score) => void
   switch_sides:     (data: { role: TeamRole }) => void   // [192] possession changed — each side's new role
-  halftime:         () => void   // [218] Q2 → Q3 break (foundation for halftime UI)
+  // [transition screens] A period ended — both players show a full-screen End-of-Quarter / Halftime
+  // interstitial. kind distinguishes the two; endedQuarter is the quarter that just finished.
+  period_transition: (data: { kind: 'quarter' | 'halftime'; endedQuarter: number; seconds: number }) => void
   game_over:        (data: GameOver) => void
 
   // Special teams ([Special Teams][1]) — viewer-relative kick state; null clears the kicking UI.
@@ -129,6 +136,9 @@ export interface ClientToServerEvents {
   // Pre-snap — Defense
   assign_coverage:  (data: AssignCoveragePayload) => void
   clear_coverage:   (data: { playerId: string }) => void
+
+  // Pre-snap — either team ([70]) — spend a timeout (stops the clock, brief frozen pause)
+  call_timeout:       () => void
 
   // In-play — Offense
   snap_ball:          () => void

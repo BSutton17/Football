@@ -8,6 +8,10 @@ interface Props {
   currentZoneType: ZoneType | undefined
   onSelect: (playerId: string, coverage: CoverageType, zoneType?: ZoneType) => void
   onClear: (playerId: string) => void
+  // [zone all] Apply a whole coverage shell to every defender at once; label shows the NEXT preset.
+  onZoneAll: () => void
+  zoneAllLabel: string
+  zoneAllDisabled: boolean   // grayed out until all 11 defenders are on the field
 }
 
 const BASE_OPTIONS: { type: CoverageType; label: string }[] = [
@@ -21,7 +25,7 @@ const DL_OPTIONS: { type: CoverageType; label: string }[] = [
   { type: 'spy',   label: 'Spy'   },
 ]
 
-export default function CoverageMenu({ playerId, position, currentCoverage, currentZoneType, onSelect, onClear }: Props) {
+export default function CoverageMenu({ playerId, position, currentCoverage, currentZoneType, onSelect, onClear, onZoneAll, zoneAllLabel, zoneAllDisabled }: Props) {
   const isDL     = position === 'DL'
   const baseOpts = isDL ? DL_OPTIONS : BASE_OPTIONS
   const showZones = !isDL
@@ -29,6 +33,18 @@ export default function CoverageMenu({ playerId, position, currentCoverage, curr
   return (
     <div className="coverage-menu">
       <div className="coverage-menu-header">{position}</div>
+
+      {/* [zone all] One-press coverage shell for the WHOLE defense (never moves anyone). Cycles
+          Cover 2 → Cover 3 → Cover 4 → Reset; the label shows what the next press applies. Disabled
+          until all 11 defenders are on the field. */}
+      <button
+        className="coverage-btn coverage-btn--zoneall"
+        onPointerDown={zoneAllDisabled ? undefined : onZoneAll}
+        disabled={zoneAllDisabled}
+        title={zoneAllDisabled ? 'Place all 11 defenders first' : 'Assign a full coverage shell to every defender'}
+      >
+        Zone All: {zoneAllDisabled ? 'Place 11' : zoneAllLabel}
+      </button>
 
       {baseOpts.map(({ type, label }) => (
         <button

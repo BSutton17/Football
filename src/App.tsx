@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
-import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, SESSION_KEY } from './socket/index.ts'
+import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, SESSION_KEY } from './socket/index.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
 import RoomScreen from './components/RoomScreen.tsx'
 import TeamSelectScreen from './components/TeamSelectScreen.tsx'
@@ -20,6 +20,7 @@ import { loadTeamRoster } from './game/teamRoster.ts'
 import { teamColors, textColorOn } from './data/teamColors.ts'
 import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveFormation, validateOffensiveFormation, validateDefensiveFormation } from './game/formation.ts'
 import { computeCamera } from './game/renderer.ts'
+import { computeZoneShell, SHELL_ORDER, SHELL_LABEL } from './game/zoneShells.ts'
 import { FIELD } from './constants/simulation.ts'
 import type { GameState, PlayPhase, PositionUpdate, CarrierVision, Score, GameOver, PlayResult, SpecialTeamsState, PlayDecision } from './types/game.ts'
 
@@ -163,10 +164,20 @@ export default function App() {
   // [196] touchdown celebration banner: { scored } when a TD just happened, else null. Cleared
   // at the next snap. This is where audio/animation will hook in later.
   const [touchdownBanner, setTouchdownBanner] = useState<{ scored: boolean } | null>(null)
-  // [218] brief halftime banner (foundation for halftime UI). [219][220] final result overlay.
-  const [halftime, setHalftime] = useState(false)
+  // [transition screens] Full-screen End-of-Quarter / Halftime interstitial, or null. Server-driven
+  // (period_transition) and self-clearing after its own 5s timer, so a mid-transition game_state
+  // (the next play lining up behind it) doesn't dismiss it early. [219][220] final result overlay.
+  const [periodTransition, setPeriodTransition] = useState<{ kind: 'quarter' | 'halftime'; endedQuarter: number } | null>(null)
+  // [70] Timeouts remaining, viewer-relative (own = this team). Synced from game_state + timeout events.
+  const [timeouts, setTimeouts] = useState<{ own: number; opp: number }>({ own: 3, opp: 3 })
+  // [69] Active timeout freeze: { byYou } while play is paused, else null. Shows a banner + blocks the
+  // snap; cleared on timeout_ended. Both clocks are frozen server-side during this window.
+  const [timeoutPause, setTimeoutPause] = useState<{ byYou: boolean } | null>(null)
   // [Special Teams][1] Server-authoritative kicking state; non-null while a kick is in progress.
   const [specialTeams, setSpecialTeams] = useState<SpecialTeamsState | null>(null)
+  // [FG aim] Screen position of the ball for the kicker's aim arrow — so the arrow sits OVER the ball
+  // and the angle back toward the (centered) uprights is obvious from the hash. null unless FG/XP kicking.
+  const [kickAimAnchor, setKickAimAnchor] = useState<{ x: number; y: number } | null>(null)
   // [Special Teams][2][3] 4th-down decision menu (offense only); non-null while the offense must choose.
   const [decision, setDecision] = useState<PlayDecision | null>(null)
   // [Special Teams formations] Purely-visual ST formation, animated into place while a player kick is up.
@@ -238,6 +249,13 @@ export default function App() {
   // snapshot (playerId → 0–100) the server sends with each game_state.
   const [fatigueVisible, setFatigueVisible] = useState(false)
   const [fatigue, setFatigue] = useState<Record<string, number>>({})
+  // [names toggle] Defense-only switch between showing player NAMES (default) and POSITIONS. When off,
+  // names are withheld so the renderer falls back to the position label — for both teams' skill
+  // players (QB is unaffected: the defense already sees it as "QB", never by name).
+  const [showNames, setShowNames] = useState(true)
+  // [zone all] Index into SHELL_ORDER of the NEXT defensive shell the "Zone All" button will apply
+  // (Cover 2 → Cover 3 → Cover 4 → Reset → …). Cycles on each press.
+  const [zoneAllIndex, setZoneAllIndex] = useState(0)
   // Tracks whether the game just ended, so the first game_state afterward (a [222] reset) clears
   // the overlay and wipes the formation — without firing on ordinary between-play game_state.
   const gameOverRef = useRef(false)
@@ -324,7 +342,20 @@ export default function App() {
       setGameClock(clock)
     }
     function onScoreUpdate(s: Score) { setScore(s) }   // [195] touchdown / scoring sync
-    function onHalftime() { setHalftime(true) }         // [218] cleared at the next snap (game_state)
+    // [transition screens] A period ended — show the full-screen interstitial for its duration, then
+    // auto-return. Its own timer clears it (game_state-proof), so the next play lining up behind it
+    // doesn't dismiss it early. Halftime's field reset is handled server-side (unchanged).
+    function onPeriodTransition({ kind, endedQuarter, seconds }: { kind: 'quarter' | 'halftime'; endedQuarter: number; seconds: number }) {
+      setPeriodTransition({ kind, endedQuarter })
+      window.setTimeout(() => setPeriodTransition(null), (seconds ?? 5) * 1000)
+    }
+    // [70] A timeout was called — sync the counts and freeze play (banner + snap blocked). The server
+    // has stopped both clocks; they stay frozen (no clock_update / play_clock_update) until it resumes.
+    function onTimeoutStarted({ byYou, timeouts: t }: { byYou: boolean; seconds: number; timeouts: { own: number; opp: number } }) {
+      setTimeouts(t)
+      setTimeoutPause({ byYou })
+    }
+    function onTimeoutEnded() { setTimeoutPause(null) }   // [69] stoppage elapsed — play resumes
     function onSpecialTeamsUpdate(st: SpecialTeamsState | null) { setSpecialTeams(st) }   // [Special Teams][1]
     // [delay of game] Play clock hit zero — the server applied a 5-yard penalty (it sends the updated
     // game_state first, then this), so show the notice.
@@ -372,6 +403,8 @@ export default function App() {
       setGameClock(gs.clock)
       setGameQuarter(gs.quarter)
       setScore(gs.score)          // [195] keep the score synced on play boundaries / reconnect
+      setTimeouts(gs.timeouts ?? { own: 3, opp: 3 })   // [70] timeouts remaining (start-of-play / reconnect sync)
+      setTimeoutPause(null)       // [69] a fresh play boundary means any timeout freeze is over
       setDown(gs.down)            // [197][198] reflect the new series (e.g. 1st & 10 after a conversion)
       setDistance(gs.distance)
 
@@ -414,7 +447,6 @@ export default function App() {
       setDecision(gs.decision ?? null)           // [Special Teams][2][3] 4th-down menu (offense only; cleared once chosen)
       setXfActiveIds(gs.xfActiveIds ?? [])       // [294] active X-Factors — star shows pre-snap too
       setTouchdownBanner(null)    // [196] clear the celebration once the next play is set up
-      setHalftime(false)          // [218] halftime ends when the next drive lines up
       setPlayNotice(null)         // [224][225] clear the play notice for the new play
       setPlayOver(false)          // next snap is lining up — drop the post-play click-blocker
 
@@ -451,7 +483,9 @@ export default function App() {
     socket.on('clock_update', onClockUpdate)
     socket.on('score_update', onScoreUpdate)
     socket.on('touchdown', onTouchdown)
-    socket.on('halftime', onHalftime)
+    socket.on('period_transition', onPeriodTransition)
+    socket.on('timeout_started', onTimeoutStarted)
+    socket.on('timeout_ended', onTimeoutEnded)
     socket.on('game_over', onGameOver)
     socket.on('play_result', onPlayResult)
     socket.on('game_state', onGameState)
@@ -473,7 +507,9 @@ export default function App() {
       socket.off('clock_update', onClockUpdate)
       socket.off('score_update', onScoreUpdate)
       socket.off('touchdown', onTouchdown)
-      socket.off('halftime', onHalftime)
+      socket.off('period_transition', onPeriodTransition)
+      socket.off('timeout_started', onTimeoutStarted)
+      socket.off('timeout_ended', onTimeoutEnded)
       socket.off('game_over', onGameOver)
       socket.off('play_result', onPlayResult)
       socket.off('game_state', onGameState)
@@ -489,6 +525,28 @@ export default function App() {
     const timer = setTimeout(() => setTargetReceiverId(null), 2000)
     return () => clearTimeout(timer)
   }, [targetReceiverId])
+
+  // [FG aim] While THIS viewer kicks a field goal / extra point, anchor the aim arrow over the ball's
+  // on-screen spot (via the same camera the canvas uses) so the angle back to the centered uprights is
+  // obvious from the hash. Recomputes on resize; cleared for any non-FG/XP kick.
+  const fgKicking = !!specialTeams && specialTeams.kicking && !!specialTeams.playerControlled
+    && (specialTeams.kickType === 'field_goal' || specialTeams.kickType === 'extra_point')
+  useEffect(() => {
+    if (!fgKicking) { setKickAimAnchor(null); return }
+    function place() {
+      const canvas = document.querySelector('canvas') as HTMLCanvasElement | null
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const cam  = computeCamera(rect.width, rect.height, losYardLine)
+      setKickAimAnchor({
+        x: rect.left + cam.offsetX + ballX * cam.yardPx,
+        y: rect.top + (cam.topRelY - losYardLine) * cam.yardPx,
+      })
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [fgKicking, ballX, losYardLine])
 
   // [187] Throwaway availability: the QB must hold the ball for 2 seconds on a live pass play
   // before the option appears, and it pops up at a RANDOM screen location to reward a quick
@@ -626,7 +684,7 @@ export default function App() {
 
   const role = room.role ?? 'offense'
 
-  const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX }
+  const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX, timeouts }
   const isPreSnap = phase === 'pre_snap'
 
   // The QB lines up at the ball's hash (ballX), 6 yards behind the LOS — so the backfield (and the
@@ -677,12 +735,14 @@ export default function App() {
     // Label our own QB by name (offense view only — the defender doesn't know the opponent's name).
     ...getOLQBPlayers(losYardLine, ballX).map(p => applyLivePos(role === 'offense' ? { ...p, name: rosterName.get(p.id) } : p)),
     ...dlPositions.map(p => applyLivePos(opponentMap.get(p.id) ?? p)),
-    // Attach the roster name so the field can show the player's last name (renderer uses position for OL/DL).
-    ...placedPlayers.map(p => applyLivePos({ ...p, route: playerRoutes[p.id], name: rosterName.get(p.id) })),
-    // On defense, reveal the offense's RB/WR/TE names (only those positions, only for the defender).
+    // Attach the roster name so the field can show the player's last name (renderer uses position for
+    // OL/DL). [names toggle] withhold names when the defender has switched to positions view.
+    ...placedPlayers.map(p => applyLivePos({ ...p, route: playerRoutes[p.id], name: showNames ? rosterName.get(p.id) : undefined })),
+    // On defense, reveal the offense's RB/WR/TE names (only those positions, only for the defender) —
+    // unless the names view is toggled off ([names toggle]).
     ...opponentPositions.filter(p => !p.id.startsWith('auto_dl')).map(p => {
       const lp = applyLivePos(p)
-      return role === 'defense' && NAME_REVEAL_LABELS.has(lp.label ?? '')
+      return role === 'defense' && showNames && NAME_REVEAL_LABELS.has(lp.label ?? '')
         ? { ...lp, name: oppNameById.get(lp.id) }
         : lp
     }),
@@ -758,8 +818,14 @@ export default function App() {
   // rather than chase an unguarded one that's farther away.
   const DOUBLE_TEAM_RANGE = 3
 
-  function findBestTarget(defenderId: string, currentTargets: Record<string, string>): string | null {
-    const defender = allPositions.find(p => p.id === defenderId)
+  // defenderOverride lets callers pass a just-placed defender's position before it lands in
+  // allPositions (state updates are async) — e.g. auto-assigning man coverage on the initial drop.
+  function findBestTarget(
+    defenderId: string,
+    currentTargets: Record<string, string>,
+    defenderOverride?: { x: number; y: number },
+  ): string | null {
+    const defender = defenderOverride ?? allPositions.find(p => p.id === defenderId)
     if (!defender) return null
     const eligibles = allPositions.filter(
       p => p.team === 'o' && ELIGIBLE_RECEIVER_LABELS.includes(p.label ?? '')
@@ -835,6 +901,44 @@ export default function App() {
     setZoneTypes(prev => { const n = { ...prev }; delete n[playerId]; return n })
     setZoneCenters(prev => { const n = { ...prev }; delete n[playerId]; return n })
     clearCoverage(playerId)
+  }
+
+  // [zone all] Apply the current defensive shell preset to every CB / S / LB in ONE press, then cycle
+  // to the next preset. Assigns ONLY zone/man responsibilities (via the same assign_coverage path) —
+  // it never repositions a defender. Zones are generated from field landmarks in computeZoneShell, so
+  // the same shell results regardless of alignment; the user can drag/resize any zone afterward.
+  function handleZoneAll() {
+    const preset = SHELL_ORDER[zoneAllIndex]
+    const defenders = placedPlayers
+      .filter(p => p.label === 'CB' || p.label === 'S' || p.label === 'LB')
+      .map(p => ({ id: p.id, x: p.x, y: p.y, label: p.label!, speed: teamRoster.ratingsById[p.id]?.speed ?? 50 }))
+    const receivers = allPositions
+      .filter(p => p.team === 'o' && ELIGIBLE_RECEIVER_LABELS.includes(p.label ?? ''))
+      .map(p => ({ id: p.id, x: p.x, y: p.y }))
+    const assignments = computeZoneShell(preset, defenders, receivers, ballX, losYardLine, FIELD.WIDTH)
+
+    const nextCoverage   = { ...playerCoverage }
+    const nextZoneTypes  = { ...zoneTypes }
+    const nextZoneCenter = { ...zoneCenters }
+    const nextManTargets = { ...manTargets }
+    for (const a of assignments) {
+      if (a.kind === 'zone') {
+        nextCoverage[a.id] = 'zone'; nextZoneTypes[a.id] = a.zoneType; nextZoneCenter[a.id] = { x: a.x, y: a.y }; delete nextManTargets[a.id]
+        assignCoverage({ playerId: a.id, type: 'zone', zoneType: a.zoneType, zoneCenterX: a.x, zoneCenterY: a.y })
+      } else if (a.kind === 'man') {
+        nextCoverage[a.id] = 'man'; delete nextZoneTypes[a.id]; delete nextZoneCenter[a.id]
+        if (a.targetId) nextManTargets[a.id] = a.targetId; else delete nextManTargets[a.id]
+        assignCoverage(a.targetId ? { playerId: a.id, type: 'man', targetId: a.targetId } : { playerId: a.id, type: 'man' })
+      } else {
+        delete nextCoverage[a.id]; delete nextZoneTypes[a.id]; delete nextZoneCenter[a.id]; delete nextManTargets[a.id]
+        clearCoverage(a.id)
+      }
+    }
+    setPlayerCoverage(nextCoverage)
+    setZoneTypes(nextZoneTypes)
+    setZoneCenters(nextZoneCenter)
+    setManTargets(nextManTargets)
+    setZoneAllIndex(i => (i + 1) % SHELL_ORDER.length)
   }
 
   function handleZoneCenterMove(defenderId: string, x: number, y: number) {
@@ -948,6 +1052,23 @@ export default function App() {
       for (const p of enforced) placePlayer({ id: p.id, x: p.x, y: p.y, label: p.label ?? '', team: 'o', ratings: teamRoster.ratingsById[p.id], xFactor: teamRoster.xFactorById[p.id] })
     } else {
       placePlayer({ id: playerId, x, y, label: player.position, team: placed.team, ratings: teamRoster.ratingsById[playerId], xFactor: teamRoster.xFactorById[playerId] })
+      // [74] Default coverage on first placement — only when this defender has no assignment yet, so a
+      // manual pick is never clobbered (and a re-drop keeps its choice). CB → man on the nearest
+      // eligible receiver; S → a deep zone anchored just ahead of where it lined up.
+      if (!playerCoverage[playerId]) {
+        if (player.position === 'CB') {
+          const targetId = findBestTarget(playerId, manTargets, { x, y })
+          setPlayerCoverage(prev => ({ ...prev, [playerId]: 'man' }))
+          if (targetId) setManTargets(prev => ({ ...prev, [playerId]: targetId }))
+          assignCoverage(targetId ? { playerId, type: 'man', targetId } : { playerId, type: 'man' })
+        } else if (player.position === 'S') {
+          const center = { x, y: y + 3 }
+          setPlayerCoverage(prev => ({ ...prev, [playerId]: 'zone' }))
+          setZoneTypes(prev => ({ ...prev, [playerId]: 'deep' }))
+          setZoneCenters(prev => ({ ...prev, [playerId]: center }))
+          assignCoverage({ playerId, type: 'zone', zoneType: 'deep', zoneCenterX: center.x, zoneCenterY: center.y })
+        }
+      }
     }
   }
 
@@ -1060,7 +1181,7 @@ export default function App() {
         ownTeam={ownTeam}
         oppTeam={oppTeam}
       />
-      <GameHUD gameState={gameState} />
+      <GameHUD gameState={gameState} ownTeamId={myTeamId} oppTeamId={oppTeamId} />
       {/* [41] Official field-goal distance, shown to BOTH teams while a FG/XP is being set up. */}
       {specialTeams
         && (specialTeams.kickType === 'field_goal' || specialTeams.kickType === 'extra_point')
@@ -1071,7 +1192,7 @@ export default function App() {
           <span className="fg-distance__label">yd {specialTeams.kickType === 'extra_point' ? 'extra point' : 'field goal'}</span>
         </div>
       )}
-      {specialTeams && <SpecialTeamsView st={specialTeams} />}
+      {specialTeams && <SpecialTeamsView st={specialTeams} aimAnchor={kickAimAnchor} />}
       {decision && role === 'offense' && <FourthDownMenu decision={decision} />}
       {specialTeams?.returnDecision && <PuntReturnMenu decision={specialTeams.returnDecision} />}
       {touchdownBanner && (
@@ -1086,9 +1207,13 @@ export default function App() {
       {playNotice && !gameOver && !touchdownBanner && (
         <div className="play-notice" aria-live="polite">{playNotice}</div>
       )}
-      {halftime && !gameOver && (
-        <div className="touchdown-banner">
-          <div className="touchdown-banner-title">HALFTIME</div>
+      {periodTransition && !gameOver && (
+        <div className="period-transition-overlay">
+          <div className="period-transition-text">
+            {periodTransition.kind === 'halftime'
+              ? 'HALFTIME'
+              : `END OF Q${periodTransition.endedQuarter}`}
+          </div>
         </div>
       )}
       {gameOver && (
@@ -1149,7 +1274,7 @@ export default function App() {
           </div>
         </div>
       )}
-      {role === 'offense' && formationErrors.length === 0 && phase === 'pre_snap' && (
+      {role === 'offense' && formationErrors.length === 0 && phase === 'pre_snap' && !timeoutPause && (
         <button
           className={`formation-ready-btn${lockedFormation ? ' formation-ready-btn--set' : ''}`}
           onPointerDown={lockedFormation ? undefined : handleLockFormation}
@@ -1160,6 +1285,23 @@ export default function App() {
       {phase === 'countdown' && hikeCount !== null && hikeCount > 0 && (
         <div className="hike-countdown-banner">
           Offense is set… {hikeCount}
+        </div>
+      )}
+      {/* [70][71] Either team may call a timeout while the ball is dead (pre-snap), stopping the clock.
+          Shown on both interfaces; disabled when none remain or one can't legally be called right now. */}
+      {phase === 'pre_snap' && !specialTeams && !decision && (
+        <button
+          className="timeout-btn"
+          onPointerDown={timeouts.own > 0 && !timeoutPause ? callTimeout : undefined}
+          disabled={timeouts.own <= 0 || !!timeoutPause}
+        >
+          Timeout ({timeouts.own})
+        </button>
+      )}
+      {/* [69] Frozen-play banner while a timeout is running (both clocks are stopped server-side). */}
+      {timeoutPause && (
+        <div className="timeout-banner">
+          Timeout — {timeoutPause.byYou ? 'You' : 'Opponent'}
         </div>
       )}
       {role === 'offense' && phase === 'countdown' && (
@@ -1192,6 +1334,9 @@ export default function App() {
           currentZoneType={zoneTypes[selectedPlayer.id]}
           onSelect={handleCoverageSelect}
           onClear={handleClearAssignment}
+          onZoneAll={handleZoneAll}
+          zoneAllLabel={SHELL_LABEL[SHELL_ORDER[zoneAllIndex]]}
+          zoneAllDisabled={!limitReached}
         />
       )}
       {canRemoveSelected && (
@@ -1221,6 +1366,8 @@ export default function App() {
           limitReached={limitReached}
           fatigueOn={fatigueVisible}
           onToggleFatigue={() => setFatigueVisible(v => !v)}
+          namesOn={showNames}
+          onToggleNames={() => setShowNames(v => !v)}
         />
       )}
     </div>

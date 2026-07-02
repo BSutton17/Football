@@ -17,6 +17,10 @@ interface Props {
   limitReached: boolean
   fatigueOn: boolean
   onToggleFatigue: () => void
+  // [names toggle] Defense-only: switch the field labels between player names and positions. Omit to
+  // hide the button (offense).
+  namesOn?: boolean
+  onToggleNames?: () => void
 }
 
 function shortName(name: string): string {
@@ -25,7 +29,7 @@ function shortName(name: string): string {
   return `${parts[0][0]}. ${parts[parts.length - 1]}`
 }
 
-export default function RosterSidebar({ players, team, side, onDrop, fieldCount, limitReached, fatigueOn, onToggleFatigue }: Props) {
+export default function RosterSidebar({ players, team, side, onDrop, fieldCount, limitReached, fatigueOn, onToggleFatigue, namesOn, onToggleNames }: Props) {
   const [open, setOpen] = useState(true)
 
   const sidebarRef = useRef<HTMLDivElement>(null)
@@ -132,6 +136,17 @@ export default function RosterSidebar({ players, team, side, onDrop, fieldCount,
         >
           Fatigue
         </button>
+
+        {/* [names toggle] Defense-only: flip the field labels between player names and positions. */}
+        {onToggleNames && (
+          <button
+            className={`roster-names-btn${namesOn ? ' roster-names-btn--on' : ''}`}
+            onClick={onToggleNames}
+            aria-pressed={!!namesOn}
+          >
+            {namesOn ? 'Names' : 'Positions'}
+          </button>
+        )}
       </div>
 
       {ghost && (

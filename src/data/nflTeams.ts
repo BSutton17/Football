@@ -1370,7 +1370,7 @@ export const NFL_TEAMS: NflTeam[] = [
     ovr: 82, offOvr: 83, defOvr: 83,
     qb: { id: 'sea_qb1', name: 'Sam Darnold', position: 'QB', ovr: 86, xFactor: 'Team Chemistry', ratings: { stamina: 93, accuracy: 90, speed: 76, acceleration: 79 } },
     offense: [
-      { id: 'sea_wr1', name: 'Jaxon Smith-Njigba', position: 'WR', ovr: 95, xFactor: 'I\'m Always F*cking Open', ratings: { stamina: 94, speed: 92, strength: 66, acceleration: 94, catching: 96, routeRunning: 97 } },
+      { id: 'sea_wr1', name: 'Jaxon Smith-Njigba',  position: 'WR', ovr: 95, xFactor: 'I\'m Always F*cking Open', ratings: { stamina: 94, speed: 92, strength: 66, acceleration: 94, catching: 96, routeRunning: 97 } },
       { id: 'sea_wr2', name: 'Cooper Kupp',         position: 'WR', ovr: 89, xFactor: 'I\'m Always F*cking Open', ratings: { stamina: 93, speed: 86, strength: 68, acceleration: 88, catching: 94, routeRunning: 96 } },
       { id: 'sea_wr3', name: 'Rashid Shaheed',      position: 'WR', ovr: 87, xFactor: 'High Point', ratings: { stamina: 88, speed: 96, strength: 61, acceleration: 98, catching: 86, routeRunning: 87 } },
       { id: 'sea_wr4', name: 'Tory Horton',         position: 'WR', ovr: 80, ratings: { stamina: 86, speed: 92, strength: 70, acceleration: 93, catching: 82, routeRunning: 83 } },

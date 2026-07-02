@@ -1,5 +1,5 @@
 import type { PositionUpdate } from '../types/game.ts'
-import { FIELD } from '../constants/simulation.ts'
+import { FIELD, PLAYER } from '../constants/simulation.ts'
 
 const MID = FIELD.WIDTH / 2  // 26.665 — center of the field
 
@@ -77,11 +77,15 @@ export function getPositionYBounds(
       default:   return { minY: Math.max(EZ_BACK_OWN, yardLine - 15), maxY: yardLine }
     }
   } else {
+    // Offsides: the defender's whole body must stay on its side of the LOS, so clamp the
+    // CENTER a full player-radius back — otherwise a circle centered on the line sits halfway
+    // across it (into the neutral zone) and is offside despite the center being "legal".
+    const losY = yardLine + PLAYER.RADIUS
     switch (position) {
-      case 'LB': return { minY: yardLine, maxY: Math.min(EZ_BACK_OPP, yardLine + 10) }
-      case 'CB': return { minY: yardLine, maxY: Math.min(EZ_BACK_OPP, yardLine + 20) }
-      case 'S':  return { minY: yardLine, maxY: Math.min(EZ_BACK_OPP, yardLine + 25) }
-      default:   return { minY: yardLine, maxY: Math.min(EZ_BACK_OPP, yardLine + 15) }
+      case 'LB': return { minY: losY, maxY: Math.min(EZ_BACK_OPP, yardLine + 10) }
+      case 'CB': return { minY: losY, maxY: Math.min(EZ_BACK_OPP, yardLine + 20) }
+      case 'S':  return { minY: losY, maxY: Math.min(EZ_BACK_OPP, yardLine + 25) }
+      default:   return { minY: losY, maxY: Math.min(EZ_BACK_OPP, yardLine + 15) }
     }
   }
 }

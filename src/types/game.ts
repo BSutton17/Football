@@ -77,6 +77,7 @@ export interface GameState {
   score: Score
   role: TeamRole      // this viewer's current role — offense or defense
   fatigue?: Record<string, number>   // [fatigue] playerId → current stamina (0–100); drives the bars
+  timeouts?: { own: number; opp: number }   // [70] remaining timeouts, viewer-relative (own = this team)
 }
 
 // Lightweight position payload sent every server tick during live play.

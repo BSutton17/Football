@@ -205,7 +205,7 @@ export function useRoom() {
 
   function joinRoom(id: string) {
     sessionStorage.removeItem(SESSION_KEY)
-    const normalized = id.trim().toUpperCase()
+    const normalized = id.replace(/\D/g, '').slice(0, 4)   // 4-digit numeric room code
     setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: normalized, role: null, error: null })
     socketJoin(normalized)
   }

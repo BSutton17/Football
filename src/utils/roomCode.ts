@@ -1,14 +1,13 @@
-// 32-char alphabet — omits visually ambiguous characters (I, O, 0, 1)
-// 32 divides 256 evenly so crypto bytes map with zero modulo bias
-const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-const CODE_LENGTH = 6
-const VALID_CODE_RE = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/
+// 4-digit numeric room code (e.g. "0427"). Short and easy to read out / type on a phone keypad.
+const CODE_LENGTH = 4
+const VALID_CODE_RE = /^\d{4}$/
 
-// 32^6 = ~1 billion possible codes
+// 10^4 = 10,000 possible codes. (Each byte mod 10 has a negligible modulo bias — fine for a
+// non-security-critical pairing code.)
 export function generateRoomCode(): string {
   const bytes = new Uint8Array(CODE_LENGTH)
   crypto.getRandomValues(bytes)
-  return Array.from(bytes, b => ALPHABET[b % ALPHABET.length]).join('')
+  return Array.from(bytes, b => String(b % 10)).join('')
 }
 
 export function isValidRoomCode(code: string): boolean {

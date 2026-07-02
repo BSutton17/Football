@@ -94,6 +94,11 @@ export function snapBall(): void {
   if (socket.connected) socket.emit('snap_ball')
 }
 
+// [70] Either team spends a timeout (stops the game clock + a brief frozen pause). Server validates.
+export function callTimeout(): void {
+  if (socket.connected) socket.emit('call_timeout')
+}
+
 // [Special Teams][2][3] The offense's 4th-down menu choice (server validates + is authoritative).
 export function sendDecision(option: import('../types/game.ts').DecisionOption): void {
   if (socket.connected) socket.emit('special_teams_choice', { option })

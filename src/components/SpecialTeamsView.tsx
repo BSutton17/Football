@@ -4,6 +4,9 @@ import { sendSpecialTeamsInput, sendFieldGoalBlock } from '../socket/index.ts'
 
 interface Props {
   st: SpecialTeamsState
+  // [FG aim] Screen position of the ball; when set (FG/XP kicker), the aim arrow is drawn OVER the
+  // ball instead of screen-centered, so the angle to the centered uprights reads off the hash.
+  aimAnchor?: { x: number; y: number } | null
 }
 
 // Mirror the server ([Special Teams] specialTeams.js) so the local display matches; the SERVER is
@@ -32,7 +35,7 @@ const BLOCK_TRACK_BG = `linear-gradient(to right,
 // overlay: tap the left/right half (or arrow keys) to swing the aiming arrow and refill power. The
 // kick fires when the server's 3.5s timer expires — at which point the meter FREEZES (angle + power)
 // and a "KICKED" banner shows at the top for both players.
-export default function SpecialTeamsView({ st }: Props) {
+export default function SpecialTeamsView({ st, aimAnchor }: Props) {
   const showKickUI = st.kicking && st.playerControlled   // the kicker's aiming overlay
   const live       = showKickUI && st.phase === 'setup'  // input + draining active (not yet kicked)
   const kicked     = st.phase === 'kicking' || st.phase === 'resolved'
@@ -78,8 +81,9 @@ export default function SpecialTeamsView({ st }: Props) {
   useEffect(() => {
     if (!live) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft')  { e.preventDefault(); inputRef.current('left') }
-      if (e.key === 'ArrowRight') { e.preventDefault(); inputRef.current('right') }
+      const k = e.key.toLowerCase()
+      if (e.key === 'ArrowLeft'  || k === 'a') { e.preventDefault(); inputRef.current('left') }
+      if (e.key === 'ArrowRight' || k === 'd') { e.preventDefault(); inputRef.current('right') }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -117,10 +121,21 @@ export default function SpecialTeamsView({ st }: Props) {
     sendFieldGoalBlock(blockPosRef.current)
   }
 
+  // On a punt, tell the RECEIVING team where it's coming down (touchback / out of bounds / the spot),
+  // so it shows right in the top banner alongside the distance — not just the side panel.
+  const puntResult = (!st.kicking && st.kickType === 'punt' && kicked && st.result && typeof st.result === 'object')
+    ? (st.result as { landingYardLine?: number; touchback?: boolean; outOfBounds?: boolean })
+    : null
+  const landingText = !puntResult ? ''
+    : puntResult.touchback                          ? ' · Touchback'
+    : puntResult.outOfBounds                        ? ' · Out of bounds'
+    : typeof puntResult.landingYardLine === 'number' ? ` · Lands at the ${Math.round(puntResult.landingYardLine)}`
+    : ''
+
   // "KICKED" banner — shown at the top for BOTH players the instant the kick is away. On a punt it
-  // also reports how far the kick travelled, once the server has determined it.
+  // also reports how far the kick travelled, and (for the receiving team) where it's landing.
   const banner = kicked
-    ? <div className="kicked-banner">KICKED{typeof st.kickDistance === 'number' ? ` · ${st.kickDistance} YDS` : ''}</div>
+    ? <div className="kicked-banner">KICKED{typeof st.kickDistance === 'number' ? ` · ${st.kickDistance} YDS` : ''}{landingText}</div>
     : null
 
   if (isFGKick && isDefender) {
@@ -160,15 +175,25 @@ export default function SpecialTeamsView({ st }: Props) {
           {/* Tap halves only do anything while live; frozen after the kick. */}
           <button className="kick-half kick-half--left"  aria-label="Aim left"  onPointerDown={() => inputRef.current('left')} />
           <button className="kick-half kick-half--right" aria-label="Aim right" onPointerDown={() => inputRef.current('right')} />
-          <div className="kick-center">
-            <div className="kick-label">{st.label}</div>
-            <div className="kick-arrow-wrap">
-              {/* [54] The FG aim guide line was removed as distracting — the kicker aims at the
-                  on-field goalposts ([40]) instead. */}
+          {/* [FG aim] On a field goal / extra point, plant the arrow OVER the ball (pivoting at the
+              ball) so its angle back toward the centered uprights is obvious from the hash. */}
+          {aimAnchor && (
+            <div className="kick-arrow-anchor" style={{ left: aimAnchor.x, top: aimAnchor.y }}>
               <div className="kick-arrow" style={{ transform: `rotate(${deg}deg)` }}>
                 <div className="kick-arrow__fill" style={{ height: `${pct}%` }} />
               </div>
             </div>
+          )}
+          <div className="kick-center">
+            <div className="kick-label">{st.label}</div>
+            {!aimAnchor && (
+              <div className="kick-arrow-wrap">
+                {/* Punt: the arrow stays screen-centered (directional launch, no fixed target). */}
+                <div className="kick-arrow" style={{ transform: `rotate(${deg}deg)` }}>
+                  <div className="kick-arrow__fill" style={{ height: `${pct}%` }} />
+                </div>
+              </div>
+            )}
             {live && st.kickType === 'punt' && (
               <button
                 className={`kick-backspin${st.backspin ? ' kick-backspin--on' : ''}`}

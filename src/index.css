@@ -374,6 +374,26 @@ body {
   color: #fff;
 }
 
+/* [names toggle] Names / Positions button — sits just below the Fatigue button. */
+.roster-names-btn {
+  margin: 0 6px 6px;
+  padding: 7px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.roster-names-btn--on {
+  background: #1e88e5;
+  border-color: #1e88e5;
+  color: #fff;
+}
+
 /* ─── Coverage Menu ──────────────────────────────────────────────────────── */
 
 /* Slides in from the left when a defender is selected. */
@@ -433,6 +453,19 @@ body {
   border-color: rgba(255,255,255,0.2);
   color: rgba(255,255,255,0.4);
   margin-top: 2px;
+}
+
+/* [zone all] One-press coverage-shell shortcut — stands out at the top of the menu. */
+.coverage-btn--zoneall {
+  background: #1e88e5;
+  color: #fff;
+  margin-bottom: 4px;
+}
+.coverage-btn--zoneall:active:not(:disabled) { background: #1565c0; }
+.coverage-btn--zoneall:disabled {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.35);
+  cursor: not-allowed;
 }
 
 .zone-section-label {
@@ -578,7 +611,9 @@ body {
 /* Formation error banner — appears below the top HUD, auto-clears when fixed */
 .formation-banner {
   position: absolute;
-  top: max(58px, calc(env(safe-area-inset-top) + 46px));
+  /* Sit BELOW the HUD clock / play clock (centered up top) so the placement prompt never covers the
+     play-clock number on the first play. */
+  top: max(98px, calc(env(safe-area-inset-top) + 86px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
@@ -993,6 +1028,77 @@ body {
   white-space: nowrap;
 }
 
+/* [70] Timeout button — either team, pre-snap. Sits top-left under the HUD, clear of the
+   bottom play-design / Set-Formation controls. */
+.timeout-btn {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  padding: 7px 14px;
+  border: none;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.timeout-btn:active:not(:disabled) { background: #1d4ed8; transform: scale(0.97); }
+.timeout-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* [transition screens] Full-screen End-of-Quarter / Halftime interstitial: black fill, blue text,
+   white border, shown to both players for ~5s when a period ends, then auto-returns to the game. */
+.period-transition-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  border: 6px solid #fff;
+}
+.period-transition-text {
+  color: #3b82f6;
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* [69] Frozen-play banner shown for the duration of a called timeout. */
+.timeout-banner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: #93c5fd;
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  padding: 14px 32px;
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 60;
+  white-space: nowrap;
+}
+
+/* [70] Timeout pips under each team's score in the HUD. */
+.hud-timeouts {
+  display: block;
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  color: #fbbf24;
+  line-height: 1;
+  margin-top: 1px;
+}
+
 /* Remove player button — floats above the bottom HUD when a field player is selected */
 .remove-player-btn {
   position: absolute;
@@ -1087,9 +1193,31 @@ body {
 }
 
 .hud-score-num {
-  font-size: 1.75rem;
-  font-weight: 700;
+  font-size: 1.85rem;
+  font-weight: 800;
   line-height: 1;
+}
+
+/* [71] Team score badge — logo + colored abbreviation (replaces the plain You/Opp label). */
+.hud-team-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+}
+
+.hud-team-logo {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  border-radius: 3px;
+}
+
+.hud-team-abbr {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .hud-center {
@@ -1100,10 +1228,11 @@ body {
 }
 
 .hud-clock {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: rgba(255,255,255,0.85);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fff;
   text-align: center;
+  letter-spacing: 0.02em;
 }
 
 .hud-playclock {
@@ -1349,6 +1478,18 @@ body {
 }
 
 .kick-arrow { transform-origin: bottom center; }
+
+/* [FG aim] Arrow planted over the ball: the wrapper's BOTTOM-CENTER sits on the ball spot (left/top
+   are viewport px), and the arrow inside pivots there and points up toward the centered uprights. */
+.kick-arrow-anchor {
+  position: fixed;
+  z-index: 960;
+  width: 74px;
+  height: 120px;
+  transform: translate(-50%, -100%);
+  pointer-events: none;   /* taps fall through to the aim halves */
+}
+.kick-arrow-anchor .kick-arrow { position: absolute; inset: 0; }
 
 /* [21] Punt backspin toggle */
 .kick-backspin {
