@@ -3,6 +3,7 @@ import { useRoom } from './hooks/useRoom.ts'
 import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, SESSION_KEY } from './socket/index.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
 import RoomScreen from './components/RoomScreen.tsx'
+import IntroScreen from './components/IntroScreen.tsx'
 import TeamSelectScreen from './components/TeamSelectScreen.tsx'
 import VSScreen from './components/VSScreen.tsx'
 import GameCanvas from './components/GameCanvas.tsx'
@@ -693,7 +694,7 @@ export default function App() {
     return <VSScreen picks={room.picks} slot={room.slot} onContinue={room.enterGame} />
   }
 
-  if (room.status !== 'ready') return <RoomScreen {...room} />
+  if (room.status !== 'ready') return <IntroScreen><RoomScreen {...room} /></IntroScreen>
 
   const role = room.role ?? 'offense'
 

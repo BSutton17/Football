@@ -28,10 +28,110 @@ body {
   flex-direction: column;
 }
 
+/* ─── Intro / Splash ──────────────────────────────────────────────────────── */
+
+.intro-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+/* Muted background video — covers the viewport, sits behind everything (incl. the title). */
+.intro-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Audio-only song player — kept out of view. */
+.intro-song-holder {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  left: -9999px;
+  top: -9999px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* The children (title screen) render above the video. */
+.intro-root > .room-screen { position: relative; z-index: 1; }
+
+/* Splash overlay — subtle darkening so the video shows through under the prompt. */
+.intro-splash {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  cursor: pointer;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.75) 100%);
+  text-align: center;
+  padding: 24px;
+}
+
+.intro-title {
+  font-family: 'Anton', system-ui, sans-serif;
+  font-size: clamp(2.5rem, 9vw, 6rem);
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-shadow: 0 4px 18px rgba(0,0,0,0.9);
+}
+
+.intro-prompt {
+  font-size: clamp(1rem, 3vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+  animation: intro-blink 1.2s ease-in-out infinite;
+}
+@keyframes intro-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.intro-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: min(420px, 80vw);
+}
+.intro-loading-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+}
+.intro-loading-track {
+  width: 100%;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.35);
+  overflow: hidden;
+}
+.intro-loading-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  transition-property: width;
+  transition-timing-function: linear;
+}
+
 /* ─── Room Screen ─────────────────────────────────────────────────────────── */
 
 .room-screen {
-  background-image: url('https://www.theunforgettablebuzz.com/wp-content/uploads/2014/09/Pit-Dal-1.jpg');
   color: white;
   text-shadow: 0 2px 5px rgba(0,0,0,0.8);
   background-size: cover;
