@@ -22,6 +22,8 @@ export const X_FACTORS: Record<string, XFactorMeta> = {
   'Shake It Off':               { color: '#facc15', icon: '💨' },
   'Team Chemistry':             { color: '#60a5fa', icon: '🤝' },
   'Serious Dedication':         { color: '#4ade80', icon: '💪' },
+  'Short Term Memory':         { color: '#8b5cf6', icon: '🧠' },
+  'Trucked':                   { color: '#f97316', icon: '🚚' },
 }
 
 const FALLBACK: XFactorMeta = { color: '#9ca3af', icon: '⭐' }
