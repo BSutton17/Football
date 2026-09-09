@@ -19,6 +19,7 @@ const WR_ROUTES: RouteOption[] = [
   { route: "post", label: "Post" },
   { route: "corner", label: "Corner" },
   { route: "screen", label: "Screen" },
+  { route: "block", label: "Block" },
 ];
 
 const TE_ROUTES: RouteOption[] = [

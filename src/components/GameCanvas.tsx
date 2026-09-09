@@ -14,6 +14,10 @@ import { getRoutePath, getRouteMaxForward } from '../game/routePaths.ts'
 
 const RECEIVER_LABELS = new Set(['WR', 'TE', 'RB'])
 
+// [route draw] A second tap on an armed receiver inside this window is a double-tap, which sets him
+// to BLOCK. Anything slower is taken as the start of the stroke he was armed for.
+const DOUBLE_TAP_MS = 320
+
 // [route draw] How far a pointer may wander and still count as a TAP rather than a drag. A tap on
 // your own receiver opens drawing; anything further is you repositioning him, and the route is left
 // alone. This is what lets a single click do both jobs without a modifier or a double-tap.
@@ -52,6 +56,7 @@ interface Props {
   routeDrawMode?: boolean
   drawingFor?: string | null
   onRequestDraw?: (playerId: string) => void
+  onRequestBlock?: (playerId: string) => void
   onDrawStroke?: (points: { x: number; y: number }[]) => void
   drawnRoutes?: Record<string, { dx: number; dd: number }[]>
 }
@@ -60,7 +65,7 @@ function isDLPlayer(id: string)  { return id.startsWith('auto_dl') }
 // QB and OL are fully locked; DL can slide horizontally
 function isLockedAuto(id: string) { return id.startsWith('auto_') && !isDLPlayer(id) }
 
-export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection, routeDrawMode, drawingFor, onRequestDraw, onDrawStroke, drawnRoutes }: Props) {
+export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection, routeDrawMode, drawingFor, onRequestDraw, onRequestBlock, onDrawStroke, drawnRoutes }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const ballIconRef  = useRef<HTMLDivElement>(null)
   const gameStateRef = useRef(gameState)
@@ -96,6 +101,11 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
   drawingForRef.current = drawingFor
   const onRequestDrawRef = useRef(onRequestDraw)
   onRequestDrawRef.current = onRequestDraw
+  const onRequestBlockRef = useRef(onRequestBlock)
+  onRequestBlockRef.current = onRequestBlock
+  // When drawing was armed, and on whom — a second tap landing inside DOUBLE_TAP_MS is a
+  // double-tap, which assigns BLOCK instead of starting a stroke.
+  const armedAtRef = useRef<{ id: string; at: number }>({ id: '', at: 0 })
   const onDrawStrokeRef = useRef(onDrawStroke)
   onDrawStrokeRef.current = onDrawStroke
   const drawnRoutesRef = useRef(drawnRoutes)
@@ -285,7 +295,21 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
       // no selecting, no dragging, no route handles. The path starts at the RECEIVER rather than
       // wherever the finger landed, so a route always leaves from the player.
       if (drawingForRef.current) {
-        const wr = latestPositionsRef.current.find(p => p.id === drawingForRef.current)
+        const armedId = drawingForRef.current
+        const wr = latestPositionsRef.current.find(p => p.id === armedId)
+
+        // A quick second tap on the player himself means BLOCK — the drawing that the first tap
+        // armed is abandoned rather than started. Checked here because once a receiver is armed the
+        // canvas belongs to the stroke, so this press would otherwise be swallowed as one.
+        const armed = armedAtRef.current
+        const quick = armed.id === armedId && performance.now() - armed.at < DOUBLE_TAP_MS
+        const onHim = wr ? Math.hypot(wr.x - fieldX, wr.y - fieldY) < Math.max(2.0, PLAYER.RADIUS * 2.5) : false
+        if (quick && onHim) {
+          armedAtRef.current = { id: '', at: 0 }
+          onRequestBlockRef.current?.(armedId)
+          return
+        }
+
         strokeRef.current = wr ? [{ x: wr.x, y: wr.y }] : []
         strokeRef.current.push({ x: fieldX, y: fieldY })
         c.setPointerCapture(e.pointerId)
@@ -447,6 +471,7 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
 
         if (cand && moved <= TAP_SLOP_YARDS) {
           // He never really moved — that was a tap. Open drawing and leave him where he was.
+          armedAtRef.current = { id: cand.id, at: performance.now() }
           onRequestDrawRef.current?.(cand.id)
         } else if (d) {
           onPlayerMoveRef.current?.(d.id, d.x, d.y)

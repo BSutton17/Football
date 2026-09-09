@@ -539,8 +539,10 @@ function drawRoutes(
   for (const p of positions) {
     if (p.team !== 'o' || !p.label) continue
 
-    // Gray block marker (⊥): a TE/RB set to block on any play, or every TE on a run.
-    const blocks = (p.route === 'block' && (p.label === 'TE' || p.label === 'RB'))
+    // Gray block marker (⊥): any eligible receiver set to block on a pass, or every TE on a run.
+    // [route draw] WR is included — a receiver can be kept in to block, either from the route list
+    // or by double-tapping him in drawing mode, and he needs the same marker as a TE or RB.
+    const blocks = (p.route === 'block' && RECEIVER_LABELS.has(p.label))
                 || (isRun && p.label === 'TE')
     if (blocks) { drawBlockMarker(ctx, cam, p, GRAY); continue }
 
@@ -1124,7 +1126,9 @@ function drawPolyline(
   ctx.restore()
 }
 
-// Committed drawn routes, one per receiver that has one, plus a marker at the endpoint.
+// Committed drawn routes. Rendered through the SAME drawRoutePath used for the built-in routes, so
+// a drawn route is capped with the same arrowhead and reads identically on the field — it is a
+// route, not an annotation. A blocking assignment shows the ⊥ marker instead, as it does elsewhere.
 export function drawDrawnRoutes(
   ctx: CanvasRenderingContext2D,
   cssW: number,
@@ -1137,17 +1141,11 @@ export function drawDrawnRoutes(
   for (const [id, offsets] of Object.entries(drawnRoutes)) {
     const p = positions.find(q => q.id === id)
     if (!p || !offsets || offsets.length === 0) continue
+    // A receiver switched to blocking keeps his drawn route in memory but must not still show it.
+    if (p.route === 'block') continue
 
-    const pts = [{ x: p.x, y: p.y }, ...offsets.map(o => ({ x: p.x + o.dx, y: p.y + o.dd }))]
-    drawPolyline(ctx, cam, pts, DRAWN_ROUTE_COLOR, 2.5, false)
-
-    const end = pts[pts.length - 1]
-    ctx.save()
-    ctx.fillStyle = DRAWN_ROUTE_COLOR
-    ctx.beginPath()
-    ctx.arc(fieldXToCanvas(end.x, cam), relYToCanvas(end.y, cam), 4, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.restore()
+    const path = offsets.map(o => ({ x: p.x + o.dx, y: p.y + o.dd }))
+    drawRoutePath(ctx, cam, p, path, DRAWN_ROUTE_COLOR, 2.5)
   }
 }
 

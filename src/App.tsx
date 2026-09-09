@@ -453,7 +453,10 @@ export default function App() {
       setThrowawayPos(null)       // [187] new play — hide the throwaway button
       setLiveCarrierId(null)      // [193] new play — clear the ball carrier
       setLockedFormation(null)    // each play starts unset — the offense must toggle Set Formation again
-      setDrawnRoutes({})          // [route draw] routes are per-play; a new play starts blank
+      // [route draw] Drawn routes deliberately SURVIVE the play boundary, the same way routes picked
+      // from the list always have. A new down — or a delay-of-game replay — should not wipe the
+      // whole passing concept you just drew. They are cleared only when the personnel actually
+      // change: a new game, a fresh connection, or possession flipping to the other side.
       setDrawingFor(null)
       // [manual] Mode/difficulty are fixed for the game; the per-play GO state resets every play.
       setGameMode(gs.mode ?? 'automatic')
@@ -529,6 +532,7 @@ export default function App() {
         prevBallXRef.current = FIELD_MID   // [hash] new game spots at center
         setBallX(FIELD_MID)
         setPlayerRoutes({})
+        setDrawnRoutes({})
         setRouteDepths({})
         setPlayerCoverage({})
         setManTargets({})
@@ -657,6 +661,7 @@ export default function App() {
     setOpponentPositions([])
     setDlPositions(getDLPlayers(YARD_LINE))
     setPlayerRoutes({})
+    setDrawnRoutes({})
     setRouteDepths({})
     setPlayerCoverage({})
     setManTargets({})
@@ -679,6 +684,7 @@ export default function App() {
       setOpponentPositions([])
       setDlPositions(getDLPlayers(YARD_LINE))
       setPlayerRoutes({})
+      setDrawnRoutes({})
       setRouteDepths({})
       setPlayerCoverage({})
       setManTargets({})
@@ -894,6 +900,13 @@ export default function App() {
 
   function handleRouteSelect(playerId: string, route: RouteType) {
     setPlayerRoutes(prev => ({ ...prev, [playerId]: route }))
+    // [route draw] One receiver, one route. Picking from the list replaces anything he had drawn —
+    // otherwise both would be sent with the formation and the server, which prefers the drawn one,
+    // would quietly ignore the choice just made.
+    setDrawnRoutes(prev => {
+      if (!prev[playerId]) return prev
+      const n = { ...prev }; delete n[playerId]; return n
+    })
   }
 
   const ELIGIBLE_RECEIVER_LABELS = ['WR', 'TE', 'RB']
@@ -1115,6 +1128,15 @@ export default function App() {
     setPlayerRoutes(prev => { const n = { ...prev }; delete n[id]; return n })
   }
 
+  // [route draw] Double-tapping a receiver in drawing mode puts him in to BLOCK. Any route he had —
+  // drawn or picked from the list — is dropped, since blocking replaces it entirely.
+  function handleRequestBlock(playerId: string) {
+    if (lockedFormation) return
+    setDrawingFor(null)
+    setDrawnRoutes(prev => { const n = { ...prev }; delete n[playerId]; return n })
+    handleRouteSelect(playerId, 'block')
+  }
+
   // Switching modes never destroys work; it only changes how the next route is assigned.
   function handleRouteModeChange(mode: 'menu' | 'draw') {
     setRouteMode(mode)
@@ -1298,6 +1320,7 @@ export default function App() {
         routeDrawMode={routeMode === 'draw'}
         drawingFor={drawingFor}
         onRequestDraw={handleRequestDraw}
+        onRequestBlock={handleRequestBlock}
         onDrawStroke={handleDrawStroke}
         drawnRoutes={drawnRoutes}
         positions={kickInProgress ? stFormation : allPositions}
