@@ -26,6 +26,12 @@ const DIFFICULTIES: { id: Difficulty; name: string; blurb: string }[] = [
   { id: 'hard',   name: 'Hard',   blurb: 'No coverage colors — read the field yourself.' },
 ]
 
+// Read the display name off the same list the picker uses, so adding a difficulty can never again
+// leave this label silently falling back to "Easy".
+function difficultyName(id: Difficulty | null | undefined): string {
+  return DIFFICULTIES.find(d => d.id === id)?.name ?? 'Easy'
+}
+
 export default function RoomScreen({ status, roomId, role, error, mode, difficulty, createRoom, joinRoom, leaveRoom }: Props) {
   const [inputCode, setInputCode]   = useState('')
   const [pickedMode, setPickedMode] = useState<GameMode | null>(null)
@@ -129,7 +135,7 @@ export default function RoomScreen({ status, roomId, role, error, mode, difficul
 
           {/* Confirm back what this room actually is — for a joiner these came from the server. */}
           <span className="room-mode-tag">
-            {mode === 'manual' ? `Manual · ${difficulty === 'hard' ? 'Hard' : 'Easy'}` : 'Automatic'}
+            {mode === 'manual' ? `Manual · ${difficultyName(difficulty)}` : 'Automatic'}
           </span>
 
           {roomId && (

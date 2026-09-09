@@ -145,6 +145,17 @@ body {
            max(24px, env(safe-area-inset-right))
            max(24px, env(safe-area-inset-bottom))
            max(24px, env(safe-area-inset-left));
+  /* The lobby must be scrollable in EVERY orientation, not just landscape. Tapping the room-code
+     field opens the on-screen keyboard, which can halve the viewport height — and with the column
+     centred and no scrolling, Join ended up below the fold with no way to reach it. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* A centred flex column that overflows clips its own top and cannot be scrolled back to. When the
+   keyboard shrinks the viewport, stop centring and let the column simply start at the top. */
+@media (max-height: 560px) {
+  .room-screen { justify-content: flex-start; gap: 18px; }
 }
 
 .room-title {
@@ -182,7 +193,8 @@ body {
 
 .room-btn.join {
   width: auto;
-  padding: 14px 20px;
+  flex: none;              /* never squeezed out by the input beside it */
+  padding: 14px 18px;
 }
 
 .room-btn:disabled {
@@ -198,22 +210,59 @@ body {
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
-  padding: 16px 18px;
+  padding: 16px 18px 16px 22px;
   border: 1px solid #333;
   border-radius: 10px;
-  background: #1e1e1e;
+  background: linear-gradient(180deg, #232323 0%, #1a1a1a 100%);
   color: #fff;
   cursor: pointer;
   text-align: left;
   touch-action: manipulation;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
-.room-mode-btn:hover { background: #262626; border-color: #2563eb; }
+/* A thin accent rule down the leading edge — dim until you touch it. */
+.room-mode-btn::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: #4a4a4a;
+  transition: background 0.15s ease;
+}
+
+/* Chevron, so the card reads as "this goes somewhere". */
+.room-mode-btn::after {
+  content: '›';
+  position: absolute;
+  right: 16px; top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.6rem;
+  line-height: 1;
+  color: #6b6b6b;
+  text-shadow: none;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.room-mode-btn:hover,
+.room-mode-btn:focus-visible {
+  background: linear-gradient(180deg, #2a2a2a 0%, #1f1f1f 100%);
+  border-color: #2563eb;
+}
+.room-mode-btn:hover::before,
+.room-mode-btn:focus-visible::before { background: #2563eb; }
+.room-mode-btn:hover::after,
+.room-mode-btn:focus-visible::after { color: #93b4fb; transform: translateY(-50%) translateX(3px); }
+
+.room-mode-btn:active { transform: scale(0.985); }
 
 .room-mode-name {
   font-size: 1.15rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .room-mode-blurb {
@@ -303,6 +352,9 @@ body {
 
 .room-input {
   flex: 1;
+  /* Without this the input refuses to shrink below its content width (flex items default to
+     min-width:auto), so on a narrow phone it shoves the Join button clean off the right edge. */
+  min-width: 0;
   padding: 14px;
   border-radius: 8px;
   border: 1px solid #333;
@@ -310,7 +362,7 @@ body {
   color: #fff;
   font-size: 1.1rem;
   text-align: center;
-  letter-spacing: 0.25em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   touch-action: manipulation;
 }
