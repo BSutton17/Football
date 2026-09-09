@@ -1,6 +1,6 @@
 import type { TeamRole, PlayerRatings } from './player.ts'
 import type { Quarter, Score, GameState, GameOver, PlayResult, PositionUpdate, CarrierVision, SpecialTeamsState, KickType, DecisionOption, GameMode, Difficulty } from './game.ts'
-import type { RouteType, CoverageType, ZoneType } from './routes.ts'
+import type { RouteType, CoverageType, ZoneType, ManCommit } from './routes.ts'
 
 // ─── Shared payload shapes ────────────────────────────────────────────────────
 
@@ -52,6 +52,7 @@ export interface AssignCoveragePayload {
   zoneType?: ZoneType  // zone coverage: which zone shape
   zoneCenterX?: number // zone coverage: where the zone center is placed
   zoneCenterY?: number
+  manCommit?: ManCommit | null   // [man commit] man coverage: the one thing he is selling out to take away
 }
 
 export interface AssignSafetyHelpPayload {
@@ -86,6 +87,8 @@ export interface ServerToClientEvents {
   // [pause] Either player froze (or lifted) the game. byYou distinguishes the caller.
   game_paused:  (data: { byYou: boolean }) => void
   game_resumed: () => void
+  // [187] The QB has held the ball long enough (in GAME time) that throwing it away is offered.
+  throwaway_ready: () => void
   team_select_start:    (data: { slot: number; teamIds: string[]; quarterMinutes?: number }) => void
   team_selected:        (data: { slot: number; teamId: string; locked: boolean }) => void  // a pick/lock
   team_taken:           (data: { teamId: string }) => void   // [282] lock rejected — opponent has it

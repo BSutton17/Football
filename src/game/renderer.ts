@@ -561,6 +561,74 @@ function drawRoutes(
   }
 }
 
+// [medium] The route art shown to the offense while a manual play is frozen: every receiver's
+// assigned route, drawn from where he lined up. Deliberately faded and drawn UNDER the players —
+// it is a reminder of the design, not a live readout, and it must never obscure the coverage.
+export interface RouteArt {
+  positions: PositionUpdate[]                                  // the snap-time snapshot
+  routeDepths: Record<string, number>
+  drawnRoutes: Record<string, { dx: number; dd: number }[]>
+  ballX: number
+}
+
+const ROUTE_ART_ALPHA = 0.4
+
+// A ghost of the receiver at the spot the route starts from. Without it each path floats away from
+// nothing in particular, which reads as a stray line rather than as that player's assignment — the
+// receiver himself has long since run off downfield.
+function drawRouteStartGhost(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  p: PositionUpdate,
+  paint: TeamPaint,
+) {
+  const cx = fieldXToCanvas(p.x, cam)
+  const cy = relYToCanvas(p.y, cam)
+  const r  = Math.max(4, cam.yardPx * PLAYER.RADIUS)
+
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.fillStyle   = paint.fill
+  ctx.strokeStyle = C.PLAYER_RING
+  ctx.lineWidth   = 1.5
+  ctx.fill()
+  ctx.stroke()
+
+  if (r >= 5) {
+    ctx.font         = `bold ${Math.max(8, r * 1.3)}px sans-serif`
+    ctx.textAlign    = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillStyle    = paint.text
+    ctx.fillText('O', cx, cy)
+  }
+}
+
+function drawRouteArtLayer(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  art: RouteArt,
+  ownTeam: TeamPaint,
+) {
+  ctx.save()
+  ctx.globalAlpha = ROUTE_ART_ALPHA
+  for (const p of art.positions) {
+    if (p.team !== 'o' || !p.label || !RECEIVER_LABELS.has(p.label)) continue
+
+    const drawn = art.drawnRoutes[p.id]
+    let path: { x: number; y: number }[] | null = null
+    if (drawn && drawn.length > 0) {
+      path = drawn.map(o => ({ x: p.x + o.dx, y: p.y + o.dd }))
+    } else if (p.route && p.route !== 'block') {
+      path = getRoutePath(p.route, p, art.routeDepths[p.id] ?? 1, art.ballX)
+    }
+    if (!path || path.length === 0) continue
+
+    drawRoutePath(ctx, cam, p, path, DRAWN_ROUTE_COLOR, 2)
+    drawRouteStartGhost(ctx, cam, p, ownTeam)
+  }
+  ctx.restore()
+}
+
 // Polyline from the player through the route waypoints, capped with an arrowhead.
 function drawRoutePath(
   ctx: CanvasRenderingContext2D,
@@ -886,6 +954,10 @@ export function drawFrame(
   oppTeam: TeamPaint = { fill: C.DEFENSE, text: '#ffffff', ring: C.SELECTED_RING },
   logoTeamId: string | null = null,
   fieldDirection = 1,
+  // [medium] Route art to lay UNDER the players while a manual play is frozen. Null in every other
+  // mode and difficulty. It is drawn here rather than layered on afterwards precisely so the
+  // players stay on top of it.
+  routeArt: RouteArt | null = null,
 ) {
   ctx.fillStyle = C.BG
   ctx.fillRect(0, 0, cssW, cssH)
@@ -925,8 +997,11 @@ export function drawFrame(
   const colorByOpenness = gameState?.role === 'offense' && gameState?.phase === 'live'
   // [manual][hard] The offense is sent no openness at all on hard, so the colors above simply never
   // appear. Readiness is signalled by brightness instead — dim until the route declares.
+  // Both medium and hard withhold the openness colours, so both fall back to the readiness fade.
   const fadeUnready = gameState?.role === 'offense' && gameState?.phase === 'live' &&
-                      gameState?.difficulty === 'hard'
+                      (gameState?.difficulty === 'hard' || gameState?.difficulty === 'medium')
+
+  if (routeArt) drawRouteArtLayer(ctx, cam, routeArt, ownTeam)
   // The viewer's team is the offense this play iff the viewer's role is offense — that maps p.team
   // ('o'/'d') to own vs opponent color so a team keeps its color all game.
   const ownIsOffense = gameState?.role !== 'defense'

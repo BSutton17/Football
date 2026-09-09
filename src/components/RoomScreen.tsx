@@ -21,8 +21,9 @@ const MODES: { id: GameMode; name: string; blurb: string }[] = [
 ]
 
 const DIFFICULTIES: { id: Difficulty; name: string; blurb: string }[] = [
-  { id: 'easy', name: 'Easy', blurb: 'Receivers are colored by how open they are.' },
-  { id: 'hard', name: 'Hard', blurb: 'No coverage colors — read the field yourself.' },
+  { id: 'easy',   name: 'Easy',   blurb: 'Receivers are colored by how open they are.' },
+  { id: 'medium', name: 'Medium', blurb: 'No coverage colors, but your routes show while paused.' },
+  { id: 'hard',   name: 'Hard',   blurb: 'No coverage colors — read the field yourself.' },
 ]
 
 export default function RoomScreen({ status, roomId, role, error, mode, difficulty, createRoom, joinRoom, leaveRoom }: Props) {

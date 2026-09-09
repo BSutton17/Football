@@ -18,7 +18,7 @@ import { getTeamSpecialists } from './data/specialists.ts'
 import RosterSidebar from './components/RosterSidebar.tsx'
 import RouteMenu from './components/RouteMenu.tsx'
 import CoverageMenu from './components/CoverageMenu.tsx'
-import type { RouteType, CoverageType, ZoneType } from './types/routes.ts'
+import type { RouteType, CoverageType, ZoneType, ManCommit } from './types/routes.ts'
 import { loadTeamRoster } from './game/teamRoster.ts'
 import { teamColors, textColorOn } from './data/teamColors.ts'
 import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveFormation, validateOffensiveFormation, validateDefensiveFormation } from './game/formation.ts'
@@ -104,6 +104,9 @@ const MIN_FIELD_Y = -9.5
 const MAX_FIELD_Y = 109.5
 const clampFieldY = (y: number) => Math.max(MIN_FIELD_Y, Math.min(MAX_FIELD_Y, y))
 
+// Stable empty map for the run-play case, so the canvas prop doesn't change identity every render.
+const EMPTY_DRAWN_ROUTES: Record<string, RouteOffset[]> = {}
+
 // Offensive skill positions whose names a defender is allowed to see on the field.
 const NAME_REVEAL_LABELS = new Set(['RB', 'WR', 'TE'])
 
@@ -164,6 +167,10 @@ export default function App() {
   const [manTargets, setManTargets] = useState<Record<string, string>>({})
   const [zoneTypes, setZoneTypes] = useState<Record<string, ZoneType>>({})
   const [zoneCenters, setZoneCenters] = useState<Record<string, { x: number; y: number }>>({})
+  // [man commit] playerId → the one thing that man defender is selling out to take away.
+  const [manCommits, setManCommits] = useState<Record<string, ManCommit>>({})
+  // [dl drop] The single lineman currently dropping into coverage instead of rushing, or null.
+  const [droppingDL, setDroppingDL] = useState<string | null>(null)
   // [route draw] Which way routes are assigned. 'menu' is the original tap-a-route list; 'draw'
   // lets the offense trace routes on the field. It is purely an INPUT mode — routes already
   // assigned either way survive switching, so you can menu three receivers and draw the fourth.
@@ -376,6 +383,14 @@ export default function App() {
     function onGamePaused({ byYou }: { byYou: boolean }) { setGamePause({ byYou }) }
     function onGameResumed() { setGamePause(null) }
 
+    // [187] The play has run long enough in GAME time. It pops up at a RANDOM spot on the OFFENSIVE
+    // side of the field — the backfield band below the LOS — so it rewards a quick reaction without
+    // ever covering the downfield coverage the QB is reading.
+    function onThrowawayReady() {
+      if (thrownRef.current) return
+      setThrowawayPos({ top: 70 + Math.random() * 16, left: 15 + Math.random() * 65 })
+    }
+
     function onManualFrozen() { setManualFrozen(true) }
     function onManualResumed() { setManualFrozen(false) }
 
@@ -551,6 +566,8 @@ export default function App() {
         setDrawnRoutes({})
         setRouteDepths({})
         setPlayerCoverage({})
+        setManCommits({})
+        setDroppingDL(null)
         setManTargets({})
         setZoneTypes({})
         setZoneCenters({})
@@ -566,6 +583,7 @@ export default function App() {
     socket.on('qb_scrambling', onQbScrambling)
     socket.on('game_paused', onGamePaused)
     socket.on('game_resumed', onGameResumed)
+    socket.on('throwaway_ready', onThrowawayReady)
     socket.on('manual_frozen', onManualFrozen)
     socket.on('manual_resumed', onManualResumed)
     socket.on('manual_pass_pending', onManualPassPending)
@@ -596,6 +614,7 @@ export default function App() {
       socket.off('qb_scrambling', onQbScrambling)
       socket.off('game_paused', onGamePaused)
       socket.off('game_resumed', onGameResumed)
+      socket.off('throwaway_ready', onThrowawayReady)
       socket.off('manual_frozen', onManualFrozen)
       socket.off('manual_resumed', onManualResumed)
       socket.off('manual_pass_pending', onManualPassPending)
@@ -648,23 +667,16 @@ export default function App() {
     return () => window.removeEventListener('resize', place)
   }, [fgKicking, ballX, losYardLine])
 
-  // [187] Throwaway availability: the QB must hold the ball for 2 seconds on a live pass play
-  // before the option appears, and it pops up at a RANDOM screen location to reward a quick
-  // reaction. It vanishes once the ball is thrown or the QB scrambles.
+  // [187] Throwaway availability: the QB must hold the ball a beat on a live pass play before the
+  // option appears. WHEN that beat has passed is the server's call (throwaway_ready), because it is
+  // measured in GAME time — in manual mode the play only advances while GO is held, and a wall-clock
+  // timer here would tick right through a freeze and offer the bail-out for a play that never
+  // actually went anywhere. This effect only handles hiding it again.
   useEffect(() => {
     const isOffense = (room.role ?? 'offense') === 'offense'
     if (!isOffense || phase !== 'live' || playType !== 'pass' || scrambling || thrownRef.current) {
       setThrowawayPos(null)
-      return
     }
-    const timer = setTimeout(() => {
-      if (thrownRef.current || scrambling) return
-      // Keep it on the OFFENSIVE side of the field — the backfield band below the LOS (which sits
-      // ~1/3 up from the bottom) — so it never covers the downfield receivers/coverage the QB is
-      // reading. Still randomized horizontally (and a little vertically) to reward a quick reaction.
-      setThrowawayPos({ top: 70 + Math.random() * 16, left: 15 + Math.random() * 65 })
-    }, 2000)
-    return () => clearTimeout(timer)
   }, [room.role, phase, playType, scrambling])
 
   // New game: wipe all play design state and storage when the user creates or joins a room.
@@ -684,6 +696,8 @@ export default function App() {
     setDrawnRoutes({})
     setRouteDepths({})
     setPlayerCoverage({})
+    setManCommits({})
+    setDroppingDL(null)
     setManTargets({})
     setZoneTypes({})
     setZoneCenters({})
@@ -707,6 +721,8 @@ export default function App() {
       setDrawnRoutes({})
       setRouteDepths({})
       setPlayerCoverage({})
+      setManCommits({})
+      setDroppingDL(null)
       setManTargets({})
       setZoneTypes({})
       setZoneCenters({})
@@ -718,12 +734,29 @@ export default function App() {
     prevRoleRef.current = r
   }, [room.role])
 
-  // Restore placed players on mount when reconnecting to an existing session.
+  // Restore placed players AND their coverage on mount when reconnecting to an existing session.
+  //
+  // [coverage persistence] Positions used to be saved here on their own. That was the dangerous
+  // half: backgrounding the app on a phone often discards and reloads the page, so a player came
+  // back with their formation intact but every coverage assignment gone from this client's memory
+  // while the server still held the old one. From there the two views disagreed, and a defender the
+  // server had no assignment for is treated as a PASS RUSHER (see isRusher) — which is why
+  // defenders "just rushed the quarterback instead of playing their zones".
   useEffect(() => {
     if (!sessionStorage.getItem(SESSION_KEY)) return
     try {
       const saved = sessionStorage.getItem('ef2_placed_players')
       if (saved) setPlacedPlayers(JSON.parse(saved))
+      const cov = sessionStorage.getItem('ef2_coverage')
+      if (cov) {
+        const c = JSON.parse(cov)
+        if (c.playerCoverage) setPlayerCoverage(c.playerCoverage)
+        if (c.zoneTypes)      setZoneTypes(c.zoneTypes)
+        if (c.zoneCenters)    setZoneCenters(c.zoneCenters)
+        if (c.manTargets)     setManTargets(c.manTargets)
+        if (c.manCommits)     setManCommits(c.manCommits)
+        if (c.droppingDL)     setDroppingDL(c.droppingDL)
+      }
     } catch {}
   }, [])
 
@@ -731,6 +764,11 @@ export default function App() {
   useEffect(() => {
     sessionStorage.setItem('ef2_placed_players', JSON.stringify(placedPlayers))
   }, [placedPlayers])
+
+  // …and the coverage that goes with them, for the same reason.
+  useEffect(() => {
+    sessionStorage.setItem('ef2_coverage', JSON.stringify({ playerCoverage, zoneTypes, zoneCenters, manTargets, manCommits, droppingDL }))
+  }, [playerCoverage, zoneTypes, zoneCenters, manTargets, manCommits, droppingDL])
 
   // Register the auto-placed defensive line on the server at the start of every play.
   // The DL are generated client-side (getDLPlayers) and — unlike the offense's OL/QB,
@@ -758,6 +796,32 @@ export default function App() {
     const team: 'o' | 'd' = room.role === 'defense' ? 'd' : 'o'
     for (const p of placedPlayers) {
       placePlayer({ id: p.id, x: p.x, y: p.y, label: p.label ?? '', team, ratings: teamRoster.ratingsById[p.id], xFactor: teamRoster.xFactorById[p.id] })
+    }
+
+    // [coverage persistence] Re-send every coverage assignment too, not just the positions. The
+    // server treats a defender it has no assignment for as a pass rusher, so ANY way the two views
+    // fall out of step — a reload, a dropped message, a reconnect — used to strand that defender
+    // rushing for the rest of the game. Republishing the whole set each pre-snap makes the server a
+    // mirror of this client, so a desync repairs itself at the next snap instead of persisting.
+    if (room.role === 'defense') {
+      for (const [id, cov] of Object.entries(playerCoverage)) {
+        if (cov === 'zone') {
+          const zt = zoneTypes[id]
+          if (!zt) continue
+          const c = zoneCenters[id]
+          assignCoverage(c
+            ? { playerId: id, type: 'zone', zoneType: zt, zoneCenterX: c.x, zoneCenterY: c.y }
+            : { playerId: id, type: 'zone', zoneType: zt })
+        } else if (cov === 'man') {
+          const t = manTargets[id]
+          const mc = manCommits[id] ?? null
+          assignCoverage(t
+            ? { playerId: id, type: 'man', targetId: t, manCommit: mc }
+            : { playerId: id, type: 'man', manCommit: mc })
+        } else {
+          assignCoverage({ playerId: id, type: cov })
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room.status, room.role, phase])
@@ -792,6 +856,23 @@ export default function App() {
   // derived from the viewer's slot + role. Mirrors the 50-yard-line logos so they don't flip per side.
   const offenseSlot   = role === 'offense' ? (room.slot ?? 0) : (1 - (room.slot ?? 0))
   const fieldDirection = offenseSlot === 0 ? 1 : -1
+
+  // [route draw] Drawn routes are a PASSING concept, so they are not drawn on a run play — the
+  // receivers are blocking, and leaving the art up implies routes that nobody is going to run. The
+  // routes themselves are kept in state untouched, so switching back to pass brings them straight
+  // back rather than making the player redraw the whole concept.
+  const visibleDrawnRoutes = playType === 'run' ? EMPTY_DRAWN_ROUTES : drawnRoutes
+
+  // [medium] While a manual play is frozen, medium difficulty shows the offense its own route art —
+  // where each receiver is headed — without ever telling it how open they are. Drawn from the
+  // formation as it was at the SNAP (routes are anchored where players lined up, not where they are
+  // now), and only for the offense, only while actually frozen.
+  const routeArt = (
+    difficulty === 'medium' && role === 'offense' && phase === 'live' &&
+    manualLive && manualFrozen && lockedFormation
+  )
+    ? { positions: lockedFormation, routeDepths, drawnRoutes, ballX }
+    : null
 
   const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX, timeouts, mode: gameMode, difficulty }
   const isPreSnap = phase === 'pre_snap'
@@ -982,6 +1063,13 @@ export default function App() {
   function handleCoverageSelect(playerId: string, coverage: CoverageType, zoneType?: ZoneType) {
     setPlayerCoverage(prev => ({ ...prev, [playerId]: coverage }))
 
+    // [man commit] A commitment belongs to a man assignment; changing coverage discards it.
+    if (coverage !== 'man') {
+      setManCommits(prev => { const n = { ...prev }; delete n[playerId]; return n })
+    }
+    // [dl drop] Assigning a lineman something else by hand means he is no longer the one dropping.
+    if (droppingDL === playerId && coverage !== 'zone') setDroppingDL(null)
+
     if (coverage === 'man') {
       setZoneTypes(prev => { const n = { ...prev }; delete n[playerId]; return n })
       setZoneCenters(prev => { const n = { ...prev }; delete n[playerId]; return n })
@@ -1059,6 +1147,58 @@ export default function App() {
     setZoneAllIndex(i => (i + 1) % SHELL_ORDER.length)
   }
 
+  // [man commit] Toggle a commitment. Pressing the active one again clears it and the defender goes
+  // back to honest leverage, which is why this reads the current value rather than just setting.
+  function handleManCommit(playerId: string, commit: ManCommit) {
+    if (playerCoverage[playerId] !== 'man') return
+    const next = manCommits[playerId] === commit ? undefined : commit
+
+    setManCommits(prev => {
+      const n = { ...prev }
+      if (next) n[playerId] = next; else delete n[playerId]
+      return n
+    })
+
+    const targetId = manTargets[playerId]
+    assignCoverage({
+      playerId, type: 'man',
+      ...(targetId ? { targetId } : {}),
+      manCommit: next ?? null,
+    })
+  }
+
+  // [dl drop] One lineman may peel off the rush into a short hook zone. Only one at a time: dropping
+  // a second sends the first back to rushing, which is friendlier than refusing the press and makes
+  // the exchange obvious on the field.
+  function handleToggleDLDrop(playerId: string) {
+    if (droppingDL === playerId) {
+      setDroppingDL(null)
+      setPlayerCoverage(prev => { const n = { ...prev }; delete n[playerId]; return n })
+      setZoneTypes(prev => { const n = { ...prev }; delete n[playerId]; return n })
+      setZoneCenters(prev => { const n = { ...prev }; delete n[playerId]; return n })
+      clearCoverage(playerId)   // no assignment at all == back to rushing (see isRusher)
+      return
+    }
+
+    // Send whoever was dropping back to the rush first.
+    if (droppingDL) {
+      const prevId = droppingDL
+      setPlayerCoverage(prev => { const n = { ...prev }; delete n[prevId]; return n })
+      setZoneTypes(prev => { const n = { ...prev }; delete n[prevId]; return n })
+      setZoneCenters(prev => { const n = { ...prev }; delete n[prevId]; return n })
+      clearCoverage(prevId)
+    }
+
+    // He drops to a short hook just behind where he is lined up.
+    const dl = allPositions.find(p => p.id === playerId)
+    const center = { x: dl ? dl.x : ballX, y: (dl ? dl.y : losYardLine) + 4 }
+    setDroppingDL(playerId)
+    setPlayerCoverage(prev => ({ ...prev, [playerId]: 'zone' }))
+    setZoneTypes(prev => ({ ...prev, [playerId]: 'hook' }))
+    setZoneCenters(prev => ({ ...prev, [playerId]: center }))
+    assignCoverage({ playerId, type: 'zone', zoneType: 'hook', zoneCenterX: center.x, zoneCenterY: center.y })
+  }
+
   function handleZoneCenterMove(defenderId: string, x: number, y: number) {
     if (phase === 'live') return
     setZoneCenters(prev => ({ ...prev, [defenderId]: { x, y } }))
@@ -1118,7 +1258,9 @@ export default function App() {
         routeDepthScale: p.routeDepthScale,
         // [route draw] A hand-drawn route travels with the formation, as offsets from this
         // player. The server re-clamps it (length, the cut lock, the sidelines) before it runs.
-        drawnRoute:      drawnRoutes[p.id],
+        // A run play doesn't run routes at all — perimeter receivers block — so the drawing is
+        // withheld rather than sent and silently ignored.
+        drawnRoute:      playType === 'run' ? undefined : drawnRoutes[p.id],
         ratings:         teamRoster.ratingsById[p.id],   // [293] per-team ratings → simulation
         xFactor:         teamRoster.xFactorById[p.id],   // [294] potential X-Factor ability
       })),
@@ -1351,12 +1493,13 @@ export default function App() {
       {playOver && !gameOver && <div className="play-block-overlay" aria-hidden />}
       <GameCanvas
         gameState={gameState}
+        routeArt={routeArt}
         routeDrawMode={routeMode === 'draw'}
         drawingFor={drawingFor}
         onRequestDraw={handleRequestDraw}
         onRequestBlock={handleRequestBlock}
         onDrawStroke={handleDrawStroke}
-        drawnRoutes={drawnRoutes}
+        drawnRoutes={visibleDrawnRoutes}
         positions={kickInProgress ? stFormation : allPositions}
         onPlayerMove={handlePlayerMove}
         onSelect={setSelectedId}
@@ -1626,6 +1769,10 @@ export default function App() {
           currentCoverage={playerCoverage[selectedPlayer.id]}
           currentZoneType={zoneTypes[selectedPlayer.id]}
           onSelect={handleCoverageSelect}
+          currentManCommit={manCommits[selectedPlayer.id]}
+          onManCommit={handleManCommit}
+          isDroppingDL={droppingDL === selectedPlayer.id}
+          onToggleDLDrop={handleToggleDLDrop}
           onClear={handleClearAssignment}
           onZoneAll={handleZoneAll}
           zoneAllLabel={SHELL_LABEL[SHELL_ORDER[zoneAllIndex]]}

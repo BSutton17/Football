@@ -93,7 +93,10 @@ export type GameMode = 'automatic' | 'manual'
 
 // [manual] Applies to whichever team has the ball, and only ever hides information from it:
 // 'easy' keeps the openness colors, 'hard' shows plain team colors with a readiness fade.
-export type Difficulty = 'easy' | 'hard'
+// [medium] 'medium' hides the openness colours exactly as 'hard' does; the difference is that
+// while the play is FROZEN it shows the offense its own route art, so it can see where receivers
+// are heading without being told how open they are.
+export type Difficulty = 'easy' | 'medium' | 'hard'
 
 // Lightweight position payload sent every server tick during live play.
 // y is offense-relative: 0 = own goal line, 100 = opponent goal line.

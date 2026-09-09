@@ -1,4 +1,4 @@
-import type { CoverageType, ZoneType } from '../types/routes.ts'
+import type { CoverageType, ZoneType, ManCommit } from '../types/routes.ts'
 import { ZONE_CONFIGS, ZONE_TYPE_ORDER } from '../game/zones.ts'
 
 interface Props {
@@ -12,7 +12,22 @@ interface Props {
   onZoneAll: () => void
   zoneAllLabel: string
   zoneAllDisabled: boolean   // grayed out until all 11 defenders are on the field
+  // [man commit] The commitment this defender is playing, and the toggle for it.
+  currentManCommit: ManCommit | null | undefined
+  onManCommit: (playerId: string, commit: ManCommit) => void
+  // [dl drop] Whether THIS lineman is the one dropping, and the toggle. Only one may drop at a time.
+  isDroppingDL: boolean
+  onToggleDLDrop: (playerId: string) => void
 }
+
+// [man commit] Four ways to sell out in man coverage. Each takes something away and, by the same
+// token, gives something up — the label is deliberately terse because these sit in a tight row.
+const MAN_COMMITS: { id: ManCommit; label: string; title: string }[] = [
+  { id: 'in',    label: 'IN',  title: 'Inside — takes away slants, digs and posts' },
+  { id: 'out',   label: 'OUT', title: 'Outside — takes away outs, corners and comebacks' },
+  { id: 'over',  label: 'OVR', title: 'Over the top — takes away everything deep' },
+  { id: 'under', label: 'UND', title: 'Underneath — takes away the short stuff' },
+]
 
 const BASE_OPTIONS: { type: CoverageType; label: string }[] = [
   { type: 'man',   label: 'Man'   },
@@ -25,7 +40,7 @@ const DL_OPTIONS: { type: CoverageType; label: string }[] = [
   { type: 'spy',   label: 'Spy'   },
 ]
 
-export default function CoverageMenu({ playerId, position, currentCoverage, currentZoneType, onSelect, onClear, onZoneAll, zoneAllLabel, zoneAllDisabled }: Props) {
+export default function CoverageMenu({ playerId, position, currentCoverage, currentZoneType, onSelect, onClear, onZoneAll, zoneAllLabel, zoneAllDisabled, currentManCommit, onManCommit, isDroppingDL, onToggleDLDrop }: Props) {
   const isDL     = position === 'DL'
   const baseOpts = isDL ? DL_OPTIONS : BASE_OPTIONS
   const showZones = !isDL
@@ -46,6 +61,18 @@ export default function CoverageMenu({ playerId, position, currentCoverage, curr
         Zone All: {zoneAllDisabled ? 'Place 11' : zoneAllLabel}
       </button>
 
+      {/* [dl drop] One lineman may peel off the rush and drop into a hook zone behind the line.
+          Only one at a time — dropping a second sends the first back to rushing. */}
+      {isDL && (
+        <button
+          className={`coverage-btn coverage-btn--drop${isDroppingDL ? ' coverage-btn--active' : ''}`}
+          onPointerDown={() => onToggleDLDrop(playerId)}
+          title={isDroppingDL ? 'Send him back to rushing the passer' : 'Drop him into a short hook zone'}
+        >
+          {isDroppingDL ? 'Rush' : 'Drop Into Zone'}
+        </button>
+      )}
+
       {baseOpts.map(({ type, label }) => (
         <button
           key={type}
@@ -55,6 +82,26 @@ export default function CoverageMenu({ playerId, position, currentCoverage, curr
           {label}
         </button>
       ))}
+
+      {/* [man commit] Only meaningful once he is actually in man. Pressing the active one again
+          clears it and he goes back to playing honest leverage. */}
+      {currentCoverage === 'man' && (
+        <>
+          <div className="zone-section-label">MAN</div>
+          <div className="zone-btn-grid">
+            {MAN_COMMITS.map(({ id, label, title }) => (
+              <button
+                key={id}
+                className={`zone-btn man-commit-btn${currentManCommit === id ? ' zone-btn--active' : ''}`}
+                onPointerDown={() => onManCommit(playerId, id)}
+                title={title}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {showZones && (
         <>

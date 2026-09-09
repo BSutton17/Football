@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { FaFootballBall } from 'react-icons/fa'
 import type { GameState, PositionUpdate } from '../types/game.ts'
 import { drawFrame, computeCamera, drawRushVisualizer, drawPassLine, drawDrawnRoutes, drawActiveStroke } from '../game/renderer.ts'
-import type { TeamPaint } from '../game/renderer.ts'
+import type { TeamPaint, RouteArt } from '../game/renderer.ts'
 import type { CarrierVision } from '../types/game.ts'
 import { PLAYER, FIELD } from '../constants/simulation.ts'
 import { createCamera, snapCamera, setCameraTarget, stepCamera } from '../game/camera.ts'
@@ -13,6 +13,11 @@ import type { SnapshotBuffer } from '../game/interpolation.ts'
 import { getRoutePath, getRouteMaxForward } from '../game/routePaths.ts'
 
 const RECEIVER_LABELS = new Set(['WR', 'TE', 'RB'])
+
+// [red zone] How far a zone landmark may be dragged, in offense-relative yards: the full field
+// INCLUDING both end zones, kept a half-yard inside the back lines so the marker stays visible.
+const ZONE_MIN_Y = -(FIELD.END_ZONE_DEPTH - 0.5)
+const ZONE_MAX_Y = FIELD.PLAY_LENGTH + FIELD.END_ZONE_DEPTH - 0.5
 
 // [route draw] How far a pointer may wander and still count as a TAP rather than a drag. A tap on
 // your own receiver opens drawing; anything further is you repositioning him, and the route is left
@@ -55,13 +60,15 @@ interface Props {
   onRequestBlock?: (playerId: string) => void
   onDrawStroke?: (points: { x: number; y: number }[]) => void
   drawnRoutes?: Record<string, { dx: number; dd: number }[]>
+  // [medium] Route art drawn UNDER the players while a manual play is frozen; null otherwise.
+  routeArt?: RouteArt | null
 }
 
 function isDLPlayer(id: string)  { return id.startsWith('auto_dl') }
 // QB and OL are fully locked; DL can slide horizontally
 function isLockedAuto(id: string) { return id.startsWith('auto_') && !isDLPlayer(id) }
 
-export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection, routeDrawMode, drawingFor, onRequestDraw, onRequestBlock, onDrawStroke, drawnRoutes }: Props) {
+export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection, routeDrawMode, drawingFor, onRequestDraw, onRequestBlock, onDrawStroke, drawnRoutes, routeArt }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const ballIconRef  = useRef<HTMLDivElement>(null)
   const gameStateRef = useRef(gameState)
@@ -108,6 +115,8 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
   onDrawStrokeRef.current = onDrawStroke
   const drawnRoutesRef = useRef(drawnRoutes)
   drawnRoutesRef.current = drawnRoutes
+  const routeArtRef = useRef(routeArt)
+  routeArtRef.current = routeArt
   // The stroke currently being traced, in field coordinates. Null when not drawing.
   const strokeRef = useRef<{ x: number; y: number }[] | null>(null)
   // A receiver picked up in drawing mode, with where he started — so pointerup can tell a tap
@@ -452,7 +461,10 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
       } else if (zoneCenterDragRef.current) {
         const { fieldX, fieldY } = pointerToField(e)
         zoneCenterDragRef.current.x = Math.max(0.5, Math.min(FIELD.WIDTH - 0.5, fieldX))
-        zoneCenterDragRef.current.y = Math.max(0, Math.min(100, fieldY))
+        // [red zone] The end zones are part of the field a zone has to cover. Clamping to 0..100
+        // meant that with the ball on the 5 a deep zone could not be dropped where it belongs —
+        // behind the goal line. Matches the bounds players themselves are placed within.
+        zoneCenterDragRef.current.y = Math.max(ZONE_MIN_Y, Math.min(ZONE_MAX_Y, fieldY))
       }
     }
 
@@ -557,6 +569,7 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
           oppTeamRef.current,
           logoTeamIdRef.current,
           fieldDirectionRef.current ?? 1,
+          routeArtRef.current ?? null,
         )
 
         // [route draw] Committed drawn routes sit above the field art, and the live stroke above

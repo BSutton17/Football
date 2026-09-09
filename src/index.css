@@ -1980,16 +1980,19 @@ body {
   .run-angle-btn        { width: 26px; height: 26px; font-size: 0.75rem; }
 
   /* ── Timeout ────────────────────────────────────────────────────────────── */
-  /* Off the top-center, where it landed on the clock. Bottom-center is the one
-     free lane: the play controls are bottom-left and Set/HIKE/GO bottom-right. */
+  /* It cannot sit top-center (that is the clock) and it cannot sit bottom-center either — that is
+     the backfield, so it covered the QB and the running back. The free lane is the top strip
+     between the score in the corner and the clock: no players are ever drawn that far behind the
+     line of scrimmage, and the roster sidebar starts below it. */
   .timeout-btn {
-    top: auto;
-    bottom: 6px;
-    transform: translateX(-50%);
+    top: 6px;
+    bottom: auto;
+    left: 150px;          /* to the right of the pause button, which shares this strip */
+    transform: none;
     padding: 5px 12px;
     font-size: 0.72rem;
   }
-  .timeout-btn:active:not(:disabled) { transform: translateX(-50%) scale(0.97); }
+  .timeout-btn:active:not(:disabled) { transform: scale(0.97); }
 
   /* ── Buttons along the bottom edge ──────────────────────────────────────── */
   .formation-ready-btn,
@@ -2225,10 +2228,35 @@ body {
 .ts2-quarter-btn--on:disabled { opacity: 0.85; }
 
 @media (orientation: landscape) and (max-height: 500px) {
-  .pause-btn      { top: 40px; width: 30px; height: 30px; font-size: 0.72rem; }
+  /* Shares the top strip with Timeout rather than sitting in the corner, which is the score's.
+     Both live between the score and the clock — the one band with nothing else in it. */
+  .pause-btn      { top: 6px; left: 108px; width: 30px; height: 30px; font-size: 0.72rem; }
   .pause-title    { font-size: 1.7rem; }
   .pause-sub      { font-size: 0.8rem; }
   .pause-resume-btn { padding: 10px 32px; font-size: 0.95rem; }
   .ts2-quarter    { gap: 3px; padding: 0 0 4px; }
   .ts2-quarter-btn { min-width: 38px; padding: 5px 8px; font-size: 0.72rem; }
+}
+
+
+/* ─── Committed man coverage + the dropping lineman ([man commit][dl drop]) ───
+   The IN/OUT/OVR/UND row reuses the zone grid's shape so the two coverage controls read as one
+   family, but in its own colour — a commitment is a different KIND of decision from picking a zone
+   shape, and it should not be mistaken for one at a glance. */
+.man-commit-btn {
+  --zone-color: #f472b6;
+  letter-spacing: 0.04em;
+}
+
+/* The lineman peeling off the rush. Amber rather than the menu's blue: it is a deviation from what
+   a lineman normally does, and only one player on the field can have it. */
+.coverage-btn--drop {
+  border-color: rgba(251, 191, 36, 0.55);
+  color: #fbbf24;
+}
+
+.coverage-btn--drop.coverage-btn--active {
+  background: #b45309;
+  border-color: #b45309;
+  color: #fff;
 }
