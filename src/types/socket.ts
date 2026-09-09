@@ -31,6 +31,9 @@ export interface PlayerDesign {
 }
 
 export interface SetOffensePayload {
+  // [stale set] The pre-snap situation this formation was designed against; the server refuses it
+  // if the play has moved on (a delay-of-game penalty landing while the Set was in flight).
+  playSerial?: number
   playType: 'run' | 'pass'
   runAngle: number      // degrees, -60 to +60
   players: PlayerDesign[]

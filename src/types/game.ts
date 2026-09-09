@@ -71,6 +71,7 @@ export interface GameState {
   yardLine: number    // current yard line (0–100, offense perspective)
   ballX?: number      // [hash] lateral spot the next formation lines up on (absolute X, yards)
   playClock?: number  // [play-clock] starting play-clock value for this snap (40 on a drive start, else 25)
+  playSerial?: number // [stale set] identifies this pre-snap situation; echoed back on set_offense
   specialTeams?: SpecialTeamsState | null   // [Special Teams][1] non-null while a kick is in progress
   decision?: PlayDecision | null            // [Special Teams][2][3] 4th-down menu (offense only)
   xfActiveIds?: string[]                     // [294] players with an active X-Factor (star shows pre-snap too)

@@ -14,10 +14,6 @@ import { getRoutePath, getRouteMaxForward } from '../game/routePaths.ts'
 
 const RECEIVER_LABELS = new Set(['WR', 'TE', 'RB'])
 
-// [route draw] A second tap on an armed receiver inside this window is a double-tap, which sets him
-// to BLOCK. Anything slower is taken as the start of the stroke he was armed for.
-const DOUBLE_TAP_MS = 320
-
 // [route draw] How far a pointer may wander and still count as a TAP rather than a drag. A tap on
 // your own receiver opens drawing; anything further is you repositioning him, and the route is left
 // alone. This is what lets a single click do both jobs without a modifier or a double-tap.
@@ -103,9 +99,11 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
   onRequestDrawRef.current = onRequestDraw
   const onRequestBlockRef = useRef(onRequestBlock)
   onRequestBlockRef.current = onRequestBlock
-  // When drawing was armed, and on whom — a second tap landing inside DOUBLE_TAP_MS is a
-  // double-tap, which assigns BLOCK instead of starting a stroke.
-  const armedAtRef = useRef<{ id: string; at: number }>({ id: '', at: 0 })
+  // Did the current press begin on the armed receiver, and how far has it travelled since? A press
+  // that starts on him and never moves is a tap (→ block); one that moves is a drawing.
+  const pressOnPlayerRef = useRef(false)
+  const strokeFromRef = useRef<{ x: number; y: number } | null>(null)
+  const strokeTravelRef = useRef(0)
   const onDrawStrokeRef = useRef(onDrawStroke)
   onDrawStrokeRef.current = onDrawStroke
   const drawnRoutesRef = useRef(drawnRoutes)
@@ -298,17 +296,15 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
         const armedId = drawingForRef.current
         const wr = latestPositionsRef.current.find(p => p.id === armedId)
 
-        // A quick second tap on the player himself means BLOCK — the drawing that the first tap
-        // armed is abandoned rather than started. Checked here because once a receiver is armed the
-        // canvas belongs to the stroke, so this press would otherwise be swallowed as one.
-        const armed = armedAtRef.current
-        const quick = armed.id === armedId && performance.now() - armed.at < DOUBLE_TAP_MS
-        const onHim = wr ? Math.hypot(wr.x - fieldX, wr.y - fieldY) < Math.max(2.0, PLAYER.RADIUS * 2.5) : false
-        if (quick && onHim) {
-          armedAtRef.current = { id: '', at: 0 }
-          onRequestBlockRef.current?.(armedId)
-          return
-        }
+        // Whether this press is a second TAP (meaning block) or the start of the stroke cannot be
+        // known yet — both begin on the player, because a route is drawn FROM him. So the press is
+        // always taken as a stroke and the decision is made on release, from how far the pointer
+        // actually travelled. Deciding it here on timing made drawing fire block by accident
+        // whenever the finger went back down quickly, which it naturally does.
+        pressOnPlayerRef.current =
+          !!wr && Math.hypot(wr.x - fieldX, wr.y - fieldY) < Math.max(2.0, PLAYER.RADIUS * 2.5)
+        strokeTravelRef.current = 0
+        strokeFromRef.current = { x: fieldX, y: fieldY }
 
         strokeRef.current = wr ? [{ x: wr.x, y: wr.y }] : []
         strokeRef.current.push({ x: fieldX, y: fieldY })
@@ -429,6 +425,13 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
     function onPointerMove(e: PointerEvent) {
       if (strokeRef.current) {
         const { fieldX, fieldY } = pointerToField(e)
+        const from = strokeFromRef.current
+        if (from) {
+          strokeTravelRef.current = Math.max(
+            strokeTravelRef.current,
+            Math.hypot(fieldX - from.x, fieldY - from.y),
+          )
+        }
         const path = strokeRef.current
         const last = path[path.length - 1]
         // Thin the stream a little as it arrives; the beautifier resamples anyway.
@@ -457,9 +460,17 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
       // [route draw] Lifting the finger ends the route — there is no editing a stroke, you redraw it.
       if (strokeRef.current) {
         const path = strokeRef.current
+        const tappedHim = pressOnPlayerRef.current && strokeTravelRef.current <= TAP_SLOP_YARDS
         strokeRef.current = null
+        pressOnPlayerRef.current = false
+        strokeFromRef.current = null
+        strokeTravelRef.current = 0
         try { c.releasePointerCapture(e.pointerId) } catch { /* may already be released */ }
-        onDrawStrokeRef.current?.(path)
+
+        // Pressed on him and never moved — that is the second tap, so block him instead of trying
+        // to make a route out of a stationary point.
+        if (tappedHim) onRequestBlockRef.current?.(drawingForRef.current ?? '')
+        else onDrawStrokeRef.current?.(path)
         return
       }
       if (dragId) {
@@ -471,7 +482,6 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
 
         if (cand && moved <= TAP_SLOP_YARDS) {
           // He never really moved — that was a tap. Open drawing and leave him where he was.
-          armedAtRef.current = { id: cand.id, at: performance.now() }
           onRequestDrawRef.current?.(cand.id)
         } else if (d) {
           onPlayerMoveRef.current?.(d.id, d.x, d.y)

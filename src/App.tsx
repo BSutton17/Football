@@ -154,6 +154,10 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // Committed formation snapshot — set when user locks in, cleared on any change
   const [lockedFormation, setLockedFormation] = useState<PositionUpdate[] | null>(null)
+  // [stale set] Which pre-snap situation the server is currently in. Echoed back when the formation
+  // is locked so a Set that crossed paths with the play clock expiring is refused rather than being
+  // applied to a line of scrimmage that has since moved.
+  const playSerialRef = useRef(0)
   const [playerRoutes, setPlayerRoutes] = useState<Record<string, RouteType>>({})
   const [routeDepths, setRouteDepths] = useState<Record<string, number>>({})
   const [playerCoverage, setPlayerCoverage] = useState<Record<string, CoverageType>>({})
@@ -459,6 +463,7 @@ export default function App() {
       // change: a new game, a fresh connection, or possession flipping to the other side.
       setDrawingFor(null)
       // [manual] Mode/difficulty are fixed for the game; the per-play GO state resets every play.
+      playSerialRef.current = gs.playSerial ?? 0
       setGameMode(gs.mode ?? 'automatic')
       setDifficulty(gs.difficulty ?? 'easy')
       setManualLive(false)
@@ -1085,6 +1090,7 @@ export default function App() {
     setOffense({
       playType,
       runAngle,
+      playSerial: playSerialRef.current,
       players: snapshot.map(p => ({
         id:              p.id,
         x:               p.x,
@@ -1131,10 +1137,21 @@ export default function App() {
   // [route draw] Double-tapping a receiver in drawing mode puts him in to BLOCK. Any route he had —
   // drawn or picked from the list — is dropped, since blocking replaces it entirely.
   function handleRequestBlock(playerId: string) {
-    if (lockedFormation) return
+    if (!playerId || lockedFormation) return
     setDrawingFor(null)
     setDrawnRoutes(prev => { const n = { ...prev }; delete n[playerId]; return n })
     handleRouteSelect(playerId, 'block')
+  }
+
+  // [route draw] Wipe every route on the offense at once — both hand-drawn ones and any picked from
+  // the list, since a receiver may have either. Routes now survive the play boundary, so without a
+  // way to clear the board you would be stuck unpicking a stale concept receiver by receiver.
+  function handleClearRoutes() {
+    if (lockedFormation) return
+    setDrawingFor(null)
+    setDrawnRoutes({})
+    setPlayerRoutes({})
+    setRouteDepths({})
   }
 
   // Switching modes never destroys work; it only changes how the next route is assigned.
@@ -1546,6 +1563,14 @@ export default function App() {
                 onPointerDown={() => handleRouteModeChange('draw')}
               >DRAW</button>
             </div>
+          )}
+
+          {/* Clearing every route at once. Sits under the mode switch, above the route list, and is
+              only offered when there is actually something to clear. */}
+          {!lockedFormation && (Object.keys(drawnRoutes).length > 0 || Object.keys(playerRoutes).length > 0) && (
+            <button className="route-clear-btn" onPointerDown={handleClearRoutes}>
+              CLEAR ROUTES
+            </button>
           )}
 
           {showRouteMenu && selectedPlayer && (

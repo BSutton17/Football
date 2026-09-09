@@ -2007,6 +2007,7 @@ body {
      letting the route list push the mode switch off the screen. */
   .route-rail        { gap: 4px; }
   .route-mode-btn    { padding: 5px 9px; font-size: 0.55rem; }
+  .route-clear-btn   { padding: 5px 9px; font-size: 0.52rem; }
   .route-menu        { max-height: calc(100svh - 120px); }
   .route-draw-hint   { margin-top: 44px; font-size: 0.7rem; padding: 4px 11px; }
 }
@@ -2056,6 +2057,26 @@ body {
   background: #2563eb;
   color: #fff;
 }
+
+/* Clear-all-routes, directly under the LIST/DRAW switch in the same right-hand rail. Styled as a
+   quiet destructive action — reachable, but not competing with the mode switch above it. */
+.route-clear-btn {
+  padding: 6px 11px;
+  border: none;
+  border-radius: 999px 0 0 999px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #fca5a5;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.route-clear-btn:active { background: rgba(127, 29, 29, 0.85); color: #fff; }
 
 /* A wash over the field while a route is being drawn. Light on purpose — you are drawing against
    the coverage, so you still have to be able to read it — and click-through so the canvas gets
