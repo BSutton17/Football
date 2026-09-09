@@ -839,6 +839,8 @@ export default function App() {
         onLock={room.lockTeam}
         quarterMinutes={room.quarterMinutes}
         onQuarterMinutes={room.setQuarterMinutes}
+        defenseSeesOpenness={room.defenseSeesOpenness}
+        onDefenseVision={room.setDefenseVision}
       />
     )
   }

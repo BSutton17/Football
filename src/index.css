@@ -2223,6 +2223,17 @@ body {
   color: #fff;
 }
 
+/* [defense vision] Sits in the same row as the quarter lengths, separated by a hairline so it
+   reads as a different setting rather than a fifth length. */
+.ts2-setting-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ts2-vision-btn { min-width: 76px; letter-spacing: 0.04em; }
+
 /* The guest sees the setting but cannot change it — dimmed, and not offering a pointer. */
 .ts2-quarter-btn:disabled { cursor: default; opacity: 0.55; }
 .ts2-quarter-btn--on:disabled { opacity: 0.85; }
@@ -2236,6 +2247,7 @@ body {
   .pause-resume-btn { padding: 10px 32px; font-size: 0.95rem; }
   .ts2-quarter    { gap: 3px; padding: 0 0 4px; }
   .ts2-quarter-btn { min-width: 38px; padding: 5px 8px; font-size: 0.72rem; }
+  .ts2-vision-btn  { min-width: 64px; }
 }
 
 

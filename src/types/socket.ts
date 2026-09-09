@@ -84,12 +84,14 @@ export interface ServerToClientEvents {
   // Team selection ([268][269]) — both clients enter selection at once; server is authoritative.
   // [quarter length] Carries the host's current setting so both screens agree from the first frame.
   quarter_length_changed: (data: { minutes: number }) => void
+  // [defense vision] The host toggled whether the DEFENCE is shown how open receivers are.
+  defense_vision_changed: (data: { on: boolean }) => void
   // [pause] Either player froze (or lifted) the game. byYou distinguishes the caller.
   game_paused:  (data: { byYou: boolean }) => void
   game_resumed: () => void
   // [187] The QB has held the ball long enough (in GAME time) that throwing it away is offered.
   throwaway_ready: () => void
-  team_select_start:    (data: { slot: number; teamIds: string[]; quarterMinutes?: number }) => void
+  team_select_start:    (data: { slot: number; teamIds: string[]; quarterMinutes?: number; defenseSeesOpenness?: boolean }) => void
   team_selected:        (data: { slot: number; teamId: string; locked: boolean }) => void  // a pick/lock
   team_taken:           (data: { teamId: string }) => void   // [282] lock rejected — opponent has it
   team_select_complete: (data: { teams: (string | null)[] }) => void   // both locked → game begins
@@ -172,6 +174,8 @@ export interface ClientToServerEvents {
   snap_ball:          () => void
   // [quarter length] Host only; the server ignores it from the guest and clamps the value.
   set_quarter_length: (data: { minutes: number }) => void
+  // [defense vision] Host only; the server ignores it from the guest.
+  set_defense_vision: (data: { on: boolean }) => void
   // [pause] Either player may call or lift a pause.
   pause_game:         () => void
   resume_game:        () => void

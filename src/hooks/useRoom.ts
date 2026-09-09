@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { socket, createRoom as socketCreate, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, setQuarterLength as socketSetQuarterLength, disconnect, SESSION_KEY } from '../socket/index.ts'
+import { socket, createRoom as socketCreate, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, setQuarterLength as socketSetQuarterLength, setDefenseVision as socketSetDefenseVision, disconnect, SESSION_KEY } from '../socket/index.ts'
 import { generateRoomCode } from '../utils/roomCode.ts'
 import type { TeamRole } from '../types/player.ts'
 import type { GameMode, Difficulty } from '../types/game.ts'
@@ -29,6 +29,8 @@ export interface RoomState {
   // [quarter length] Minutes per quarter, chosen by the HOST (slot 0) before kickoff. Both players
   // see it; only the host can change it, which the server enforces regardless.
   quarterMinutes: number
+  // [defense vision] Whether the DEFENCE is shown how open receivers are. Host-chosen; on by default.
+  defenseSeesOpenness: boolean
 }
 
 // Team-selection fields in their empty state — folded into every full state reset.
@@ -37,6 +39,7 @@ export interface RoomState {
 const CLEARED_SELECTION = {
   slot: null, validTeamIds: [] as string[], picks: {} as Record<number, TeamPick>, pickError: null,
   mode: 'automatic' as GameMode, difficulty: 'easy' as Difficulty, quarterMinutes: 5,
+  defenseSeesOpenness: true,
 }
 
 export function useRoom() {
@@ -55,6 +58,7 @@ export function useRoom() {
       mode: 'automatic',
       difficulty: 'easy',
       quarterMinutes: 5,
+      defenseSeesOpenness: true,
     }
   })
 
@@ -99,11 +103,17 @@ export function useRoom() {
     }
 
     // [268][269] Both players enter team selection together.
-    function onTeamSelectStart({ slot, teamIds, quarterMinutes }: { slot: number; teamIds: string[]; quarterMinutes?: number }) {
+    function onTeamSelectStart({ slot, teamIds, quarterMinutes, defenseSeesOpenness }: { slot: number; teamIds: string[]; quarterMinutes?: number; defenseSeesOpenness?: boolean }) {
       setState(s => ({
         ...s, status: 'team_select', slot, validTeamIds: teamIds, picks: {}, pickError: null,
         quarterMinutes: quarterMinutes ?? s.quarterMinutes,
+        defenseSeesOpenness: defenseSeesOpenness ?? s.defenseSeesOpenness,
       }))
+    }
+
+    // [defense vision] The host toggled it — both screens follow.
+    function onDefenseVisionChanged({ on }: { on: boolean }) {
+      setState(s => ({ ...s, defenseSeesOpenness: on }))
     }
 
     // [quarter length] The host changed it — both screens follow the server's clamped value.
@@ -202,6 +212,7 @@ export function useRoom() {
     socket.on('roles_assigned', onRolesAssigned)
     socket.on('team_select_start', onTeamSelectStart)
     socket.on('quarter_length_changed', onQuarterLengthChanged)
+    socket.on('defense_vision_changed', onDefenseVisionChanged)
     socket.on('team_selected', onTeamSelected)
     socket.on('team_taken', onTeamTaken)
     socket.on('team_select_complete', onTeamSelectComplete)
@@ -223,6 +234,7 @@ export function useRoom() {
       socket.off('roles_assigned', onRolesAssigned)
       socket.off('team_select_start', onTeamSelectStart)
       socket.off('quarter_length_changed', onQuarterLengthChanged)
+      socket.off('defense_vision_changed', onDefenseVisionChanged)
       socket.off('team_selected', onTeamSelected)
       socket.off('team_taken', onTeamTaken)
       socket.off('team_select_complete', onTeamSelectComplete)
@@ -286,5 +298,9 @@ export function useRoom() {
     socketSetQuarterLength(minutes)
   }
 
-  return { ...state, createRoom, joinRoom, leaveRoom, selectTeam, lockTeam, enterGame, setQuarterMinutes }
+  function setDefenseVision(on: boolean) {
+    socketSetDefenseVision(on)
+  }
+
+  return { ...state, createRoom, joinRoom, leaveRoom, selectTeam, lockTeam, enterGame, setQuarterMinutes, setDefenseVision }
 }

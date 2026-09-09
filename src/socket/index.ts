@@ -99,6 +99,11 @@ export function setQuarterLength(minutes: number): void {
   if (socket.connected) socket.emit('set_quarter_length', { minutes })
 }
 
+// [defense vision] Host only — whether the DEFENCE is shown how open receivers are.
+export function setDefenseVision(on: boolean): void {
+  if (socket.connected) socket.emit('set_defense_vision', { on })
+}
+
 // [pause] Freeze / unfreeze the game for both players.
 export function pauseGame(): void {
   if (socket.connected) socket.emit('pause_game')

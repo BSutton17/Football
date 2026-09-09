@@ -18,6 +18,10 @@ interface Props {
   // [quarter length] Minutes per quarter. Shown to both players; only the host can change it.
   quarterMinutes: number
   onQuarterMinutes: (minutes: number) => void
+  // [defense vision] Whether the DEFENCE is shown how open receivers are. Host-only, like the
+  // quarter length, and shown read-only to the guest.
+  defenseSeesOpenness: boolean
+  onDefenseVision: (on: boolean) => void
 }
 
 // The lengths the host may pick between.
@@ -36,7 +40,7 @@ function rankedRoster(team: NflTeam): RosterPlayer[] {
 // [team select] A primetime, CFB25-inspired team picker for portrait mobile: an animated stadium
 // stage themed to the focused team — massive brush-font phrase behind a big logo, top-three
 // trading cards, an opponent matchup strip, and a swipeable team carousel with a Random button.
-export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pickError, onSelect, onLock, quarterMinutes, onQuarterMinutes }: Props) {
+export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pickError, onSelect, onLock, quarterMinutes, onQuarterMinutes, defenseSeesOpenness, onDefenseVision }: Props) {
   const teams: NflTeam[] = useMemo(() => {
     const byId = new Map(NFL_TEAMS.map(t => [t.id, t]))
     const ids = validTeamIds.length ? validTeamIds : NFL_TEAMS.map(t => t.id)
@@ -216,6 +220,19 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
                 aria-pressed={quarterMinutes === m}
               >{m}m</button>
             ))}
+
+            {/* [defense vision] Same bar as the quarter length — both are pregame settings the host
+                owns. Off means the DEFENCE no longer sees how open receivers are, which is a much
+                harder game: you have to read your own coverage rather than being told. It stays on
+                by default, and is independent of difficulty, which only blinds the offense. */}
+            <span className="ts2-setting-divider" aria-hidden />
+            <button
+              className={`ts2-quarter-btn ts2-vision-btn${defenseSeesOpenness ? ' ts2-quarter-btn--on' : ''}`}
+              onClick={() => isHost && onDefenseVision(!defenseSeesOpenness)}
+              disabled={!isHost}
+              aria-pressed={defenseSeesOpenness}
+              title="Whether the defence can see how open each receiver is"
+            >D-VIS {defenseSeesOpenness ? 'ON' : 'OFF'}</button>
           </div>
         </div>
 
