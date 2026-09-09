@@ -78,7 +78,19 @@ export interface GameState {
   role: TeamRole      // this viewer's current role — offense or defense
   fatigue?: Record<string, number>   // [fatigue] playerId → current stamina (0–100); drives the bars
   timeouts?: { own: number; opp: number }   // [70] remaining timeouts, viewer-relative (own = this team)
+  // [manual] Fixed for the game by whoever created the room. 'manual' swaps HIKE for a held GO
+  // button; on 'hard' the offense is never sent openness, so it reads the field unaided.
+  mode?: GameMode
+  difficulty?: Difficulty
 }
+
+// [manual] 'automatic' is the original game (tap HIKE, the play runs itself); 'manual' is
+// electric-football mode, where players move only while the offense holds GO.
+export type GameMode = 'automatic' | 'manual'
+
+// [manual] Applies to whichever team has the ball, and only ever hides information from it:
+// 'easy' keeps the openness colors, 'hard' shows plain team colors with a readiness fade.
+export type Difficulty = 'easy' | 'hard'
 
 // Lightweight position payload sent every server tick during live play.
 // y is offense-relative: 0 = own goal line, 100 = opponent goal line.
@@ -101,6 +113,10 @@ export interface PositionUpdate {
   route?: RouteType        // assigned route — set during pre-snap, consumed at snap
   routeDepthScale?: number // depth multiplier (1 = default, 0.5 = half depth, 2 = double)
   openness?: number        // [169] pass-catcher openness 0–1 (0 = smothered, 1 = wide open)
+  // [manual][68] Whether this pass catcher has declared its route and is therefore throwable. Easy
+  // difficulty conveys that implicitly (openness only arrives once ready); hard has no color to
+  // lean on, so it fades an undeclared receiver and lights it up when this flips true.
+  ready?: boolean
   xfActive?: boolean       // [294] X-Factor currently active — drawn as a star instead of a circle
 }
 

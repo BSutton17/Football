@@ -15,6 +15,19 @@ export const BUFFER_SIZE = 8
 // 100 ms is imperceptible on a play that lasts 2–5 seconds.
 export const RENDER_DELAY_MS = SIM.TICK_MS * 2
 
+// Longest gap between two snapshots that can still be treated as ONE tick of movement.
+//
+// [manual] The server stops broadcasting entirely whenever the sim is frozen — the GO button being
+// released, the "It is…" suspense beat, a timeout. Play then resumes with a snapshot that may be
+// seconds of WALL time after the previous one but only one tick of SIMULATED movement away from it.
+// Interpolating across that gap stretches ~half a yard of motion over the whole pause, so everyone
+// crawls for as long as you were paused. Anything beyond this threshold is therefore treated as a
+// discontinuity: the stale history is dropped and play resumes crisply from the new snapshot.
+//
+// Four ticks (200 ms) sits far enough above normal packet jitter that ordinary lag still smooths
+// out, while being well under any real pause.
+export const MAX_GAP_MS = SIM.TICK_MS * 4
+
 export interface SnapshotBuffer {
   snaps: Snapshot[]
 }
@@ -24,8 +37,19 @@ export function createBuffer(): SnapshotBuffer {
 }
 
 // Record a new server tick.  Oldest entry is evicted once the buffer is full.
-export function pushSnapshot(buf: SnapshotBuffer, positions: PositionUpdate[]): void {
-  buf.snaps.push({ positions, time: performance.now() })
+//
+// A snapshot arriving more than MAX_GAP_MS after the previous one means the server was not simply
+// slow — it had stopped ticking (a manual-mode freeze, a suspense beat, a timeout). The history
+// before that gap describes a different, pre-pause moment and must not be interpolated across, so
+// it is discarded and this snapshot becomes the new starting point.
+// `now` is injectable so the gap behaviour can be tested deterministically; production callers
+// omit it and get the real clock.
+export function pushSnapshot(buf: SnapshotBuffer, positions: PositionUpdate[], now = performance.now()): void {
+  const last = buf.snaps[buf.snaps.length - 1]
+
+  if (last && now - last.time > MAX_GAP_MS) buf.snaps.length = 0
+
+  buf.snaps.push({ positions, time: now })
   if (buf.snaps.length > BUFFER_SIZE) buf.snaps.shift()
 }
 

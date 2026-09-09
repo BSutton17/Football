@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { FaFootballBall } from 'react-icons/fa'
 import type { GameState, PositionUpdate } from '../types/game.ts'
-import { drawFrame, computeCamera, drawRushVisualizer, drawPassLine } from '../game/renderer.ts'
+import { drawFrame, computeCamera, drawRushVisualizer, drawPassLine, drawDrawnRoutes, drawActiveStroke } from '../game/renderer.ts'
 import type { TeamPaint } from '../game/renderer.ts'
 import type { CarrierVision } from '../types/game.ts'
 import { PLAYER, FIELD } from '../constants/simulation.ts'
@@ -13,6 +13,11 @@ import type { SnapshotBuffer } from '../game/interpolation.ts'
 import { getRoutePath, getRouteMaxForward } from '../game/routePaths.ts'
 
 const RECEIVER_LABELS = new Set(['WR', 'TE', 'RB'])
+
+// [route draw] How far a pointer may wander and still count as a TAP rather than a drag. A tap on
+// your own receiver opens drawing; anything further is you repositioning him, and the route is left
+// alone. This is what lets a single click do both jobs without a modifier or a double-tap.
+const TAP_SLOP_YARDS = 0.6
 
 interface Props {
   gameState: GameState | null
@@ -42,13 +47,20 @@ interface Props {
   oppTeam?: TeamPaint
   logoTeamId?: string | null           // [midfield logos] home team's logo drawn at the 50
   fieldDirection?: number              // +1 / −1 absolute travel direction — mirrors the logo
+  // [route draw] Drawing mode. `routeDrawMode` arms it; a double-tap on an eligible receiver then
+  // asks App to enter drawing for that player (`drawingFor`), and the stroke is reported back.
+  routeDrawMode?: boolean
+  drawingFor?: string | null
+  onRequestDraw?: (playerId: string) => void
+  onDrawStroke?: (points: { x: number; y: number }[]) => void
+  drawnRoutes?: Record<string, { dx: number; dd: number }[]>
 }
 
 function isDLPlayer(id: string)  { return id.startsWith('auto_dl') }
 // QB and OL are fully locked; DL can slide horizontally
 function isLockedAuto(id: string) { return id.startsWith('auto_') && !isDLPlayer(id) }
 
-export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection }: Props) {
+export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection, routeDrawMode, drawingFor, onRequestDraw, onDrawStroke, drawnRoutes }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const ballIconRef  = useRef<HTMLDivElement>(null)
   const gameStateRef = useRef(gameState)
@@ -76,6 +88,23 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
   onPlayerMoveRef.current = onPlayerMove
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
+  // [route draw] Mirrored into refs like every other prop here, so the pointer listeners below are
+  // bound once and still see current values.
+  const routeDrawModeRef = useRef(routeDrawMode)
+  routeDrawModeRef.current = routeDrawMode
+  const drawingForRef = useRef(drawingFor)
+  drawingForRef.current = drawingFor
+  const onRequestDrawRef = useRef(onRequestDraw)
+  onRequestDrawRef.current = onRequestDraw
+  const onDrawStrokeRef = useRef(onDrawStroke)
+  onDrawStrokeRef.current = onDrawStroke
+  const drawnRoutesRef = useRef(drawnRoutes)
+  drawnRoutesRef.current = drawnRoutes
+  // The stroke currently being traced, in field coordinates. Null when not drawing.
+  const strokeRef = useRef<{ x: number; y: number }[] | null>(null)
+  // A receiver picked up in drawing mode, with where he started — so pointerup can tell a tap
+  // (open drawing) from a drag (reposition him and leave his route alone).
+  const drawCandidateRef = useRef<{ id: string; x: number; y: number } | null>(null)
   const onThrowReceiverRef = useRef(onThrowReceiver)
   onThrowReceiverRef.current = onThrowReceiver
   const onThrowAtDefenderRef = useRef(onThrowAtDefender)
@@ -252,6 +281,17 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
       if (cssW === 0 || cssH === 0) return
       const { fieldX, fieldY } = pointerToField(e)
 
+      // [route draw] While a receiver is armed for drawing, the canvas belongs to the stroke:
+      // no selecting, no dragging, no route handles. The path starts at the RECEIVER rather than
+      // wherever the finger landed, so a route always leaves from the player.
+      if (drawingForRef.current) {
+        const wr = latestPositionsRef.current.find(p => p.id === drawingForRef.current)
+        strokeRef.current = wr ? [{ x: wr.x, y: wr.y }] : []
+        strokeRef.current.push({ x: fieldX, y: fieldY })
+        c.setPointerCapture(e.pointerId)
+        return
+      }
+
       const TAP_YARDS = Math.max(2.0, PLAYER.RADIUS * 2.5)
       let closest: PositionUpdate | null = null
       let minDist = TAP_YARDS
@@ -264,6 +304,19 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
       }
 
       if (closest) {
+        // [route draw] In drawing mode a tap on your own pass catcher opens drawing for him. Whether
+        // it was a tap or a drag can only be known on RELEASE, so the decision is deferred to
+        // pointerup: the player is picked up for dragging either way, and if he never actually moved
+        // it is treated as a tap instead of a reposition.
+        const gsDraw = gameStateRef.current
+        drawCandidateRef.current =
+          routeDrawModeRef.current &&
+          gsDraw?.phase === 'pre_snap' && gsDraw?.role === 'offense' &&
+          closest.team === 'o' && closest.label && RECEIVER_LABELS.has(closest.label) &&
+          !snapLockedRef.current
+            ? { id: closest.id, x: closest.x, y: closest.y }
+            : null
+
         selectedIdRef.current = closest.id
         onSelectRef.current?.(closest.id)
 
@@ -350,6 +403,16 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
     }
 
     function onPointerMove(e: PointerEvent) {
+      if (strokeRef.current) {
+        const { fieldX, fieldY } = pointerToField(e)
+        const path = strokeRef.current
+        const last = path[path.length - 1]
+        // Thin the stream a little as it arrives; the beautifier resamples anyway.
+        if (!last || Math.hypot(fieldX - last.x, fieldY - last.y) > 0.25) {
+          path.push({ x: fieldX, y: fieldY })
+        }
+        return
+      }
       if (dragId) {
         const { fieldX, fieldY } = pointerToField(e)
         const clamped = clampDragPos(fieldX, fieldY)
@@ -367,9 +430,29 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
     }
 
     function onPointerUp(e: PointerEvent) {
+      // [route draw] Lifting the finger ends the route — there is no editing a stroke, you redraw it.
+      if (strokeRef.current) {
+        const path = strokeRef.current
+        strokeRef.current = null
+        try { c.releasePointerCapture(e.pointerId) } catch { /* may already be released */ }
+        onDrawStrokeRef.current?.(path)
+        return
+      }
       if (dragId) {
         const d = canvasDragRef.current
-        if (d) onPlayerMoveRef.current?.(d.id, d.x, d.y)
+        const cand = drawCandidateRef.current
+        const moved = d && cand && cand.id === d.id
+          ? Math.hypot(d.x - cand.x, d.y - cand.y)
+          : Infinity
+
+        if (cand && moved <= TAP_SLOP_YARDS) {
+          // He never really moved — that was a tap. Open drawing and leave him where he was.
+          onRequestDrawRef.current?.(cand.id)
+        } else if (d) {
+          onPlayerMoveRef.current?.(d.id, d.x, d.y)
+        }
+
+        drawCandidateRef.current = null
         dragId = null
         draggingRef.current = false
         try { c.releasePointerCapture(e.pointerId) } catch { /* may already be released */ }
@@ -440,6 +523,19 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
           logoTeamIdRef.current,
           fieldDirectionRef.current ?? 1,
         )
+
+        // [route draw] Committed drawn routes sit above the field art, and the live stroke above
+        // them. Both are pre-snap only — once the ball is snapped the route is the receiver's job,
+        // not a diagram.
+        if (gameStateRef.current?.phase === 'pre_snap') {
+          const dr = drawnRoutesRef.current
+          if (dr && Object.keys(dr).length > 0) {
+            drawDrawnRoutes(x, cssW, cssH, renderPositions, cameraRef.current.currentY, dr)
+          }
+          if (strokeRef.current && strokeRef.current.length > 1) {
+            drawActiveStroke(x, cssW, cssH, cameraRef.current.currentY, strokeRef.current)
+          }
+        }
 
         if (gameStateRef.current?.phase === 'live') {
           drawRushVisualizer(x, cssW, cssH, renderPositions, cameraRef.current.currentY)

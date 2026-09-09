@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { socket, createRoom as socketCreate, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, disconnect, SESSION_KEY } from '../socket/index.ts'
 import { generateRoomCode } from '../utils/roomCode.ts'
 import type { TeamRole } from '../types/player.ts'
+import type { GameMode, Difficulty } from '../types/game.ts'
 
 export type RoomStatus = 'idle' | 'connecting' | 'waiting' | 'team_select' | 'vs' | 'ready' | 'reconnecting' | 'error' | 'abandoned'
 
@@ -21,10 +22,19 @@ export interface RoomState {
   validTeamIds: string[]                     // server-authoritative list of selectable teams
   picks: Record<number, TeamPick>            // slot → current pick (for self + opponent)
   pickError: string | null                   // [282] e.g. "that team is taken"
+  // [manual] The mode/difficulty this client is playing under. Chosen in the lobby when creating;
+  // for a joiner these are confirmed by the server (the room is authoritative for both).
+  mode: GameMode
+  difficulty: Difficulty
 }
 
 // Team-selection fields in their empty state — folded into every full state reset.
-const CLEARED_SELECTION = { slot: null, validTeamIds: [] as string[], picks: {} as Record<number, TeamPick>, pickError: null }
+// [manual] mode/difficulty are included so every full-state reset that spreads this constant keeps
+// them defined; callers that know better (createRoom / joinRoom) override them afterwards.
+const CLEARED_SELECTION = {
+  slot: null, validTeamIds: [] as string[], picks: {} as Record<number, TeamPick>, pickError: null,
+  mode: 'automatic' as GameMode, difficulty: 'easy' as Difficulty,
+}
 
 export function useRoom() {
   const [state, setState] = useState<RoomState>(() => {
@@ -39,6 +49,8 @@ export function useRoom() {
       validTeamIds: [],
       picks: {},
       pickError: null,
+      mode: 'automatic',
+      difficulty: 'easy',
     }
   })
 
@@ -54,8 +66,26 @@ export function useRoom() {
       sessionStorage.setItem(SESSION_KEY, token)
     }
 
-    function onRoomJoined(_data: { slot: number }) {
-      setState(s => ({ ...s, status: 'waiting' }))
+    // [manual] The server echoes the ROOM's mode/difficulty here. For a joiner that is the first
+    // authoritative word on either, so adopt them rather than trusting the lobby selection.
+    function onRoomJoined(data: { slot: number; mode?: GameMode; difficulty?: Difficulty }) {
+      setState(s => ({
+        ...s,
+        status: 'waiting',
+        mode: data.mode ?? s.mode,
+        difficulty: data.difficulty ?? s.difficulty,
+      }))
+    }
+
+    // [manual] Refused: the code is real but that room is running the other mode.
+    function onRoomModeMismatch({ mode }: { mode: GameMode }) {
+      const label = mode === 'manual' ? 'Manual' : 'Automatic'
+      setState({
+        ...CLEARED_SELECTION, status: 'error', roomId: null, role: null,
+        mode: 'automatic', difficulty: 'easy',
+        error: `That code is a ${label} game — pick ${label} to join it.`,
+      })
+      disconnect()
     }
 
     // Role is assigned before team selection; status is driven by team_select_start /
@@ -165,6 +195,7 @@ export function useRoom() {
     socket.on('switch_sides', onSwitchSides)
     socket.on('reconnect_success', onReconnectSuccess)
     socket.on('reconnect_failed', onReconnectFailed)
+    socket.on('room_mode_mismatch', onRoomModeMismatch)
     socket.on('room_full', onRoomFull)
     socket.on('room_not_found', onRoomNotFound)
     socket.on('room_error', onRoomError)
@@ -184,6 +215,7 @@ export function useRoom() {
       socket.off('switch_sides', onSwitchSides)
       socket.off('reconnect_success', onReconnectSuccess)
       socket.off('reconnect_failed', onReconnectFailed)
+      socket.off('room_mode_mismatch', onRoomModeMismatch)
       socket.off('room_full', onRoomFull)
       socket.off('room_not_found', onRoomNotFound)
       socket.off('room_error', onRoomError)
@@ -194,20 +226,23 @@ export function useRoom() {
     }
   }, [])
 
-  function createRoom() {
+  // [manual] mode/difficulty are chosen on the lobby screen and fix the room for the whole game.
+  function createRoom(mode: GameMode = 'automatic', difficulty: Difficulty = 'easy') {
     // Starting a brand-new game — drop any stale session token so the upcoming connect doesn't
     // fire an unwanted reconnect_to_room (which could drop us into a dead room).
     sessionStorage.removeItem(SESSION_KEY)
     const id = generateRoomCode()
-    setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: id, role: null, error: null })
-    socketCreate(id)
+    setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: id, role: null, error: null, mode, difficulty })
+    socketCreate(id, mode, difficulty)
   }
 
-  function joinRoom(id: string) {
+  // The joiner's mode is only a filter — the server refuses a mismatch and the room's own
+  // difficulty arrives with room_joined.
+  function joinRoom(id: string, mode: GameMode = 'automatic') {
     sessionStorage.removeItem(SESSION_KEY)
     const normalized = id.replace(/\D/g, '').slice(0, 4)   // 4-digit numeric room code
-    setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: normalized, role: null, error: null })
-    socketJoin(normalized)
+    setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: normalized, role: null, error: null, mode, difficulty: 'easy' })
+    socketJoin(normalized, mode)
   }
 
   function leaveRoom() {

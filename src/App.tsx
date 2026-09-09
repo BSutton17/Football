@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
-import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, SESSION_KEY } from './socket/index.ts'
+import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, SESSION_KEY } from './socket/index.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
+import { beautifyRoute } from './game/routeDraw.ts'
+import type { RouteOffset } from './game/routeDraw.ts'
 import RoomScreen from './components/RoomScreen.tsx'
 import IntroScreen from './components/IntroScreen.tsx'
 import TeamSelectScreen from './components/TeamSelectScreen.tsx'
@@ -23,7 +25,7 @@ import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveForma
 import { computeCamera } from './game/renderer.ts'
 import { computeZoneShell, SHELL_ORDER, SHELL_LABEL } from './game/zoneShells.ts'
 import { FIELD } from './constants/simulation.ts'
-import type { GameState, PlayPhase, PositionUpdate, CarrierVision, Score, GameOver, PlayResult, SpecialTeamsState, PlayDecision } from './types/game.ts'
+import type { GameState, PlayPhase, PositionUpdate, CarrierVision, Score, GameOver, PlayResult, SpecialTeamsState, PlayDecision, GameMode, Difficulty } from './types/game.ts'
 
 const YARD_LINE = 25   // mock ball position
 
@@ -158,11 +160,31 @@ export default function App() {
   const [manTargets, setManTargets] = useState<Record<string, string>>({})
   const [zoneTypes, setZoneTypes] = useState<Record<string, ZoneType>>({})
   const [zoneCenters, setZoneCenters] = useState<Record<string, { x: number; y: number }>>({})
+  // [route draw] Which way routes are assigned. 'menu' is the original tap-a-route list; 'draw'
+  // lets the offense trace routes on the field. It is purely an INPUT mode — routes already
+  // assigned either way survive switching, so you can menu three receivers and draw the fourth.
+  const [routeMode, setRouteMode] = useState<'menu' | 'draw'>('menu')
+  // playerId → the beautified route he was drawn, as offsets from his own position.
+  const [drawnRoutes, setDrawnRoutes] = useState<Record<string, RouteOffset[]>>({})
+  // The receiver currently armed for drawing (double-tapped), or null.
+  const [drawingFor, setDrawingFor] = useState<string | null>(null)
   const [playType, setPlayType] = useState<'run' | 'pass'>('pass')
   const [runAngle, setRunAngle] = useState<number>(0)  // degrees, -60 to +60
   const [phase, setPhase] = useState<PlayPhase>('pre_snap')
   const [hikeCount, setHikeCount] = useState<number | null>(null)
   const [hikeReady, setHikeReady] = useState(false)
+  // [manual] How this room plays. Fixed for the game; arrives with every game_state.
+  const [gameMode, setGameMode] = useState<GameMode>('automatic')
+  const [difficulty, setDifficulty] = useState<Difficulty>('easy')
+  // [manual] Is this play under GO control, and is it frozen right now? `manualLive` is armed at the
+  // snap of a manual PASS play and cleared once the ball is thrown / the QB scrambles, which is
+  // exactly when the server stops honouring GO.
+  const [manualLive, setManualLive] = useState(false)
+  const [manualFrozen, setManualFrozen] = useState(false)
+  // [manual] The "It is…" suspense beat, then the result it resolves to ("Caught!" / "Dropped!" /
+  // "Intercepted!" / "Broken up!"). Server-driven so both teams see the same beat at the same time.
+  const [passPending, setPassPending] = useState(false)
+  const [passReveal, setPassReveal] = useState<string | null>(null)
   const [gameClock, setGameClock] = useState(MOCK_STATE.clock)
   const [gameQuarter, setGameQuarter] = useState(MOCK_STATE.quarter)
   const [score, setScore] = useState<Score>(MOCK_STATE.score)   // [195] live score, synced from server
@@ -269,7 +291,7 @@ export default function App() {
   const gameOverRef = useRef(false)
   // Positions received from the server — the other team's players as they place/move them
   const [opponentPositions, setOpponentPositions] = useState<PositionUpdate[]>([])
-  const [livePositions, setLivePositions] = useState<Record<string, { x: number; y: number; openness?: number; xfActive?: boolean }>>({})
+  const [livePositions, setLivePositions] = useState<Record<string, { x: number; y: number; openness?: number; ready?: boolean; xfActive?: boolean }>>({})
   // [193] id of the player currently carrying the ball (from positions_update), or null.
   const [liveCarrierId, setLiveCarrierId] = useState<string | null>(null)
   const [carrierVision, setCarrierVision] = useState<CarrierVision | null>(null)   // [163] run visualizer
@@ -331,13 +353,36 @@ export default function App() {
       setHikeCount(count)
       if (count === 0) setHikeReady(true)
     }
-    function onBallSnapped() { setHikeCount(null); setHikeReady(false); setPhase('live'); setScrambling(false); setThrowawayPos(null); setLiveCarrierId(null); setTouchdownBanner(null) }
-    function onQbScrambling() { setScrambling(true); thrownRef.current = true }   // [185] lock throws
+    function onBallSnapped(data?: { manual?: boolean }) {
+      setHikeCount(null); setHikeReady(false); setPhase('live'); setScrambling(false)
+      setThrowawayPos(null); setLiveCarrierId(null); setTouchdownBanner(null)
+      // [manual] The server tells us whether THIS play is GO-driven — only manual pass plays are.
+      setManualLive(!!data?.manual)
+      setManualFrozen(false)
+      setPassPending(false)
+      setPassReveal(null)
+    }
+
+    // [manual] The play froze (GO released, or the anti-jitter minimum finally elapsed) / resumed.
+    function onManualFrozen() { setManualFrozen(true) }
+    function onManualResumed() { setManualFrozen(false) }
+
+    // [manual] The pass is decided but withheld: show "It is…" until the reveal lands.
+    function onManualPassPending() { setPassPending(true); setPassReveal(null); setManualFrozen(false) }
+    function onManualPassReveal({ label }: { label: string }) {
+      setPassPending(false)
+      setPassReveal(label)
+      // The banner outlives the freeze that follows a catch/pick; the next play clears it, and this
+      // timer covers an incompletion (where the next game_state arrives almost immediately anyway).
+      window.setTimeout(() => setPassReveal(null), 2500)
+    }
+    // [185] lock throws. [manual] A scramble also ends the hold loop — the play runs itself out.
+    function onQbScrambling() { setScrambling(true); thrownRef.current = true; setManualLive(false); setManualFrozen(false) }
     function onPositionsUpdate(updates: PositionUpdate[]) {
       setLivePositions(prev => {
         const next = { ...prev }
         for (const u of updates) {
-          if (u.x != null && u.y != null) next[u.id] = { x: u.x, y: u.y, openness: u.openness, xfActive: u.xfActive }
+          if (u.x != null && u.y != null) next[u.id] = { x: u.x, y: u.y, openness: u.openness, ready: u.ready, xfActive: u.xfActive }
         }
         return next
       })
@@ -408,6 +453,15 @@ export default function App() {
       setThrowawayPos(null)       // [187] new play — hide the throwaway button
       setLiveCarrierId(null)      // [193] new play — clear the ball carrier
       setLockedFormation(null)    // each play starts unset — the offense must toggle Set Formation again
+      setDrawnRoutes({})          // [route draw] routes are per-play; a new play starts blank
+      setDrawingFor(null)
+      // [manual] Mode/difficulty are fixed for the game; the per-play GO state resets every play.
+      setGameMode(gs.mode ?? 'automatic')
+      setDifficulty(gs.difficulty ?? 'easy')
+      setManualLive(false)
+      setManualFrozen(false)
+      setPassPending(false)
+      setPassReveal(null)
       setGameClock(gs.clock)
       setGameQuarter(gs.quarter)
       setScore(gs.score)          // [195] keep the score synced on play boundaries / reconnect
@@ -490,6 +544,10 @@ export default function App() {
     socket.on('hike_countdown', onHikeCountdown)
     socket.on('ball_snapped', onBallSnapped)
     socket.on('qb_scrambling', onQbScrambling)
+    socket.on('manual_frozen', onManualFrozen)
+    socket.on('manual_resumed', onManualResumed)
+    socket.on('manual_pass_pending', onManualPassPending)
+    socket.on('manual_pass_reveal', onManualPassReveal)
     socket.on('positions_update', onPositionsUpdate)
     socket.on('pass_thrown', onPassThrown)
     socket.on('tackle_broken', onTackleBroken)
@@ -514,6 +572,10 @@ export default function App() {
       socket.off('hike_countdown', onHikeCountdown)
       socket.off('ball_snapped', onBallSnapped)
       socket.off('qb_scrambling', onQbScrambling)
+      socket.off('manual_frozen', onManualFrozen)
+      socket.off('manual_resumed', onManualResumed)
+      socket.off('manual_pass_pending', onManualPassPending)
+      socket.off('manual_pass_reveal', onManualPassReveal)
       socket.off('positions_update', onPositionsUpdate)
       socket.off('pass_thrown', onPassThrown)
       socket.off('tackle_broken', onTackleBroken)
@@ -703,7 +765,7 @@ export default function App() {
   const offenseSlot   = role === 'offense' ? (room.slot ?? 0) : (1 - (room.slot ?? 0))
   const fieldDirection = offenseSlot === 0 ? 1 : -1
 
-  const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX, timeouts }
+  const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX, timeouts, mode: gameMode, difficulty }
   const isPreSnap = phase === 'pre_snap'
 
   // The QB lines up at the ball's hash (ballX), 6 yards behind the LOS — so the backfield (and the
@@ -745,7 +807,7 @@ export default function App() {
     // Carry the server-computed openness so the renderer can color pass catchers ([169]); it's
     // only present once the receiver has declared (first cut / 1.3s), so before that the receiver
     // keeps its base color.
-    const base = lp ? { ...p, x: lp.x, y: lp.y, openness: lp.openness, xfActive: lp.xfActive } : p
+    const base = lp ? { ...p, x: lp.x, y: lp.y, openness: lp.openness, ready: lp.ready, xfActive: lp.xfActive } : p
     const withStar = (starred || base.xfActive) ? { ...base, xfActive: true } : base
     return p.id === liveCarrierId ? { ...withStar, state: 'ball' } : withStar
   }
@@ -799,7 +861,9 @@ export default function App() {
   const ROUTE_POSITIONS    = ['WR', 'TE', 'RB']
   const COVERAGE_POSITIONS = ['LB', 'CB', 'S', 'DL']
   const selectedPlayer  = selectedId ? allPositions.find(p => p.id === selectedId) : null
-  const showRouteMenu   = role === 'offense'
+  // [route draw] In drawing mode the tap-a-route list would fight the double-tap gesture, so it
+  // stays closed; the block button remains available through the menu in list mode.
+  const showRouteMenu   = routeMode === 'menu' && !drawingFor && role === 'offense'
     && isPreSnap
     && selectedPlayer != null
     && ROUTE_POSITIONS.includes(selectedPlayer.label ?? '')
@@ -1016,14 +1080,65 @@ export default function App() {
         team:            p.team,
         route:           p.route,
         routeDepthScale: p.routeDepthScale,
+        // [route draw] A hand-drawn route travels with the formation, as offsets from this
+        // player. The server re-clamps it (length, the cut lock, the sidelines) before it runs.
+        drawnRoute:      drawnRoutes[p.id],
         ratings:         teamRoster.ratingsById[p.id],   // [293] per-team ratings → simulation
         xFactor:         teamRoster.xFactorById[p.id],   // [294] potential X-Factor ability
       })),
     })
   }
 
+  // [route draw] A double-tap on a receiver armed him for drawing. Selecting is suppressed while
+  // armed so the route menu doesn't flash open underneath the overlay.
+  function handleRequestDraw(playerId: string) {
+    if (lockedFormation) return          // formation is set — routes are final
+    setSelectedId(null)
+    setDrawingFor(playerId)
+  }
+
+  // The finger lifted. Beautify the raw stroke into something runnable and keep it; a stroke too
+  // small to be a route just cancels out of drawing without changing anything.
+  function handleDrawStroke(points: { x: number; y: number }[]) {
+    const id = drawingFor
+    setDrawingFor(null)
+    if (!id) return
+
+    const wr = allPositions.find(p => p.id === id)
+    if (!wr) return
+
+    const route = beautifyRoute(points, { x: wr.x, y: wr.y })
+    if (!route) return
+
+    setDrawnRoutes(prev => ({ ...prev, [id]: route }))
+    // A drawn route replaces whatever the menu had assigned — one receiver, one route.
+    setPlayerRoutes(prev => { const n = { ...prev }; delete n[id]; return n })
+  }
+
+  // Switching modes never destroys work; it only changes how the next route is assigned.
+  function handleRouteModeChange(mode: 'menu' | 'draw') {
+    setRouteMode(mode)
+    setDrawingFor(null)
+    setSelectedId(null)
+  }
+
   function handleHike() {
     snapBall()
+  }
+
+  // [manual] GO pressed. The FIRST press is the snap itself; every later press resumes a frozen
+  // play. Both are just intent — the server owns the hold loop and the anti-jitter minimum.
+  function handleGoPress() {
+    if (role !== 'offense') return
+    if (phase === 'countdown') { if (hikeReady) snapBall(); return }
+    if (phase === 'live' && manualLive) goPress()
+  }
+
+  // [manual] GO released. Sent unconditionally during a live manual play: the server decides
+  // whether this actually freezes now or after the minimum hold, so the client never guesses.
+  function handleGoRelease() {
+    if (role !== 'offense') return
+    if (phase === 'live' && manualLive) goRelease()
   }
 
   function handleDrop(playerId: string, clientX: number, clientY: number) {
@@ -1121,6 +1236,9 @@ export default function App() {
   function handleThrowReceiver(receiverId: string) {
     if (role !== 'offense' || playType !== 'pass' || phase !== 'live') return
     if (thrownRef.current || scrambling) return   // [185] no throwing once the QB scrambles
+    // [manual] Throws are legal only while the play is frozen. Mirrored here so a tap on a moving
+    // receiver is simply inert rather than bouncing off the server as a rejected action.
+    if (manualLive && !manualFrozen) return
     thrownRef.current = true
     setThrowawayPos(null)             // [187] the ball is gone — no more throwaway
     setTargetReceiverId(receiverId)   // [168] draw the dashed line to the targeted receiver
@@ -1132,6 +1250,7 @@ export default function App() {
   function handleThrowAtDefender(defenderId: string) {
     if (role !== 'offense' || playType !== 'pass' || phase !== 'live') return
     if (thrownRef.current || scrambling) return
+    if (manualLive && !manualFrozen) return   // [manual] only while frozen
     thrownRef.current = true
     setThrowawayPos(null)
     setTargetReceiverId(defenderId)   // brief line to the defender before the pick
@@ -1159,6 +1278,7 @@ export default function App() {
   // [187] QB throws the ball away — an intentional incompletion ([188]). Locks the play's throw
   // decision and hides the button; the server resolves it as an incomplete pass.
   function handleThrowaway() {
+    if (manualLive && !manualFrozen) return   // [manual] only while frozen
     if (role !== 'offense' || playType !== 'pass' || phase !== 'live') return
     if (thrownRef.current || scrambling) return
     thrownRef.current = true
@@ -1175,6 +1295,11 @@ export default function App() {
       {playOver && !gameOver && <div className="play-block-overlay" aria-hidden />}
       <GameCanvas
         gameState={gameState}
+        routeDrawMode={routeMode === 'draw'}
+        drawingFor={drawingFor}
+        onRequestDraw={handleRequestDraw}
+        onDrawStroke={handleDrawStroke}
+        drawnRoutes={drawnRoutes}
         positions={kickInProgress ? stFormation : allPositions}
         onPlayerMove={handlePlayerMove}
         onSelect={setSelectedId}
@@ -1325,11 +1450,43 @@ export default function App() {
           Timeout — {timeoutPause.byYou ? 'You' : 'Opponent'}
         </div>
       )}
-      {role === 'offense' && phase === 'countdown' && (
+      {/* [manual] In an automatic room this is the original HIKE tap. In a manual room it becomes a
+          HELD button: the first press snaps the ball, and from then on the play only moves while it
+          is down. Releasing freezes everything (game clock included) so the offense can read the
+          field and throw. Pointer capture keeps the release ours even if the finger slides off, and
+          onPointerCancel covers the browser stealing the gesture — without both, a lost release
+          would leave the play running with nobody holding anything. */}
+      {role === 'offense' && gameMode === 'automatic' && phase === 'countdown' && (
         <button className="hike-btn" onPointerDown={handleHike} disabled={!hikeReady}>
           HIKE!
         </button>
       )}
+
+      {role === 'offense' && gameMode === 'manual' && (phase === 'countdown' || (phase === 'live' && manualLive)) && (
+        <button
+          className={`hike-btn go-btn${manualFrozen ? ' go-btn--frozen' : ''}`}
+          disabled={phase === 'countdown' && !hikeReady}
+          onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); handleGoPress() }}
+          onPointerUp={handleGoRelease}
+          onPointerCancel={handleGoRelease}
+          onLostPointerCapture={handleGoRelease}
+        >
+          {phase === 'countdown' ? 'HOLD GO' : manualFrozen ? 'HOLD TO RESUME' : 'GO'}
+        </button>
+      )}
+
+      {/* [manual] Play is frozen. Shown to BOTH teams so the defense understands why nothing moves;
+          only the offense gets the instruction, since only it can act. */}
+      {/* {phase === 'live' && manualLive && manualFrozen && !passPending && !passReveal && (
+        <div className="manual-frozen-banner">
+          {role === 'offense' ? 'Paused — tap a receiver to throw, or hold GO' : 'Offense is reading the field…'}
+        </div>
+      )} */}
+
+      {/* [manual] The suspense beat, then the outcome. The result is already decided server-side —
+          this is presentation only, which is why the delay can never change what happens. */}
+      {passPending && <div className="manual-suspense-banner">It is…</div>}
+      {passReveal && <div className="manual-reveal-banner">{passReveal}</div>}
       {role === 'offense' && phase === 'live' && playType === 'pass' && !scrambling && !thrownRef.current && throwawayPos && (
         <button
           className="throwaway-btn"
@@ -1339,13 +1496,44 @@ export default function App() {
           Throw Away
         </button>
       )}
-      {showRouteMenu && selectedPlayer && (
-        <RouteMenu
-          playerId={selectedPlayer.id}
-          position={selectedPlayer.label!}
-          currentRoute={playerRoutes[selectedPlayer.id]}
-          onSelect={handleRouteSelect}
-        />
+      {/* [route draw] While a receiver is armed, a soft wash over the field says "you are drawing
+          now, not selecting". It is deliberately light — you still need to see the coverage you are
+          drawing against — and lets pointer events through to the canvas underneath. */}
+      {drawingFor && (
+        <div className="route-draw-overlay">
+          <span className="route-draw-hint">Draw the route</span>
+        </div>
+      )}
+
+      {/* [route draw] The right-hand route rail. The mode switch and the route list live in ONE
+          stack rather than being positioned independently: the list is vertically centred and its
+          height varies with the position being assigned, so any fixed offset for the switch would
+          eventually collide with it. Stacking them makes the layout correct by construction in
+          both orientations. */}
+      {role === 'offense' && isPreSnap && !kickInProgress && (
+        <div className="route-rail">
+          {playType === 'pass' && !lockedFormation && (
+            <div className="route-mode-switch" role="group" aria-label="Route assignment mode">
+              <button
+                className={`route-mode-btn${routeMode === 'menu' ? ' route-mode-btn--on' : ''}`}
+                onPointerDown={() => handleRouteModeChange('menu')}
+              >LIST</button>
+              <button
+                className={`route-mode-btn${routeMode === 'draw' ? ' route-mode-btn--on' : ''}`}
+                onPointerDown={() => handleRouteModeChange('draw')}
+              >DRAW</button>
+            </div>
+          )}
+
+          {showRouteMenu && selectedPlayer && (
+            <RouteMenu
+              playerId={selectedPlayer.id}
+              position={selectedPlayer.label!}
+              currentRoute={playerRoutes[selectedPlayer.id]}
+              onSelect={handleRouteSelect}
+            />
+          )}
+        </div>
       )}
       {showCoverageMenu && selectedPlayer && (
         <CoverageMenu

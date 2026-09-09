@@ -316,6 +316,9 @@ function drawFirstDown(
 
 // Openness thresholds ([169]): a pass catcher is colored red (smothered), yellow (mildly
 // covered), or green (open) by its server-computed openness score in [0, 1].
+// [manual][hard] How dim an undeclared receiver renders before its route light comes on.
+const UNREADY_ALPHA = 0.4
+
 const OPENNESS_OPEN_MIN = 0.66   // ≥ this → open (green)
 const OPENNESS_MILD_MIN = 0.33   // ≥ this → mildly covered (yellow); below → covered (red)
 
@@ -391,6 +394,10 @@ function drawPlayers(
   positions: PositionUpdate[],
   selectedId: string | null,
   colorByOpenness: boolean,
+  // [manual][hard] Fade the offense's own pass catchers until their route declares. On hard there
+  // are no openness colors to read, so brightness carries the one signal that remains: whether a
+  // receiver is throwable yet ([68]).
+  fadeUnready = false,
   showFatigue = false,
   fatigue: Record<string, number> = {},
   ownTeam: TeamPaint = { fill: C.OFFENSE, text: '#ffffff', ring: C.SELECTED_RING },
@@ -408,6 +415,9 @@ function drawPlayers(
   for (const p of positions) {
     const cx = fieldXToCanvas(p.x, cam)
     const cy = relYToCanvas(p.y, cam)
+    // Set on EVERY iteration (not just faded ones) so the `continue` paths below can't leak the
+    // previous player's alpha onto the next one.
+    ctx.globalAlpha = fadeUnready && p.team === 'o' && p.ready === false ? UNREADY_ALPHA : 1
     if (cy < -r || cy > cssH + r) continue
 
     // Client selection OR server-flagged selected state both trigger the ring
@@ -486,6 +496,8 @@ function drawPlayers(
       }
     }
   }
+
+  ctx.globalAlpha = 1   // never leave a faded alpha on the context for later passes
 }
 
 // A small stamina bar: green when fresh, amber as it wears, red when gassed. stamina is 0–100.
@@ -909,10 +921,14 @@ export function drawFrame(
   }
   // Color the offense's own pass catchers by openness during a live pass play ([169]).
   const colorByOpenness = gameState?.role === 'offense' && gameState?.phase === 'live'
+  // [manual][hard] The offense is sent no openness at all on hard, so the colors above simply never
+  // appear. Readiness is signalled by brightness instead — dim until the route declares.
+  const fadeUnready = gameState?.role === 'offense' && gameState?.phase === 'live' &&
+                      gameState?.difficulty === 'hard'
   // The viewer's team is the offense this play iff the viewer's role is offense — that maps p.team
   // ('o'/'d') to own vs opponent color so a team keeps its color all game.
   const ownIsOffense = gameState?.role !== 'defense'
-  drawPlayers(ctx, cam, cssH, positions, selectedId, colorByOpenness, showFatigue, fatigue, ownTeam, oppTeam, ownIsOffense)
+  drawPlayers(ctx, cam, cssH, positions, selectedId, colorByOpenness, fadeUnready, showFatigue, fatigue, ownTeam, oppTeam, ownIsOffense)
 }
 
 // ── Pass-rush visualizer ──────────────────────────────────────────────────────
@@ -1070,4 +1086,79 @@ export function drawPassLine(
   ctx.stroke()
   ctx.setLineDash([])
   ctx.restore()
+}
+
+
+// ── Hand-drawn routes ([route draw]) ─────────────────────────────────────────
+//
+// Drawn routes are rendered from their own waypoints rather than from a route template, so there is
+// no ROUTE_DEF mirror to keep in step here — the points ARE the route.
+
+// Both the finished route and the stroke being traced are yellow — it stays the same object from
+// the moment you start drawing it. They are told apart by the line style instead: the live stroke is
+// dashed and the committed route is solid.
+const DRAWN_ROUTE_COLOR  = '#fde047'
+const DRAWN_STROKE_COLOR = '#fde047'
+
+function drawPolyline(
+  ctx: CanvasRenderingContext2D,
+  cam: Camera,
+  pts: { x: number; y: number }[],
+  color: string,
+  width: number,
+  dashed: boolean,
+) {
+  if (pts.length < 2) return
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.lineWidth   = width
+  ctx.lineJoin    = 'round'
+  ctx.lineCap     = 'round'
+  ctx.setLineDash(dashed ? [7, 5] : [])
+  ctx.beginPath()
+  ctx.moveTo(fieldXToCanvas(pts[0].x, cam), relYToCanvas(pts[0].y, cam))
+  for (let i = 1; i < pts.length; i++) {
+    ctx.lineTo(fieldXToCanvas(pts[i].x, cam), relYToCanvas(pts[i].y, cam))
+  }
+  ctx.stroke()
+  ctx.restore()
+}
+
+// Committed drawn routes, one per receiver that has one, plus a marker at the endpoint.
+export function drawDrawnRoutes(
+  ctx: CanvasRenderingContext2D,
+  cssW: number,
+  cssH: number,
+  positions: PositionUpdate[],
+  cameraY: number,
+  drawnRoutes: Record<string, { dx: number; dd: number }[]>,
+) {
+  const cam = computeCamera(cssW, cssH, cameraY)
+  for (const [id, offsets] of Object.entries(drawnRoutes)) {
+    const p = positions.find(q => q.id === id)
+    if (!p || !offsets || offsets.length === 0) continue
+
+    const pts = [{ x: p.x, y: p.y }, ...offsets.map(o => ({ x: p.x + o.dx, y: p.y + o.dd }))]
+    drawPolyline(ctx, cam, pts, DRAWN_ROUTE_COLOR, 2.5, false)
+
+    const end = pts[pts.length - 1]
+    ctx.save()
+    ctx.fillStyle = DRAWN_ROUTE_COLOR
+    ctx.beginPath()
+    ctx.arc(fieldXToCanvas(end.x, cam), relYToCanvas(end.y, cam), 4, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+  }
+}
+
+// The raw stroke as it is being traced — deliberately drawn as the wobbly thing it is, so the
+// cleanup that lands afterwards reads as the game tidying it up.
+export function drawActiveStroke(
+  ctx: CanvasRenderingContext2D,
+  cssW: number,
+  cssH: number,
+  cameraY: number,
+  stroke: { x: number; y: number }[],
+) {
+  drawPolyline(ctx, computeCamera(cssW, cssH, cameraY), stroke, DRAWN_STROKE_COLOR, 3, true)
 }

@@ -1,5 +1,6 @@
 import { io, type Socket } from 'socket.io-client'
 import type { ServerToClientEvents, ClientToServerEvents, SetOffensePayload, PlacePlayerPayload } from '../types/socket.ts'
+import type { GameMode, Difficulty } from '../types/game.ts'
 
 export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
@@ -43,12 +44,15 @@ function emitWhenConnected(fn: () => void): void {
   }
 }
 
-export function createRoom(roomId: string): void {
-  emitWhenConnected(() => socket.emit('create_room', roomId))
+// [manual] The creator fixes the room's mode and difficulty for the whole game.
+export function createRoom(roomId: string, mode: GameMode = 'automatic', difficulty: Difficulty = 'easy'): void {
+  emitWhenConnected(() => socket.emit('create_room', { roomId, mode, difficulty }))
 }
 
-export function joinRoom(roomId: string): void {
-  emitWhenConnected(() => socket.emit('join_room', roomId))
+// [manual] The joiner sends the mode it picked so the server can refuse a mismatch outright — the
+// room's own mode always wins, and difficulty comes from the room rather than the joiner.
+export function joinRoom(roomId: string, mode: GameMode = 'automatic'): void {
+  emitWhenConnected(() => socket.emit('join_room', { roomId, mode }))
 }
 
 export function disconnect(): void {
@@ -92,6 +96,16 @@ export function clearCoverage(playerId: string): void {
 
 export function snapBall(): void {
   if (socket.connected) socket.emit('snap_ball')
+}
+
+// [manual] GO pressed / released. These fire from a held button, so they are sent unconditionally
+// and the server decides what (if anything) they mean — a stray edge is ignored, never an error.
+export function goPress(): void {
+  if (socket.connected) socket.emit('go_press')
+}
+
+export function goRelease(): void {
+  if (socket.connected) socket.emit('go_release')
 }
 
 // [70] Either team spends a timeout (stops the game clock + a brief frozen pause). Server validates.

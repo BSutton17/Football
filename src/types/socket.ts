@@ -1,5 +1,5 @@
 import type { TeamRole, PlayerRatings } from './player.ts'
-import type { Quarter, Score, GameState, GameOver, PlayResult, PositionUpdate, CarrierVision, SpecialTeamsState, KickType, DecisionOption } from './game.ts'
+import type { Quarter, Score, GameState, GameOver, PlayResult, PositionUpdate, CarrierVision, SpecialTeamsState, KickType, DecisionOption, GameMode, Difficulty } from './game.ts'
 import type { RouteType, CoverageType, ZoneType } from './routes.ts'
 
 // ─── Shared payload shapes ────────────────────────────────────────────────────
@@ -22,6 +22,10 @@ export interface PlayerDesign {
   team: 'o' | 'd'
   route?: RouteType
   routeDepthScale?: number
+  // [route draw] A hand-drawn route, as offsets from this player's own spot ({ dx } across the
+  // field, { dd } downfield). Present instead of a named `route` when the player drew one; the
+  // server re-clamps it and builds the waypoints the receiver actually runs.
+  drawnRoute?: { dx: number; dd: number }[]
   ratings?: PlayerRatings   // [293] per-team player attributes that drive the simulation
   xFactor?: string          // [294] signature ability the player can earn (inactive until earned)
 }
@@ -56,10 +60,13 @@ export interface AssignSafetyHelpPayload {
 
 export interface ServerToClientEvents {
   // Room
-  room_joined:          (data: { slot: number }) => void
+  room_joined:          (data: { slot: number; mode?: GameMode; difficulty?: Difficulty }) => void
   room_full:            () => void
   room_not_found:       () => void
   room_error:           (data: { message: string }) => void
+  // [manual] The code was valid but belongs to a room of the OTHER mode. The room is authoritative,
+  // so the join is refused and the client is told which mode it would actually have been joining.
+  room_mode_mismatch:   (data: { mode: GameMode }) => void
   roles_assigned:       (data: { role: TeamRole }) => void
   session_token:        (token: string) => void
   opponent_left:        () => void
@@ -84,7 +91,15 @@ export interface ServerToClientEvents {
   coverage_cleared:   (data: { playerId: string }) => void
   offense_set:        (data: { playClockRemaining: number }) => void
   hike_countdown:     (data: { count: number }) => void   // 5→0 after offense sets; 0 = hike enabled
-  ball_snapped:       () => void   // play is live
+  ball_snapped:       (data?: { manual?: boolean }) => void   // play is live; manual = GO drives it
+
+  // [manual] The GO-button hold loop. manual_frozen / manual_resumed bracket every pause, and the
+  // pass reveal runs manual_pass_pending ("It is…") → manual_pass_reveal ("Caught!" / "Dropped!" /
+  // "Intercepted!" / "Broken up!") before the outcome is actually applied.
+  manual_frozen:       () => void
+  manual_resumed:      () => void
+  manual_pass_pending: (data: { seconds: number }) => void
+  manual_pass_reveal:  (data: { label: string }) => void
   qb_scrambling:      () => void   // [184] QB has committed to a scramble (throwing locked)
   play_clock_update:  (data: { playClock: number }) => void
   play_clock_expired: () => void
@@ -119,8 +134,10 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   // Room
-  create_room:        (roomId: string) => void
-  join_room:          (roomId: string) => void
+  // [manual] The creator fixes the room's mode (and, for manual, its difficulty); a joiner sends the
+  // mode it picked in the lobby so a mismatch can be refused rather than silently switched.
+  create_room:        (payload: { roomId: string; mode: GameMode; difficulty: Difficulty }) => void
+  join_room:          (payload: { roomId: string; mode: GameMode }) => void
   reconnect_to_room:  (token: string) => void
 
   // Team selection ([269]) — provisional pick (browsing) and final lock.
@@ -142,6 +159,10 @@ export interface ClientToServerEvents {
 
   // In-play — Offense
   snap_ball:          () => void
+  // [manual] GO pressed / released. Press resumes the play (the first press is the snap itself);
+  // release freezes it, subject to the anti-jitter minimum hold enforced server-side.
+  go_press:           () => void
+  go_release:         () => void
   throw_to_receiver:  (receiverId: string) => void
   throw_at_defender:  (defenderId: string) => void   // immediate interception by the clicked defender
   scramble:           () => void   // [184] convert the QB into a runner
