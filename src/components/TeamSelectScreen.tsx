@@ -15,7 +15,13 @@ interface Props {
   pickError: string | null
   onSelect: (teamId: string) => void
   onLock: (teamId: string) => void
+  // [quarter length] Minutes per quarter. Shown to both players; only the host can change it.
+  quarterMinutes: number
+  onQuarterMinutes: (minutes: number) => void
 }
+
+// The lengths the host may pick between.
+const QUARTER_CHOICES = [3, 4, 5, 6]
 
 function rankedRoster(team: NflTeam): RosterPlayer[] {
   return [
@@ -30,13 +36,16 @@ function rankedRoster(team: NflTeam): RosterPlayer[] {
 // [team select] A primetime, CFB25-inspired team picker for portrait mobile: an animated stadium
 // stage themed to the focused team — massive brush-font phrase behind a big logo, top-three
 // trading cards, an opponent matchup strip, and a swipeable team carousel with a Random button.
-export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pickError, onSelect, onLock }: Props) {
+export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pickError, onSelect, onLock, quarterMinutes, onQuarterMinutes }: Props) {
   const teams: NflTeam[] = useMemo(() => {
     const byId = new Map(NFL_TEAMS.map(t => [t.id, t]))
     const ids = validTeamIds.length ? validTeamIds : NFL_TEAMS.map(t => t.id)
     return ids.map(id => byId.get(id)).filter((t): t is NflTeam => !!t)
   }, [validTeamIds])
 
+  // [quarter length] Slot 0 created the room, so slot 0 is the host. The guest sees the setting but
+  // cannot change it — the server enforces that too, this just avoids offering a dead control.
+  const isHost = (slot ?? 0) === 0
   const mySlot  = slot ?? 0
   const oppSlot = 1 - mySlot
   const myPick  = picks[mySlot] ?? null
@@ -189,6 +198,26 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
           })}
         </div>
         )}
+
+        {/* [quarter length] A pregame setting, so it lives with the other pregame decisions. The
+            guest sees the same row, rendered read-only, so both players know the game they are
+            about to start rather than the guest finding out at kickoff. */}
+        <div className="ts2-quarter">
+          <span className="ts2-quarter-label">
+            {isHost ? 'Quarter length' : `Quarter length · set by host`}
+          </span>
+          <div className="ts2-quarter-row">
+            {QUARTER_CHOICES.map(m => (
+              <button
+                key={m}
+                className={`ts2-quarter-btn${quarterMinutes === m ? ' ts2-quarter-btn--on' : ''}`}
+                onClick={() => isHost && onQuarterMinutes(m)}
+                disabled={!isHost}
+                aria-pressed={quarterMinutes === m}
+              >{m}m</button>
+            ))}
+          </div>
+        </div>
 
         <div className="ts2-actions">
           <button className="ts2-random" onClick={randomTeam} disabled={myLocked}>🎲</button>

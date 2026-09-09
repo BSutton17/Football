@@ -94,6 +94,20 @@ export function clearCoverage(playerId: string): void {
   if (socket.connected) socket.emit('clear_coverage', { playerId })
 }
 
+// [quarter length] Host only — the server ignores it from the guest and clamps the value.
+export function setQuarterLength(minutes: number): void {
+  if (socket.connected) socket.emit('set_quarter_length', { minutes })
+}
+
+// [pause] Freeze / unfreeze the game for both players.
+export function pauseGame(): void {
+  if (socket.connected) socket.emit('pause_game')
+}
+
+export function resumeGame(): void {
+  if (socket.connected) socket.emit('resume_game')
+}
+
 export function snapBall(): void {
   if (socket.connected) socket.emit('snap_ball')
 }

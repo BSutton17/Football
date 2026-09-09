@@ -326,3 +326,68 @@
 @media (prefers-reduced-motion: reduce) {
   .vs2, .vs2-band--top, .vs2-band--bottom, .vs2-phrase, .vs2-row, .vs2-badge, .vs2-band-beam, .vs2-band-particles, .vs2-hint { animation: none; }
 }
+
+/* ─── Mobile landscape ────────────────────────────────────────────────────────
+   A phone on its side gives these screens ~390px of height, and both were built as tall portrait
+   stages. Team select stacked phrase → logo → name → ratings → cards down the page, which pushed
+   the player cards clean off the bottom (the whole point of the screen), and the VS bands are only
+   half the viewport each — nowhere near enough for a 104px logo under a 5rem phrase, so the logos
+   were clipped away entirely.
+
+   Everything here is in rem on purpose. screens.css is the one file the px→vmin plugin rewrites, so
+   px values would be re-scaled against the viewport and fight these numbers; rem passes through. */
+@media (orientation: landscape) and (max-height: 500px) {
+
+  /* ── Team select ────────────────────────────────────────────────────────── */
+  .ts2-stage  { padding: 0.2rem 0.75rem 0.2rem; }
+  .ts2-phrase { font-size: 1.3rem; top: 0; }
+
+  .ts2-logo   { margin-top: 0.5rem; }
+  /* TeamLogo sizes itself with an inline style (it is a prop, not a class), so overriding it from
+     CSS needs the extra weight. */
+  .ts2-logo .team-logo { width: 3.5rem !important; height: 3.5rem !important; }
+
+  .ts2-name    { font-size: 0.92rem; margin-top: 0.2rem; }
+  .ts2-ratings { gap: 0.55rem; margin-top: 0.1rem; }
+  .ts2-ovr-num { font-size: 1.2rem; }
+  .ts2-ovr-lbl { font-size: 0.44rem; }
+  .ts2-subovr b    { font-size: 0.78rem; }
+  .ts2-subovr span { font-size: 0.4rem; }
+
+  /* The cards are what the screen is FOR, so they get whatever height is left. */
+  .ts2-cards { margin-top: 0.35rem; padding: 0.15rem 0 0; gap: 0.3rem; }
+  .pcard     { max-width: 5rem; padding: 0.22rem 0.28rem 0.28rem; border-radius: 0.5rem; }
+  .pcard-ovr { font-size: 0.85rem; }
+  .pcard-pos { font-size: 0.42rem; padding: 0.04rem 0.22rem; border-radius: 0.2rem; }
+  .pcard-portrait   { height: 1.4rem; margin: 0.12rem 0 0.18rem; border-radius: 0.35rem; }
+  .pcard-silhouette { width: 1.2rem; height: 1.2rem; }
+  .pcard-name { font-size: 0.48rem; }
+  .pcard-xf   { margin-top: 0.18rem; font-size: 0.38rem; padding: 0.08rem 0.2rem; }
+  .pcard-xf-icon { font-size: 0.46rem; }
+
+  /* Footer: the carousel and actions give back as much height as they can. */
+  .ts2-footer { padding: 0.15rem 0 max(0.25rem, env(safe-area-inset-bottom)); }
+  .ts2-rail   { gap: 0.45rem; padding: 0.15rem 50% 0.2rem; }
+  .ts2-chip .team-logo { width: 1.9rem !important; height: 1.9rem !important; }
+  .ts2-chip--focused .team-logo { width: 2.3rem !important; height: 2.3rem !important; }
+
+  /* ── VS ─────────────────────────────────────────────────────────────────── */
+  /* Each band is half a short viewport, so the phrase comes down hard — at its portrait size it
+     both overflowed the width and squeezed the logo out of the band entirely. */
+  .vs2-phrase { font-size: 1.45rem; }
+  .vs2-row    { gap: 0.55rem; margin-top: 0.35rem; padding: 0 0.7rem; }
+  .vs2-row .team-logo { width: 2.9rem !important; height: 2.9rem !important; }
+  .vs2-name   { font-size: 0.9rem; }
+  .vs2-ovr    { font-size: 1rem; }
+  .vs2-ovr span { font-size: 0.44rem; }
+  /* The bands have height to spare once the phrase is tamed, so the star players stay legible
+     rather than being shrunk to match everything else. Their OVR is set in the heavy condensed
+     display face, whose digits run into each other below ~10px, so it gets a size floor and a
+     little tracking of its own rather than inheriting the shrink. */
+  .vs2-star   { font-size: 0.68rem; }
+  .vs2-star b { letter-spacing: 0.04em; margin-right: 0.12rem; }
+  .vs2-you    { font-size: 0.5rem; padding: 0.1rem 0.4rem; top: 0.3rem; left: 0.5rem; }
+  .vs2-hint,
+  .vs2-loading-label { font-size: 0.58rem; }
+  .vs2-loading { gap: 0.3rem; }
+}

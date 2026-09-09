@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { socket, createRoom as socketCreate, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, disconnect, SESSION_KEY } from '../socket/index.ts'
+import { socket, createRoom as socketCreate, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, setQuarterLength as socketSetQuarterLength, disconnect, SESSION_KEY } from '../socket/index.ts'
 import { generateRoomCode } from '../utils/roomCode.ts'
 import type { TeamRole } from '../types/player.ts'
 import type { GameMode, Difficulty } from '../types/game.ts'
@@ -26,6 +26,9 @@ export interface RoomState {
   // for a joiner these are confirmed by the server (the room is authoritative for both).
   mode: GameMode
   difficulty: Difficulty
+  // [quarter length] Minutes per quarter, chosen by the HOST (slot 0) before kickoff. Both players
+  // see it; only the host can change it, which the server enforces regardless.
+  quarterMinutes: number
 }
 
 // Team-selection fields in their empty state — folded into every full state reset.
@@ -33,7 +36,7 @@ export interface RoomState {
 // them defined; callers that know better (createRoom / joinRoom) override them afterwards.
 const CLEARED_SELECTION = {
   slot: null, validTeamIds: [] as string[], picks: {} as Record<number, TeamPick>, pickError: null,
-  mode: 'automatic' as GameMode, difficulty: 'easy' as Difficulty,
+  mode: 'automatic' as GameMode, difficulty: 'easy' as Difficulty, quarterMinutes: 5,
 }
 
 export function useRoom() {
@@ -51,6 +54,7 @@ export function useRoom() {
       pickError: null,
       mode: 'automatic',
       difficulty: 'easy',
+      quarterMinutes: 5,
     }
   })
 
@@ -95,8 +99,16 @@ export function useRoom() {
     }
 
     // [268][269] Both players enter team selection together.
-    function onTeamSelectStart({ slot, teamIds }: { slot: number; teamIds: string[] }) {
-      setState(s => ({ ...s, status: 'team_select', slot, validTeamIds: teamIds, picks: {}, pickError: null }))
+    function onTeamSelectStart({ slot, teamIds, quarterMinutes }: { slot: number; teamIds: string[]; quarterMinutes?: number }) {
+      setState(s => ({
+        ...s, status: 'team_select', slot, validTeamIds: teamIds, picks: {}, pickError: null,
+        quarterMinutes: quarterMinutes ?? s.quarterMinutes,
+      }))
+    }
+
+    // [quarter length] The host changed it — both screens follow the server's clamped value.
+    function onQuarterLengthChanged({ minutes }: { minutes: number }) {
+      setState(s => ({ ...s, quarterMinutes: minutes }))
     }
 
     // [269] A pick (or lock) — for either player — broadcast by the server so both screens agree.
@@ -189,6 +201,7 @@ export function useRoom() {
     socket.on('room_joined', onRoomJoined)
     socket.on('roles_assigned', onRolesAssigned)
     socket.on('team_select_start', onTeamSelectStart)
+    socket.on('quarter_length_changed', onQuarterLengthChanged)
     socket.on('team_selected', onTeamSelected)
     socket.on('team_taken', onTeamTaken)
     socket.on('team_select_complete', onTeamSelectComplete)
@@ -209,6 +222,7 @@ export function useRoom() {
       socket.off('room_joined', onRoomJoined)
       socket.off('roles_assigned', onRolesAssigned)
       socket.off('team_select_start', onTeamSelectStart)
+      socket.off('quarter_length_changed', onQuarterLengthChanged)
       socket.off('team_selected', onTeamSelected)
       socket.off('team_taken', onTeamTaken)
       socket.off('team_select_complete', onTeamSelectComplete)
@@ -267,5 +281,10 @@ export function useRoom() {
     setState(s => (s.status === 'vs' ? { ...s, status: 'ready' } : s))
   }
 
-  return { ...state, createRoom, joinRoom, leaveRoom, selectTeam, lockTeam, enterGame }
+  // [quarter length] Only the host's control is rendered, but the server is the real gate.
+  function setQuarterMinutes(minutes: number) {
+    socketSetQuarterLength(minutes)
+  }
+
+  return { ...state, createRoom, joinRoom, leaveRoom, selectTeam, lockTeam, enterGame, setQuarterMinutes }
 }

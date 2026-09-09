@@ -81,7 +81,12 @@ export interface ServerToClientEvents {
   game_state:           (state: GameState) => void  // full snapshot on start or reconnect
 
   // Team selection ([268][269]) — both clients enter selection at once; server is authoritative.
-  team_select_start:    (data: { slot: number; teamIds: string[] }) => void
+  // [quarter length] Carries the host's current setting so both screens agree from the first frame.
+  quarter_length_changed: (data: { minutes: number }) => void
+  // [pause] Either player froze (or lifted) the game. byYou distinguishes the caller.
+  game_paused:  (data: { byYou: boolean }) => void
+  game_resumed: () => void
+  team_select_start:    (data: { slot: number; teamIds: string[]; quarterMinutes?: number }) => void
   team_selected:        (data: { slot: number; teamId: string; locked: boolean }) => void  // a pick/lock
   team_taken:           (data: { teamId: string }) => void   // [282] lock rejected — opponent has it
   team_select_complete: (data: { teams: (string | null)[] }) => void   // both locked → game begins
@@ -162,6 +167,11 @@ export interface ClientToServerEvents {
 
   // In-play — Offense
   snap_ball:          () => void
+  // [quarter length] Host only; the server ignores it from the guest and clamps the value.
+  set_quarter_length: (data: { minutes: number }) => void
+  // [pause] Either player may call or lift a pause.
+  pause_game:         () => void
+  resume_game:        () => void
   // [manual] GO pressed / released. Press resumes the play (the first press is the snap itself);
   // release freezes it, subject to the anti-jitter minimum hold enforced server-side.
   go_press:           () => void

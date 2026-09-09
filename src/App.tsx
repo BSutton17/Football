@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
-import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, SESSION_KEY } from './socket/index.ts'
+import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, SESSION_KEY } from './socket/index.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
 import type { RouteOffset } from './game/routeDraw.ts'
@@ -207,6 +207,9 @@ export default function App() {
   // [69] Active timeout freeze: { byYou } while play is paused, else null. Shows a banner + blocks the
   // snap; cleared on timeout_ended. Both clocks are frozen server-side during this window.
   const [timeoutPause, setTimeoutPause] = useState<{ byYou: boolean } | null>(null)
+  // [pause] A player-called pause: { byYou } while frozen, else null. Everything is stopped
+  // server-side; this only drives the overlay and the resume button.
+  const [gamePause, setGamePause] = useState<{ byYou: boolean } | null>(null)
   // [Special Teams][1] Server-authoritative kicking state; non-null while a kick is in progress.
   const [specialTeams, setSpecialTeams] = useState<SpecialTeamsState | null>(null)
   // [FG aim] Screen position of the ball for the kicker's aim arrow — so the arrow sits OVER the ball
@@ -368,6 +371,11 @@ export default function App() {
     }
 
     // [manual] The play froze (GO released, or the anti-jitter minimum finally elapsed) / resumed.
+    // [pause] Either player froze the game. It outlives play boundaries and reconnects, so it is
+    // cleared only by an explicit resume (or by game_state saying it is no longer paused).
+    function onGamePaused({ byYou }: { byYou: boolean }) { setGamePause({ byYou }) }
+    function onGameResumed() { setGamePause(null) }
+
     function onManualFrozen() { setManualFrozen(true) }
     function onManualResumed() { setManualFrozen(false) }
 
@@ -464,6 +472,9 @@ export default function App() {
       setDrawingFor(null)
       // [manual] Mode/difficulty are fixed for the game; the per-play GO state resets every play.
       playSerialRef.current = gs.playSerial ?? 0
+      // [pause] Authoritative: a client returning from a dropped connection picks the pause back up
+      // from here rather than sitting in a game that looks frozen for no reason.
+      setGamePause(gs.paused ? { byYou: !!gs.pausedByYou } : null)
       setGameMode(gs.mode ?? 'automatic')
       setDifficulty(gs.difficulty ?? 'easy')
       setManualLive(false)
@@ -553,6 +564,8 @@ export default function App() {
     socket.on('hike_countdown', onHikeCountdown)
     socket.on('ball_snapped', onBallSnapped)
     socket.on('qb_scrambling', onQbScrambling)
+    socket.on('game_paused', onGamePaused)
+    socket.on('game_resumed', onGameResumed)
     socket.on('manual_frozen', onManualFrozen)
     socket.on('manual_resumed', onManualResumed)
     socket.on('manual_pass_pending', onManualPassPending)
@@ -581,6 +594,8 @@ export default function App() {
       socket.off('hike_countdown', onHikeCountdown)
       socket.off('ball_snapped', onBallSnapped)
       socket.off('qb_scrambling', onQbScrambling)
+      socket.off('game_paused', onGamePaused)
+      socket.off('game_resumed', onGameResumed)
       socket.off('manual_frozen', onManualFrozen)
       socket.off('manual_resumed', onManualResumed)
       socket.off('manual_pass_pending', onManualPassPending)
@@ -758,6 +773,8 @@ export default function App() {
         pickError={room.pickError}
         onSelect={room.selectTeam}
         onLock={room.lockTeam}
+        quarterMinutes={room.quarterMinutes}
+        onQuarterMinutes={room.setQuarterMinutes}
       />
     )
   }
@@ -1484,6 +1501,25 @@ export default function App() {
           Timeout ({timeouts.own})
         </button>
       )}
+      {/* [pause] Pause button. Offered in every phase — the whole point is life interrupting a game,
+          and that rarely waits for a dead ball. Hidden once the game is over. */}
+      {!gamePause && !gameOver && (
+        <button className="pause-btn" onPointerDown={pauseGame} aria-label="Pause game">II</button>
+      )}
+
+      {/* [pause] While paused the game is frozen server-side; this covers the field so neither
+          player can read the coverage while the clock is stopped, and either can resume. */}
+      {gamePause && (
+        <div className="pause-overlay">
+          <div className="pause-title">PAUSED</div>
+          <div className="pause-sub">
+            {gamePause.byYou ? 'You paused the game' : 'Your opponent paused the game'}
+          </div>
+          <button className="pause-resume-btn" onPointerDown={resumeGame}>RESUME</button>
+          <div className="pause-note">Your spot is held for 10 minutes while paused</div>
+        </div>
+      )}
+
       {/* [69] Frozen-play banner while a timeout is running (both clocks are stopped server-side). */}
       {timeoutPause && (
         <div className="timeout-banner">

@@ -2103,3 +2103,132 @@ body {
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
+
+
+/* ─── Pause ([pause]) ─────────────────────────────────────────────────────────
+   A small, always-available control in the top-left of the field, tucked under the HUD strip so it
+   never sits on the score. Deliberately unobtrusive: it is a utility, not a play call. */
+.pause-btn {
+  position: absolute;
+  top: max(46px, calc(env(safe-area-inset-top) + 38px));
+  left: max(10px, env(safe-area-inset-left));
+  z-index: 19;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pause-btn:active { background: rgba(0, 0, 0, 0.75); }
+
+/* The paused curtain. Opaque enough to hide the field: with the clock stopped, neither player
+   should be able to sit and study the coverage. */
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(6, 10, 16, 0.93);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  text-align: center;
+  padding: 16px;
+}
+
+.pause-title {
+  font-size: 2.4rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #fff;
+}
+
+.pause-sub {
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+.pause-resume-btn {
+  margin-top: 6px;
+  padding: 13px 42px;
+  border: none;
+  border-radius: 999px;
+  background: #15803d;
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.pause-resume-btn:active { background: #166534; }
+
+.pause-note {
+  margin-top: 2px;
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+/* ─── Quarter length picker ([quarter length]) ───────────────────────────────
+   Sits in the team-select footer with the other pregame decisions. */
+.ts2-quarter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 0 6px;
+}
+
+.ts2-quarter-label {
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.ts2-quarter-row { display: flex; gap: 6px; }
+
+.ts2-quarter-btn {
+  min-width: 44px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.ts2-quarter-btn--on {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+/* The guest sees the setting but cannot change it — dimmed, and not offering a pointer. */
+.ts2-quarter-btn:disabled { cursor: default; opacity: 0.55; }
+.ts2-quarter-btn--on:disabled { opacity: 0.85; }
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .pause-btn      { top: 40px; width: 30px; height: 30px; font-size: 0.72rem; }
+  .pause-title    { font-size: 1.7rem; }
+  .pause-sub      { font-size: 0.8rem; }
+  .pause-resume-btn { padding: 10px 32px; font-size: 0.95rem; }
+  .ts2-quarter    { gap: 3px; padding: 0 0 4px; }
+  .ts2-quarter-btn { min-width: 38px; padding: 5px 8px; font-size: 0.72rem; }
+}
