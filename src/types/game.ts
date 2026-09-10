@@ -124,6 +124,7 @@ export interface PositionUpdate {
   // lean on, so it fades an undeclared receiver and lights it up when this flips true.
   ready?: boolean
   xfActive?: boolean       // [294] X-Factor currently active — drawn as a star instead of a circle
+  pancaked?: boolean       // [pancake] flattened by a block — faded out and out of the play
 }
 
 // [163] Run visualizer — the ball carrier's evaluated vision rays (offense-relative

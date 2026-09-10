@@ -318,6 +318,10 @@ function drawFirstDown(
 // covered), or green (open) by its server-computed openness score in [0, 1].
 // [manual][hard] How dim an undeclared receiver renders before its route light comes on.
 const UNREADY_ALPHA = 0.4
+// [pancake] A defender who has been put on the ground. He is faded right down for the three
+// seconds he is out of the play, so it is obvious at a glance that the ball carrier can run
+// straight through him.
+const PANCAKED_ALPHA = 0.22
 
 const OPENNESS_OPEN_MIN = 0.66   // ≥ this → open (green)
 const OPENNESS_MILD_MIN = 0.33   // ≥ this → mildly covered (yellow); below → covered (red)
@@ -417,7 +421,9 @@ function drawPlayers(
     const cy = relYToCanvas(p.y, cam)
     // Set on EVERY iteration (not just faded ones) so the `continue` paths below can't leak the
     // previous player's alpha onto the next one.
-    ctx.globalAlpha = fadeUnready && p.team === 'o' && p.ready === false ? UNREADY_ALPHA : 1
+    ctx.globalAlpha = p.pancaked
+      ? PANCAKED_ALPHA
+      : (fadeUnready && p.team === 'o' && p.ready === false ? UNREADY_ALPHA : 1)
     if (cy < -r || cy > cssH + r) continue
 
     // Client selection OR server-flagged selected state both trigger the ring
