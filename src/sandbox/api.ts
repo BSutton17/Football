@@ -96,8 +96,11 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     })
   } catch {
     // A network-level failure here almost always means the gate, not the network.
+    // ⚠️ The old wording here was `ENABLE_PLAYBOOK_DEV=1 npm run dev`, which is BASH syntax and
+    // fails on PowerShell with "is not recognized as the name of a cmdlet". Name the npm script
+    // instead — it works on every shell.
     throw new ApiError(
-      `Cannot reach the playbook API at ${BASE}. Start the server with ENABLE_PLAYBOOK_DEV=1 npm run dev`,
+      `Cannot reach the playbook API at ${BASE}. In the Server folder run:  npm run dev:sandbox`,
     )
   }
   if (res.status === 403) {
