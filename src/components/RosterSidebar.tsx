@@ -29,8 +29,35 @@ function shortName(name: string): string {
   return `${parts[0][0]}. ${parts[parts.length - 1]}`
 }
 
+// A phone held sideways — the same query the landscape layout block at the end of index.css uses.
+// Keep the two in step: this decides when the roster is pinned open, that one sizes it.
+const MOBILE_LANDSCAPE = '(orientation: landscape) and (max-height: 500px)'
+const PORTRAIT         = '(orientation: portrait)'
+
+// Live media-query match. Rotating the phone has to re-evaluate it, which a one-shot read at mount
+// never does — that is exactly how a roster collapsed in portrait stayed collapsed in landscape.
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const onChange = (e: MediaQueryListEvent) => setMatches(e.matches)
+    setMatches(mq.matches)   // re-sync in case it changed between render and subscribe
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [query])
+  return matches
+}
+
 export default function RosterSidebar({ players, team, side, onDrop, fieldCount, limitReached, fatigueOn, onToggleFatigue, namesOn, onToggleNames }: Props) {
-  const [open, setOpen] = useState(true)
+  const [userOpen, setUserOpen] = useState(true)
+
+  const isMobileLandscape = useMediaQuery(MOBILE_LANDSCAPE)
+  const isPortrait        = useMediaQuery(PORTRAIT)
+
+  // In mobile landscape the roster is ALWAYS on screen: there is room for it beside the field, and a
+  // collapse made in portrait must not follow the player into landscape — it used to, leaving the
+  // inventory hidden behind a tab that is easy to miss on a 390px-tall screen.
+  const open = isMobileLandscape || userOpen
 
   const sidebarRef = useRef<HTMLDivElement>(null)
   const dragRef    = useRef<DragState | null>(null)
@@ -38,6 +65,15 @@ export default function RosterSidebar({ players, team, side, onDrop, fieldCount,
   onDropRef.current = onDrop   // sync update — no useEffect delay
 
   const [ghost, setGhost] = useState<DragState | null>(null)
+
+  // [portrait drag-through] In portrait the sidebar sits ON TOP of the field, so a drop aimed at the
+  // ground underneath it used to be swallowed as a cancel. While a drag is in flight the panel fades
+  // right down and stops counting as a surface — the drop lands on the field beneath it instead.
+  // (handleDrop clamps to legal bounds, and a mis-placed player is removed with the ✕ Remove button,
+  // so nothing is lost by giving up the drop-on-the-roster cancel here.)
+  const dragThrough    = isPortrait && !!ghost
+  const dragThroughRef = useRef(false)
+  dragThroughRef.current = isPortrait
 
   useEffect(() => {
     function onMove(e: PointerEvent) {
@@ -56,7 +92,7 @@ export default function RosterSidebar({ players, team, side, onDrop, fieldCount,
         const outside =
           e.clientX < rect.left || e.clientX > rect.right ||
           e.clientY < rect.top  || e.clientY > rect.bottom
-        if (outside) onDropRef.current(d.playerId, e.clientX, e.clientY)
+        if (outside || dragThroughRef.current) onDropRef.current(d.playerId, e.clientX, e.clientY)
       }
       dragRef.current = null
       setGhost(null)
@@ -84,16 +120,19 @@ export default function RosterSidebar({ players, team, side, onDrop, fieldCount,
     <>
       <div
         ref={sidebarRef}
-        className={`roster-sidebar roster-sidebar--${side}${open ? '' : ' roster-sidebar--closed'}`}
+        className={`roster-sidebar roster-sidebar--${side}${open ? '' : ' roster-sidebar--closed'}${dragThrough ? ' roster-sidebar--drag-through' : ''}`}
       >
-        {/* Tab button that hangs off the inner edge — always visible */}
-        <button
-          className={`roster-toggle roster-toggle--${side}`}
-          onClick={() => setOpen(o => !o)}
-          aria-label={open ? 'Hide roster' : 'Show roster'}
-        >
-          {arrow}
-        </button>
+        {/* Tab button that hangs off the inner edge. Dropped in mobile landscape, where the roster is
+            pinned open and the tab would only be a control that does nothing. */}
+        {!isMobileLandscape && (
+          <button
+            className={`roster-toggle roster-toggle--${side}`}
+            onClick={() => setUserOpen(o => !o)}
+            aria-label={open ? 'Hide roster' : 'Show roster'}
+          >
+            {arrow}
+          </button>
+        )}
 
         <div className="roster-list">
           <div className={`roster-count${limitReached ? ' roster-count--full' : ''}`}>

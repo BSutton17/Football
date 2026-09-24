@@ -1,6 +1,8 @@
 import { io, type Socket } from 'socket.io-client'
 import type { ServerToClientEvents, ClientToServerEvents, SetOffensePayload, PlacePlayerPayload } from '../types/socket.ts'
 import type { GameMode, Difficulty } from '../types/game.ts'
+import { teamById } from '../data/nflTeams.ts'
+import type { NflTeam } from '../data/nflTeams.ts'
 
 export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
@@ -49,10 +51,43 @@ export function createRoom(roomId: string, mode: GameMode = 'automatic', difficu
   emitWhenConnected(() => socket.emit('create_room', { roomId, mode, difficulty }))
 }
 
+// [offline] Starts a one-player game against the computer. The opponent's whole roster travels with
+// the request because the server genuinely does not have one — `Server/src/data/teams.js` is 32 ids
+// and names, and every rating the sim uses normally arrives attached to a human's placements. There
+// is nobody to cheat in a solo game, so sending it is safe as well as necessary.
+export function createSoloRoom(
+  roomId: string,
+  mode: GameMode = 'automatic',
+  difficulty: Difficulty = 'easy',
+  aiTeamId: string | null = null,
+): void {
+  const team = aiTeamId ? teamById(aiTeamId) : undefined
+  const aiRoster = team ? soloRoster(team) : []
+  emitWhenConnected(() => socket.emit('create_solo_room', { roomId, mode, difficulty, aiTeamId, aiRoster }))
+}
+
+// The players the computer picks its eleven from: the skill pool and the coverage pool. The line,
+// the quarterback and the down linemen are generated on both sides from the same table, so they are
+// not sent. Trimmed to what the AI reads — id, position, overall, name, ratings, X-Factor.
+function soloRoster(team: NflTeam) {
+  return [...(team.offense ?? []), ...(team.defense ?? [])].map(p => ({
+    id: p.id, position: p.position, ovr: p.ovr, name: p.name,
+    ratings: p.ratings, xFactor: p.xFactor,
+  }))
+}
+
 // [manual] The joiner sends the mode it picked so the server can refuse a mismatch outright — the
 // room's own mode always wins, and difficulty comes from the room rather than the joiner.
 export function joinRoom(roomId: string, mode: GameMode = 'automatic'): void {
   emitWhenConnected(() => socket.emit('join_room', { roomId, mode }))
+}
+
+// [offline] The defense declares itself ready, which in a SOLO room makes the computer's offense
+// set at once and cuts the countdown to three seconds. The server ignores it in an online room —
+// there, the defensive window is the offense's to give, and letting one player cut it short would
+// be a way to rush the other.
+export function setDefense(): void {
+  emitWhenConnected(() => socket.emit('set_defense'))
 }
 
 export function disconnect(): void {

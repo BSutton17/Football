@@ -34,7 +34,7 @@ export interface SetOffensePayload {
   // [stale set] The pre-snap situation this formation was designed against; the server refuses it
   // if the play has moved on (a delay-of-game penalty landing while the Set was in flight).
   playSerial?: number
-  playType: 'run' | 'pass'
+  playType: 'run' | 'pass' | 'rpo'   // [rpo] a pass that becomes a run if nobody throws in time
   runAngle: number      // degrees, -60 to +60
   players: PlayerDesign[]
 }
@@ -113,7 +113,11 @@ export interface ServerToClientEvents {
   manual_resumed:      () => void
   manual_pass_pending: (data: { seconds: number }) => void
   manual_pass_reveal:  (data: { label: string }) => void
+  // [offline] The defense declared itself ready; the play starts after a short countdown.
+  defense_set:        (data: { countdown: number }) => void
   qb_scrambling:      () => void   // [184] QB has committed to a scramble (throwing locked)
+  // [rpo] The read window closed with no throw — the ball is the back's now and the option is over.
+  rpo_handoff:        (data: { carrierId: string }) => void
   play_clock_update:  (data: { playClock: number }) => void
   play_clock_expired: () => void
 
@@ -150,7 +154,19 @@ export interface ClientToServerEvents {
   // [manual] The creator fixes the room's mode (and, for manual, its difficulty); a joiner sends the
   // mode it picked in the lobby so a mismatch can be refused rather than silently switched.
   create_room:        (payload: { roomId: string; mode: GameMode; difficulty: Difficulty }) => void
+  // [offline] A one-player room against the computer. `aiTeamId` names the opponent (null = random),
+  // and `aiRoster` hands over its players — the SERVER HAS NO ROSTER DATA, only team ids and names,
+  // so without this the computer fields generic average players. See Server/src/ai/roster.js.
+  create_solo_room:   (payload: {
+    roomId: string
+    mode: GameMode
+    difficulty: Difficulty
+    aiTeamId: string | null
+    aiRoster: { id: string; position: string; ovr?: number; name?: string; ratings?: unknown; xFactor?: string }[]
+  }) => void
   join_room:          (payload: { roomId: string; mode: GameMode }) => void
+  // [offline] Solo only — the defense is ready, start the play early.
+  set_defense:        () => void
   reconnect_to_room:  (token: string) => void
 
   // Team selection ([269]) — provisional pick (browsing) and final lock.

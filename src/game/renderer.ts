@@ -552,6 +552,13 @@ function drawRoutes(
                 || (isRun && p.label === 'TE')
     if (blocks) { drawBlockMarker(ctx, cam, p, GRAY); continue }
 
+    // [screen] A screen receiver holds his spot, so he has no path to draw. Without a marker he
+    // would be indistinguishable from a receiver with no route assigned at all.
+    if (!isRun && p.route === 'screen' && RECEIVER_LABELS.has(p.label)) {
+      drawScreenMarker(ctx, cam, p, p.id === selectedId ? 'rgba(250,204,21,0.9)' : 'rgba(250,204,21,0.5)')
+      continue
+    }
+
     // Run play: every WR runs a gray go route.
     if (isRun && p.label === 'WR') {
       drawRoutePath(ctx, cam, p, getRoutePath('go', p, 0.5, pivotX), GRAY, p.id === selectedId ? 2.5 : 1.5)
@@ -691,6 +698,23 @@ function drawBlockMarker(ctx: CanvasRenderingContext2D, cam: Camera, p: Position
   ctx.moveTo(cx, cy);        ctx.lineTo(cx, cy - stem)   // stem upfield (forward = up)
   ctx.stroke()
   ctx.lineCap = 'butt'
+}
+
+// [screen] "Hold here": a ring on the receiver's spot. Deliberately not the blocker's ⊥ — a screen
+// receiver is a live target standing still, not a man kept in to protect — so it is drawn in the
+// same yellow as an assigned route rather than the blockers' gray.
+function drawScreenMarker(ctx: CanvasRenderingContext2D, cam: Camera, p: PositionUpdate, color: string) {
+  const cx = fieldXToCanvas(p.x, cam)
+  const cy = relYToCanvas(p.y, cam)
+  const r  = Math.max(7, cam.yardPx * 1.5)
+
+  ctx.strokeStyle = color
+  ctx.lineWidth   = Math.max(2, cam.yardPx * 0.2)
+  ctx.setLineDash([Math.max(3, cam.yardPx * 0.5), Math.max(3, cam.yardPx * 0.4)])
+  ctx.beginPath()
+  ctx.arc(cx, cy, r, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.setLineDash([])
 }
 
 // ── Run direction arrow ───────────────────────────────────────────────────────
@@ -993,7 +1017,10 @@ export function drawFrame(
     const losY = gameState?.yardLine ?? 0
     if (Object.keys(zoneTypes).length > 0) drawZones(ctx, cam, positions, zoneTypes, zoneCenters, losY)
     // runAngle is non-null only for the offense on a run play, so it doubles as the run-play flag.
-    drawRoutes(ctx, cam, positions, selectedId, routeDepths, runAngle !== null, gameState?.ballX ?? FIELD.WIDTH / 2)
+    // [rpo] isRun is the offense's own call, NOT "is a run arrow showing" — an RPO shows the arrow
+    // too (the back runs the called angle) but its receivers run real routes, so it must draw pass
+    // art. Inferring it from runAngle would have turned every RPO's route art gray.
+    drawRoutes(ctx, cam, positions, selectedId, routeDepths, gameState?.playType === 'run', gameState?.ballX ?? FIELD.WIDTH / 2)
     if (runAngle !== null) drawRunDirection(ctx, cam, positions, runAngle)
     if (Object.keys(manTargets).length > 0) drawManCoverage(ctx, cam, positions, manTargets)
     drawBlitz(ctx, cam, positions, blitzIds)

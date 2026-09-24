@@ -158,6 +158,138 @@ body {
   .room-screen { justify-content: flex-start; gap: 18px; }
 }
 
+/* ── [offline] One-player entry point ─────────────────────────────────────── */
+/*
+   Pinned to the bottom-right corner of the lobby rather than dropped into the column. The column
+   is the two-player path — pick a mode, create or join — and an Offline button inside it would
+   read as a third way to do the same thing. In the corner it reads as what it is: somewhere else
+   to go. The room screen scrolls, so this is `fixed` rather than `absolute`: anchored to the
+   viewport it stays in the corner when the on-screen keyboard shrinks the page.
+*/
+.room-offline-btn {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border: 1px solid #333;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #e5e7eb;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.room-offline-btn:hover { border-color: #4b5563; color: #fff; }
+
+.room-offline-tag {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.room-offline-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.room-offline-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.room-offline-sub {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+}
+
+.room-offline-mode { display: flex; gap: 8px; width: 100%; }
+
+.room-offline-oppline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+}
+
+.room-offline-opplabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.room-offline-random {
+  padding: 7px 13px;
+  border: 1px solid #333;
+  border-radius: 999px;
+  background: #1a1a1a;
+  color: #9ca3af;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.room-offline-random.selected { border-color: #2563eb; background: #1e3a8a; color: #fff; }
+
+/* A scrolling grid of all 32. Capped in height so the Play button never leaves the screen — the
+   panel is the only thing on the lobby that can grow, and it is the one that must not push its
+   own confirm below the fold. */
+/* Wraps rather than using a fixed column count. A TeamLogo sizes itself from an inline style, so
+   the chips have a real intrinsic width — pinning the grid to N columns overflowed the panel and
+   clipped the last team in the row. Letting them wrap makes the rail correct at any width. */
+.room-offline-rail {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  max-height: 148px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #262626;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  scrollbar-width: thin;
+}
+
+.room-offline-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.room-offline-chip--on { border-color: #2563eb; background: rgba(37, 99, 235, 0.18); }
+
 .room-title {
   font-size: 4rem;
   font-weight: 700;
@@ -480,6 +612,19 @@ body {
 /* Slide off-screen but leave the 28px toggle tab peeking out */
 .roster-sidebar--left.roster-sidebar--closed  { transform: translateX(calc(-100% + 0px)); }
 .roster-sidebar--right.roster-sidebar--closed { transform: translateX(calc(100%  - 0px)); }
+
+/* [portrait drag-through] In portrait the roster overlays the field, so while a card is being
+   dragged it all but disappears — the player needs to see the ground they are aiming at — and it
+   stops intercepting pointers so the drop lands on the field beneath it rather than being eaten as
+   a cancel. The floating ghost token is a SIBLING of this panel, so it stays fully opaque.
+   The blur goes too: at this opacity it costs a full-screen backdrop pass for nothing. */
+.roster-sidebar--drag-through {
+  opacity: 0.07;
+  pointer-events: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: transform 0.25s ease, opacity 0.12s ease;
+}
 
 /* Toggle tab — hangs off the inner edge of the sidebar */
 .roster-toggle {
@@ -933,6 +1078,11 @@ body {
 
 .play-type-btn--run  { background: #d97706; color: #fff; }
 .play-type-btn--pass { background: #2563eb; color: #fff; }
+/* [rpo] It is both calls at once, so it gets both colours rather than a third one of its own. */
+.play-type-btn--rpo  { background: linear-gradient(105deg, #2563eb 0%, #2563eb 45%, #d97706 55%, #d97706 100%); color: #fff; }
+
+/* Three calls no longer fit the landscape strip at the two-button padding. */
+.play-type-toggle .play-type-btn { padding: 7px 16px; }
 
 .run-angle-controls {
   display: flex;
@@ -1992,6 +2142,13 @@ body {
   /* Drop the reserved two-line height — it is pure dead space at this size. */
   .room-difficulty-blurb { font-size: 0.65rem; min-height: 0; }
 
+  /* [offline] The panel is the tallest thing the lobby can show, so it shrinks hardest here. */
+  .room-offline-btn    { padding: 8px 12px; font-size: 0.75rem; }
+  .room-offline-title  { font-size: 1.05rem; }
+  .room-offline-sub    { font-size: 0.68rem; }
+  .room-offline-rail   { max-height: 104px; }
+  .room-offline-panel  { gap: 8px; max-width: 360px; }
+
   .room-divider  { font-size: 0.75rem; }
   .room-back-btn { font-size: 0.8rem; padding: 2px; }
   .room-mode-tag { font-size: 0.62rem; padding: 3px 10px; }
@@ -2028,6 +2185,8 @@ body {
      so the panel really occupies 62 + 28 = 90px before this can start. */
   .play-design-controls { left: 96px; bottom: 6px; }
   .play-type-btn        { padding: 6px 16px; font-size: 0.78rem; }
+  /* [rpo] Three calls in the strip instead of two — tighten them so RPO doesn't push off-screen. */
+  .play-type-toggle .play-type-btn { padding: 6px 11px; font-size: 0.72rem; letter-spacing: 0.06em; }
   .run-angle-controls   { padding: 4px 10px; gap: 7px; transform: none; }
   .run-angle-btn        { width: 26px; height: 26px; font-size: 0.75rem; }
 

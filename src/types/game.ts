@@ -85,7 +85,16 @@ export interface GameState {
   // button; on 'hard' the offense is never sent openness, so it reads the field unaided.
   mode?: GameMode
   difficulty?: Difficulty
+  // [offline] The other seat is a computer. Server-authoritative, so it survives a refresh.
+  solo?: boolean
+  // [rpo] The offense's own play call, for its own renderer only — it is NEVER sent to the other
+  // client (the defense must not see the play call), so it is null on a defender's screen.
+  playType?: PlayType | null
 }
+
+// [rpo] A third call alongside run and pass: it is a pass for the first second, and a run after
+// that if nobody has thrown. See Server/src/game/systems/rpo.js for the authoritative rules.
+export type PlayType = 'run' | 'pass' | 'rpo'
 
 // [manual] 'automatic' is the original game (tap HIKE, the play runs itself); 'manual' is
 // electric-football mode, where players move only while the offense holds GO.

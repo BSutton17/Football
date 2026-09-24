@@ -40,8 +40,11 @@ export const ROUTE_WAYPOINTS: Record<string, Waypoint[]> = {
   flare:      [[7, 4]],
   check_down: [[0, 3]],
   texas:      [[6, 5], [-2, 11]],
-  screen:     [[5, -2]],
   // ── Assignment (no path drawn) ─────────────────────────────────────────────
+  // [screen] A screen receiver does not run anywhere — he holds his spot and is throwable from the
+  // snap — so there is no path to preview, exactly as for a blocker. Both get a marker instead
+  // (drawScreenMarker / drawBlockMarker in renderer.ts).
+  screen:     [],
   block:      [],
 }
 

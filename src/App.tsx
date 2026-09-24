@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
-import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, SESSION_KEY } from './socket/index.ts'
+import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, SESSION_KEY } from './socket/index.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
 import type { RouteOffset } from './game/routeDraw.ts'
@@ -25,7 +25,7 @@ import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveForma
 import { computeCamera } from './game/renderer.ts'
 import { computeZoneShell, SHELL_ORDER, SHELL_LABEL } from './game/zoneShells.ts'
 import { FIELD } from './constants/simulation.ts'
-import type { GameState, PlayPhase, PositionUpdate, CarrierVision, Score, GameOver, PlayResult, SpecialTeamsState, PlayDecision, GameMode, Difficulty } from './types/game.ts'
+import type { GameState, PlayPhase, PositionUpdate, CarrierVision, Score, GameOver, PlayResult, SpecialTeamsState, PlayDecision, GameMode, Difficulty, PlayType } from './types/game.ts'
 
 const YARD_LINE = 25   // mock ball position
 
@@ -151,6 +151,13 @@ export default function App() {
   const prevBallXRef = useRef(FIELD_MID)
   // The first game_state of a game (or a reconnect) sets the LOS baseline without shifting.
   const losReadyRef = useRef(false)
+  // ⚠️ Set the moment the player starts a BRAND-NEW game. The carried-over formation is read from
+  // sessionStorage on the very first render but applied later, once the server says which side we
+  // are on — and "later" is after the new-game wipe has already run. Without this flag the wipe is
+  // undone: a fresh game came up with the previous game's players already on the field, clamped to
+  // the bounds of whichever role they were saved under, so a defensive formation restored onto an
+  // offense put five receivers past the line of scrimmage.
+  const newGameRef = useRef(false)
   // Set when possession just flipped, so the next game_state lines the new formation up on the new
   // (mirrored) LOS instead of trying to shift the old one across the direction change.
   const turnoverPendingRef = useRef(false)
@@ -179,7 +186,22 @@ export default function App() {
   const [drawnRoutes, setDrawnRoutes] = useState<Record<string, RouteOffset[]>>({})
   // The receiver currently armed for drawing (double-tapped), or null.
   const [drawingFor, setDrawingFor] = useState<string | null>(null)
-  const [playType, setPlayType] = useState<'run' | 'pass'>('pass')
+  const [playType, setPlayType] = useState<PlayType>('pass')
+  // [rpo] The read window closed with no throw — the back has the ball and the option is spent.
+  // Server-authoritative (rpo_handoff); this only drives what the offense is offered on screen.
+  const [rpoCommitted, setRpoCommitted] = useState(false)
+  // [offline] The defense pressed Set. Solo only — it makes the computer's offense set at once and
+  // shortens the countdown, so it is the defensive half of "Set Formation".
+  const [defenseSet, setDefenseSetFlag] = useState(false)
+  // [offline] Whether this is a solo game, taken from the SERVER (game_state.solo) rather than from
+  // what the lobby remembers — a refresh loses the lobby's copy, and with it the Set Defense button.
+  const [soloGame, setSoloGame] = useState(false)
+
+  // [rpo] Whether a throw is still on the table. A pass play always; an RPO only until the read
+  // window closes and the server tells us it handed off (rpo_handoff). Every throw-shaped control
+  // asks this rather than comparing playType to 'pass' itself, so they can't drift apart. Declared
+  // here, with the state it derives from, because effects further down depend on it.
+  const canPass = playType === 'pass' || (playType === 'rpo' && !rpoCommitted)
   const [runAngle, setRunAngle] = useState<number>(0)  // degrees, -60 to +60
   const [phase, setPhase] = useState<PlayPhase>('pre_snap')
   const [hikeCount, setHikeCount] = useState<number | null>(null)
@@ -468,15 +490,34 @@ export default function App() {
     function onTackleBroken() {
       setPlayNotice('Tackle Broken!')
     }
+    // [rpo] The read window closed with no throw — the back has it. Shuts off the throw controls
+    // (the server rejects a late throw anyway; this is so the offense isn't offered one).
+    function onRpoHandoff() {
+      setRpoCommitted(true)
+    }
+    // [offline] Server-confirmed: the defense is set and the short countdown is running.
+    function onDefenseSet() {
+      setDefenseSetFlag(true)
+    }
     function onGameState(gs: GameState) {
       setPhase(gs.phase)
       setHikeCount(null)
       setHikeReady(false)
       setLivePositions({})
+      // ⚠️ THE OPPONENT'S FORMATION MUST BE WIPED EVERY PLAY. The server clears both player maps at
+      // the whistle, so anything still here is a ghost. It only ever LOOKED correct against a human
+      // opponent, who carries their formation over and re-sends it with the SAME ids — so the
+      // replace-by-id below kept the count at five. A computer opponent picks a fresh formation
+      // each play, the ids differ, and the old ones were never removed: the offense grew to twelve
+      // players, then thirteen, a receiver per play.
+      setOpponentPositions([])
       setCarrierVision(null)
       thrownRef.current = false   // [166] new play — the throw decision is open again
       setTargetReceiverId(null)   // [168] clear the pass line for the new play
       setScrambling(false)        // [184] new play — scramble available again
+      setRpoCommitted(false)      // [rpo] new play — the read window is open again
+      setDefenseSetFlag(false)    // [offline] new play — the defense may declare ready again
+      setSoloGame(!!gs.solo)      // [offline] authoritative, so a refresh keeps the Set Defense button
       setThrowawayPos(null)       // [187] new play — hide the throwaway button
       setLiveCarrierId(null)      // [193] new play — clear the ball carrier
       setLockedFormation(null)    // each play starts unset — the offense must toggle Set Formation again
@@ -516,7 +557,12 @@ export default function App() {
       const xDelta    = ready ? newBallX - prevBallXRef.current : 0
       losReadyRef.current = true
       const resetting = gameOverRef.current || turnoverPendingRef.current
-      if (!resetting && (losDelta !== 0 || xDelta !== 0)) {
+      // ⚠️ Runs even when NOTHING MOVED. The clamp is what keeps every player in a legal spot for
+      // the current role and line of scrimmage, and it is idempotent when they already are — so
+      // gating it on a delta meant that a formation which arrived wrong (restored from another
+      // game, or from the other side of the ball) was never corrected and simply stayed wrong.
+      // Receivers sat past the line of scrimmage for the whole drive.
+      if (!resetting) {
         // [hash] Shift carried-over players by the LOS (vertical) and ball (lateral) deltas. A player
         // that would be pushed out of bounds is clamped to where its body still fits (1.5 yd).
         // [2pt] Y is clamped too: a large jump (e.g. onto the opponent's 3 for a two-point try) must
@@ -600,6 +646,8 @@ export default function App() {
     socket.on('timeout_ended', onTimeoutEnded)
     socket.on('game_over', onGameOver)
     socket.on('play_result', onPlayResult)
+    socket.on('rpo_handoff', onRpoHandoff)
+    socket.on('defense_set', onDefenseSet)
     socket.on('game_state', onGameState)
     socket.on('special_teams_update', onSpecialTeamsUpdate)
     socket.on('play_clock_expired', onPlayClockExpired)
@@ -631,6 +679,8 @@ export default function App() {
       socket.off('timeout_ended', onTimeoutEnded)
       socket.off('game_over', onGameOver)
       socket.off('play_result', onPlayResult)
+      socket.off('rpo_handoff', onRpoHandoff)
+      socket.off('defense_set', onDefenseSet)
       socket.off('game_state', onGameState)
       socket.off('special_teams_update', onSpecialTeamsUpdate)
       socket.off('play_clock_expired', onPlayClockExpired)
@@ -674,10 +724,10 @@ export default function App() {
   // actually went anywhere. This effect only handles hiding it again.
   useEffect(() => {
     const isOffense = (room.role ?? 'offense') === 'offense'
-    if (!isOffense || phase !== 'live' || playType !== 'pass' || scrambling || thrownRef.current) {
+    if (!isOffense || phase !== 'live' || !canPass || scrambling || thrownRef.current) {
       setThrowawayPos(null)
     }
-  }, [room.role, phase, playType, scrambling])
+  }, [room.role, phase, canPass, scrambling])
 
   // New game: wipe all play design state and storage when the user creates or joins a room.
   // Reconnects bypass 'connecting' (go through 'reconnecting' directly to 'ready') so this
@@ -704,6 +754,8 @@ export default function App() {
     setLockedFormation(null)
     setLivePositions({})
     sessionStorage.removeItem('ef2_placed_players')
+    // Nothing from a previous game may come back after this point.
+    newGameRef.current = true
   }, [room.status])
 
   // [192] Possession changed (turnover): the client's role just flipped, so the old formation
@@ -742,14 +794,50 @@ export default function App() {
   // while the server still held the old one. From there the two views disagreed, and a defender the
   // server had no assignment for is treated as a PASS RUSHER (see isRusher) — which is why
   // defenders "just rushed the quarterback instead of playing their zones".
+  //
+  // [role drift] The saved formation belongs to the role that DREW it. Normally a turnover wipes it
+  // (the role-flip effect above), but a client that was swiped away or reloading never receives
+  // switch_sides, so possession can flip while it is gone and the stale offense formation comes
+  // back on a screen that is now the defense — the wrong side of the ball, and a soft-lock once the
+  // server rejects everything it sends. So the snapshot is tagged with its role and only applied
+  // once the server has told us (reconnect_success) which side we are actually on.
+  //
+  // The snapshot is READ synchronously on the first render, before the persist effects below
+  // overwrite the keys with this session's empty initial state — applying it has to wait for the
+  // role, but reading it cannot.
+  type SavedFormation = { role: string | null; players: string | null; coverage: string | null }
+  const savedRestoreRef = useRef<SavedFormation | null | undefined>(undefined)
+  if (savedRestoreRef.current === undefined) {
+    savedRestoreRef.current = sessionStorage.getItem(SESSION_KEY)
+      ? {
+          role:     sessionStorage.getItem('ef2_role'),
+          players:  sessionStorage.getItem('ef2_placed_players'),
+          coverage: sessionStorage.getItem('ef2_coverage'),
+        }
+      : null
+  }
+
+  const restoredRef = useRef(false)
   useEffect(() => {
-    if (!sessionStorage.getItem(SESSION_KEY)) return
+    const saved = savedRestoreRef.current
+    if (!saved || restoredRef.current || !room.role) return
+    restoredRef.current = true
+    // A brand-new game starts empty. Restoring is only ever for RECONNECTING to a game already in
+    // progress; doing it here would resurrect the last game's formation on the first snap.
+    if (newGameRef.current) return
+    // Possession flipped while we were away — that formation is the other side's now. Drop it and
+    // line up fresh as the role the server just handed back.
+    if (saved.role && saved.role !== room.role) {
+      sessionStorage.removeItem('ef2_placed_players')
+      sessionStorage.removeItem('ef2_coverage')
+      setDlPositions(getDLPlayers(YARD_LINE))
+      turnoverPendingRef.current = true   // next game_state lines up fresh on the mirrored LOS
+      return
+    }
     try {
-      const saved = sessionStorage.getItem('ef2_placed_players')
-      if (saved) setPlacedPlayers(JSON.parse(saved))
-      const cov = sessionStorage.getItem('ef2_coverage')
-      if (cov) {
-        const c = JSON.parse(cov)
+      if (saved.players) setPlacedPlayers(JSON.parse(saved.players))
+      if (saved.coverage) {
+        const c = JSON.parse(saved.coverage)
         if (c.playerCoverage) setPlayerCoverage(c.playerCoverage)
         if (c.zoneTypes)      setZoneTypes(c.zoneTypes)
         if (c.zoneCenters)    setZoneCenters(c.zoneCenters)
@@ -758,7 +846,7 @@ export default function App() {
         if (c.droppingDL)     setDroppingDL(c.droppingDL)
       }
     } catch {}
-  }, [])
+  }, [room.role])
 
   // Persist placed players so a page reload restores positions.
   useEffect(() => {
@@ -769,6 +857,54 @@ export default function App() {
   useEffect(() => {
     sessionStorage.setItem('ef2_coverage', JSON.stringify({ playerCoverage, zoneTypes, zoneCenters, manTargets, manCommits, droppingDL }))
   }, [playerCoverage, zoneTypes, zoneCenters, manTargets, manCommits, droppingDL])
+
+  // [role drift] Which side that snapshot was drawn by — see the restore above.
+  useEffect(() => {
+    if (room.role) sessionStorage.setItem('ef2_role', room.role)
+  }, [room.role])
+
+  // ── [offline] Man defenders travel with their man ─────────────────────────
+  //
+  // Offline, the computer picks a brand-new formation every play, so a defender left where he
+  // stood last snap is lined up over nobody. Rather than make the player re-drag seven defenders
+  // every down, a man defender slides HORIZONTALLY to his assignment automatically.
+  //
+  // Horizontally only, and deliberately: depth is a coaching decision (press, off, over the top)
+  // and a choice made by hand should survive a formation change. Where the receiver is across the
+  // field is not a decision — it is just where he is standing.
+  //
+  // Online this does not run. There, both players place their own men, and silently moving them
+  // would be moving someone else's pieces.
+  useEffect(() => {
+    if (!soloGame || room.role !== 'defense') return
+    if (phase !== 'pre_snap' && phase !== 'countdown') return
+
+    const receiverAt = new Map(opponentPositions.map(p => [p.id, p]))
+    let moved = false
+
+    const next = placedPlayers.map(d => {
+      if (playerCoverage[d.id] !== 'man') return d
+      const target = receiverAt.get(manTargets[d.id])
+      if (!target) return d
+      // Keep the leverage the shade asks for, so a lean set by hand is not thrown away.
+      const lean = manCommits[d.id] === 'in' ? -1 : manCommits[d.id] === 'out' ? 1 : 0
+      const wantX = clampX(target.x + lean)
+      if (Math.abs(d.x - wantX) < 0.25) return d
+      moved = true
+      return { ...d, x: wantX }
+    })
+
+    if (!moved) return
+    setPlacedPlayers(next)
+    for (const d of next) {
+      if (playerCoverage[d.id] !== 'man') continue
+      placePlayer({
+        id: d.id, x: d.x, y: d.y, label: d.label ?? '', team: 'd',
+        ratings: teamRoster.ratingsById[d.id], xFactor: teamRoster.xFactorById[d.id],
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soloGame, room.role, phase, opponentPositions, manTargets, playerCoverage, manCommits])
 
   // Register the auto-placed defensive line on the server at the start of every play.
   // The DL are generated client-side (getDLPlayers) and — unlike the offense's OL/QB,
@@ -863,6 +999,8 @@ export default function App() {
   // receivers are blocking, and leaving the art up implies routes that nobody is going to run. The
   // routes themselves are kept in state untouched, so switching back to pass brings them straight
   // back rather than making the player redraw the whole concept.
+  // [rpo] Receivers run real routes on an RPO, so their drawings stay visible — only a called run
+  // hides them.
   const visibleDrawnRoutes = playType === 'run' ? EMPTY_DRAWN_ROUTES : drawnRoutes
 
   // [medium] While a manual play is frozen, medium difficulty shows the offense its own route art —
@@ -876,7 +1014,10 @@ export default function App() {
     ? { positions: lockedFormation, routeDepths, drawnRoutes, ballX }
     : null
 
-  const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX, timeouts, mode: gameMode, difficulty }
+  // [rpo] playType is the offense's OWN call, carried here purely so the renderer can tell run art
+  // from pass art. It is null for a defender — the defense never sees the play call, and this
+  // object is built locally on each client rather than sent over the wire.
+  const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX, timeouts, mode: gameMode, difficulty, playType: role === 'offense' ? playType : null }
   const isPreSnap = phase === 'pre_snap'
 
   // The QB lines up at the ball's hash (ballX), 6 yards behind the LOS — so the backfield (and the
@@ -890,7 +1031,10 @@ export default function App() {
   const runnerRB  = placedRBs.length > 0
     ? [...placedRBs].sort((a, b) => (rosterOvr.get(b.id) ?? 0) - (rosterOvr.get(a.id) ?? 0))[0]
     : null
-  const runnerId  = playType === 'run' && runnerRB ? runnerRB.id : null
+  // [rpo] Both a run and an RPO hand to a back, so both need a designated runner and its backfield
+  // bounds. The difference is only WHEN he gets the ball.
+  const handsOff  = playType === 'run' || playType === 'rpo'
+  const runnerId  = handsOff && runnerRB ? runnerRB.id : null
 
   // Runner must stay within 2 yards of QB horizontally and behind or level with QB (the own end zone
   // is fair game when backed up, matching getPositionYBounds).
@@ -1213,10 +1357,12 @@ export default function App() {
     setLockedFormation(null)
   }
 
-  function handlePlayType(type: 'run' | 'pass') {
+  function handlePlayType(type: PlayType) {
     setPlayType(type)
     setLockedFormation(null)
-    if (type !== 'run' || role !== 'offense') return
+    // [rpo] An RPO hands to a back exactly like a run does, so it needs the same legal backfield
+    // placement — the mesh has to be somewhere the back can actually take a handoff from.
+    if ((type !== 'run' && type !== 'rpo') || role !== 'offense') return
     // [run] Switching to a run: drop the ball carrier into a legal backfield spot if it's out of
     // position (e.g. split out wide on the previous pass call). The higher-OVR RB is the carrier and
     // the one moved; a back already legally placed is left where the user put it.
@@ -1262,7 +1408,7 @@ export default function App() {
         // player. The server re-clamps it (length, the cut lock, the sidelines) before it runs.
         // A run play doesn't run routes at all — perimeter receivers block — so the drawing is
         // withheld rather than sent and silently ignored.
-        drawnRoute:      playType === 'run' ? undefined : drawnRoutes[p.id],
+        drawnRoute:      playType === 'run' ? undefined : drawnRoutes[p.id],   // [rpo] an RPO runs routes
         ratings:         teamRoster.ratingsById[p.id],   // [293] per-team ratings → simulation
         xFactor:         teamRoster.xFactorById[p.id],   // [294] potential X-Factor ability
       })),
@@ -1363,7 +1509,7 @@ export default function App() {
 
     // First RB placed on a run play is the runner — constrain near QB
     const rbsExcludingThis = placedPlayers.filter(p => p.label === 'RB' && p.id !== playerId)
-    const isRunner = playType === 'run' && player.position === 'RB' && rbsExcludingThis.length === 0
+    const isRunner = (playType === 'run' || playType === 'rpo') && player.position === 'RB' && rbsExcludingThis.length === 0
     const x = isRunner ? Math.max(runnerBounds.minX, Math.min(runnerBounds.maxX, rawX2)) : rawX2
     const y = isRunner ? Math.min(runnerBounds.maxY, rawY2) : rawY2
 
@@ -1434,7 +1580,7 @@ export default function App() {
   // [165] Tapping a receiver during a live pass play throws to them. [166] The first tap
   // locks the decision for the play — later taps are ignored (the server also enforces this).
   function handleThrowReceiver(receiverId: string) {
-    if (role !== 'offense' || playType !== 'pass' || phase !== 'live') return
+    if (role !== 'offense' || !canPass || phase !== 'live') return
     if (thrownRef.current || scrambling) return   // [185] no throwing once the QB scrambles
     // [manual] Throws are legal only while the play is frozen. Mirrored here so a tap on a moving
     // receiver is simply inert rather than bouncing off the server as a rejected action.
@@ -1448,7 +1594,7 @@ export default function App() {
   // Tapping a DEFENDER during a live pass play throws it right at him — an immediate interception.
   // Locks the throw decision for the play just like a normal throw.
   function handleThrowAtDefender(defenderId: string) {
-    if (role !== 'offense' || playType !== 'pass' || phase !== 'live') return
+    if (role !== 'offense' || !canPass || phase !== 'live') return
     if (thrownRef.current || scrambling) return
     if (manualLive && !manualFrozen) return   // [manual] only while frozen
     thrownRef.current = true
@@ -1461,7 +1607,7 @@ export default function App() {
   // the field. Optimistically locks throwing; the server confirms with qb_scrambling. Irreversible
   // for the play ([185]).
   function handleScramble() {
-    if (role !== 'offense' || playType !== 'pass' || phase !== 'live') return
+    if (role !== 'offense' || !canPass || phase !== 'live') return
     if (thrownRef.current || scrambling) return
     setScrambling(true)
     thrownRef.current = true
@@ -1479,7 +1625,7 @@ export default function App() {
   // decision and hides the button; the server resolves it as an incomplete pass.
   function handleThrowaway() {
     if (manualLive && !manualFrozen) return   // [manual] only while frozen
-    if (role !== 'offense' || playType !== 'pass' || phase !== 'live') return
+    if (role !== 'offense' || !canPass || phase !== 'live') return
     if (thrownRef.current || scrambling) return
     thrownRef.current = true
     setThrowawayPos(null)
@@ -1511,7 +1657,7 @@ export default function App() {
         targetReceiverId={targetReceiverId}
         routeDepths={routeDepths}
         onRouteDepthChange={handleRouteDepthChange}
-        runAngle={role === 'offense' && playType === 'run' ? runAngle : null}
+        runAngle={role === 'offense' && handsOff ? runAngle : null}
         runnerId={runnerId}
         runnerBounds={runnerId ? runnerBounds : null}
         manTargets={manTargets}
@@ -1593,7 +1739,7 @@ export default function App() {
       )}
       {role === 'offense' && isPreSnap && !kickInProgress && (
         <div className="play-design-controls">
-          {playType === 'run' && (
+          {handsOff && (   /* [rpo] the back runs the called angle once the option hands off */
             <div className="run-angle-controls">
               <button
                 className="run-angle-btn"
@@ -1619,6 +1765,11 @@ export default function App() {
               className={`play-type-btn${playType === 'pass' ? ' play-type-btn--pass' : ''}`}
               onPointerDown={() => handlePlayType('pass')}
             >PASS</button>
+            {/* [rpo] A pass for the first second, a run after that if nobody throws. */}
+            <button
+              className={`play-type-btn${playType === 'rpo' ? ' play-type-btn--rpo' : ''}`}
+              onPointerDown={() => handlePlayType('rpo')}
+            >RPO</button>
           </div>
         </div>
       )}
@@ -1628,6 +1779,21 @@ export default function App() {
           onPointerDown={lockedFormation ? undefined : handleLockFormation}
         >
           {lockedFormation ? 'Formation Set' : 'Set Formation'}
+        </button>
+      )}
+      {/* [offline] The defensive half of Set Formation. Solo only: online, the defensive window is
+          the offense's to give, and cutting it short would be a way to rush the other player.
+          PRE-SNAP ONLY: it is a declaration made BEFORE the offense locks, and that ordering is the
+          whole point — declaring first buys the short 3-second countdown. Once the offense has set,
+          the 5-second window on screen is the defense's own time to read the formation, so there is
+          nothing left to declare and the button would only sit there doing nothing. */}
+      {(soloGame || room.offline) && role === 'defense' && formationErrors.length === 0
+        && phase === 'pre_snap' && !timeoutPause && !kickInProgress && (
+        <button
+          className={`formation-ready-btn${defenseSet ? ' formation-ready-btn--set' : ''}`}
+          onPointerDown={defenseSet ? undefined : () => { setDefenseSetFlag(true); setDefense() }}
+        >
+          {defenseSet ? 'Defense Set' : 'Set Defense'}
         </button>
       )}
       {phase === 'countdown' && hikeCount !== null && hikeCount > 0 && (
@@ -1708,7 +1874,7 @@ export default function App() {
           this is presentation only, which is why the delay can never change what happens. */}
       {passPending && <div className="manual-suspense-banner">It is…</div>}
       {passReveal && <div className="manual-reveal-banner">{passReveal}</div>}
-      {role === 'offense' && phase === 'live' && playType === 'pass' && !scrambling && !thrownRef.current && throwawayPos && (
+      {role === 'offense' && phase === 'live' && canPass && !scrambling && !thrownRef.current && throwawayPos && (
         <button
           className="throwaway-btn"
           style={{ top: `${throwawayPos.top}%`, left: `${throwawayPos.left}%` }}
@@ -1733,7 +1899,7 @@ export default function App() {
           both orientations. */}
       {role === 'offense' && isPreSnap && !kickInProgress && (
         <div className="route-rail">
-          {playType === 'pass' && !lockedFormation && (
+          {playType !== 'run' && !lockedFormation && (   /* [rpo] an RPO runs real routes */
             <div className="route-mode-switch" role="group" aria-label="Route assignment mode">
               <button
                 className={`route-mode-btn${routeMode === 'menu' ? ' route-mode-btn--on' : ''}`}

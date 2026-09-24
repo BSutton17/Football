@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { socket, createRoom as socketCreate, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, setQuarterLength as socketSetQuarterLength, setDefenseVision as socketSetDefenseVision, disconnect, SESSION_KEY } from '../socket/index.ts'
+import { socket, createRoom as socketCreate, createSoloRoom as socketCreateSolo, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, setQuarterLength as socketSetQuarterLength, setDefenseVision as socketSetDefenseVision, disconnect, SESSION_KEY } from '../socket/index.ts'
 import { generateRoomCode } from '../utils/roomCode.ts'
 import type { TeamRole } from '../types/player.ts'
 import type { GameMode, Difficulty } from '../types/game.ts'
@@ -31,12 +31,16 @@ export interface RoomState {
   quarterMinutes: number
   // [defense vision] Whether the DEFENCE is shown how open receivers are. Host-chosen; on by default.
   defenseSeesOpenness: boolean
+  // [offline] This room is a one-player game against the computer. Only affects what the UI says —
+  // the room, the game and every message in it are the ordinary two-seat article.
+  offline: boolean
 }
 
 // Team-selection fields in their empty state — folded into every full state reset.
 // [manual] mode/difficulty are included so every full-state reset that spreads this constant keeps
 // them defined; callers that know better (createRoom / joinRoom) override them afterwards.
 const CLEARED_SELECTION = {
+  offline: false,
   slot: null, validTeamIds: [] as string[], picks: {} as Record<number, TeamPick>, pickError: null,
   mode: 'automatic' as GameMode, difficulty: 'easy' as Difficulty, quarterMinutes: 5,
   defenseSeesOpenness: true,
@@ -51,6 +55,7 @@ export function useRoom() {
       roomId: null,
       role: null,
       error: null,
+      offline: false,
       slot: null,
       validTeamIds: [],
       picks: {},
@@ -262,6 +267,16 @@ export function useRoom() {
     socketCreate(id, mode, difficulty)
   }
 
+  // [offline] A one-player game against the computer. Same path as createRoom — the room is real,
+  // the game is real, and everything downstream is unaware — except that the second seat is filled
+  // server-side the moment it is created, so there is no "waiting for opponent" step at all.
+  function createOfflineRoom(mode: GameMode = 'automatic', difficulty: Difficulty = 'easy', aiTeamId: string | null = null) {
+    sessionStorage.removeItem(SESSION_KEY)
+    const id = generateRoomCode()
+    setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: id, role: null, error: null, mode, difficulty, offline: true })
+    socketCreateSolo(id, mode, difficulty, aiTeamId)
+  }
+
   // The joiner's mode is only a filter — the server refuses a mismatch and the room's own
   // difficulty arrives with room_joined.
   function joinRoom(id: string, mode: GameMode = 'automatic') {
@@ -302,5 +317,5 @@ export function useRoom() {
     socketSetDefenseVision(on)
   }
 
-  return { ...state, createRoom, joinRoom, leaveRoom, selectTeam, lockTeam, enterGame, setQuarterMinutes, setDefenseVision }
+  return { ...state, createRoom, createOfflineRoom, joinRoom, leaveRoom, selectTeam, lockTeam, enterGame, setQuarterMinutes, setDefenseVision }
 }
