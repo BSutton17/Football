@@ -107,7 +107,9 @@ function FormationEditor({ book, onSaved, onError }: {
       else {
         const r = await createItem('formations', draft)
         setId(r.id)
-        onSaved(`Created ${draft.name}`)
+        onSaved(r.runPlayId
+          ? `Created ${draft.name} — and "${draft.name} Run" with it`
+          : `Created ${draft.name}${r.runNote ? ` (${r.runNote})` : ''}`)
       }
     } catch (e) { onError(e) }
   }
@@ -181,6 +183,12 @@ function FormationEditor({ book, onSaved, onError }: {
           Drag to place. <b>dx</b> is yards from the ball's hash, <b>depth</b> is yards behind the line —
           so the formation works from anywhere on the field and from either hash.
         </p>
+        {!id && (
+          <p style={{ fontSize: 12, color: '#7ee08a', margin: '0 0 8px' }}>
+            A run play is created with it automatically — the lane is read off the defensive front at
+            the line, so there is nothing to draw. You only draw the pass plays.
+          </p>
+        )}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={save} disabled={!draft.name || draft.spots.length !== MAX_SKILL} style={primary}>

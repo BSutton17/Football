@@ -103,8 +103,13 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const getPlaybook = () => call<Playbook>('/playbook')
 
+// Creating a FORMATION also creates its run play server-side — there is nothing to draw on a run,
+// so authoring one by hand per formation is pure clicking. `runPlayId` names it; `runNote` says
+// why there isn't one (an empty set has no back to hand it to).
 export const createItem = (kind: 'formations' | 'plays' | 'shells', item: unknown) =>
-  call<{ id: string }>(`/playbook/${kind}`, { method: 'POST', body: JSON.stringify(item) })
+  call<{ id: string; runPlayId?: string | null; runNote?: string }>(
+    `/playbook/${kind}`, { method: 'POST', body: JSON.stringify(item) },
+  )
 
 // ⚠️ The id is kept deliberately: every play stores a formationId, so a new id on edit would
 // orphan every play built on the formation.
