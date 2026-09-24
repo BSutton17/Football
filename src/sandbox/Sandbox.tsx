@@ -18,7 +18,7 @@ import {
 } from './api'
 import type { Playbook, Formation, Play, Category, PlayType, RouteOffset, Assignment } from './api'
 import { beautifyRoute } from '../game/routeDraw'
-import ShellEditor from './ShellEditor'
+import { DefFormationEditor, ShellEditor } from './DefenseEditors'
 
 const ALL_SLOTS = ['WR1', 'WR2', 'WR3', 'WR4', 'TE1', 'TE2', 'TE3', 'RB1', 'RB2']
 const MAX_SKILL = 5
@@ -28,7 +28,7 @@ const blank = (): Formation => ({ name: '', category: 'gun', spots: [] })
 
 export default function Sandbox() {
   const [book, setBook] = useState<Playbook | null>(null)
-  const [tab, setTab] = useState<'formations' | 'plays' | 'shells'>('formations')
+  const [tab, setTab] = useState<'formations' | 'plays' | 'defFormations' | 'shells'>('formations')
   const [error, setError] = useState<string[]>([])
   const [note, setNote] = useState('')
 
@@ -55,9 +55,9 @@ export default function Sandbox() {
   return (
     <Shell>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        {(['formations', 'plays', 'shells'] as const).map(t => (
+        {(['formations', 'plays', 'defFormations', 'shells'] as const).map(t => (
           <button key={t} onClick={() => { setTab(t); setError([]) }} style={tabStyle(tab === t)}>
-            {t === 'formations' ? 'Formations' : t === 'plays' ? 'Plays' : 'Defense'}
+            {{ formations: 'Formations', plays: 'Plays', defFormations: 'Def Formations', shells: 'Shells' }[t]}
             <span style={{ opacity: 0.55, marginLeft: 6 }}>{Object.keys(book[t]).length}</span>
           </button>
         ))}
@@ -72,6 +72,7 @@ export default function Sandbox() {
 
       {tab === 'formations' && <FormationEditor book={book} onSaved={(m) => { say(m); reload() }} onError={fail} />}
       {tab === 'plays' && <PlayEditor book={book} onSaved={(m) => { say(m); reload() }} onError={fail} />}
+      {tab === 'defFormations' && <DefFormationEditor book={book} onSaved={(m) => { say(m); reload() }} onError={fail} />}
       {tab === 'shells' && <ShellEditor book={book} onSaved={(m) => { say(m); reload() }} onError={fail} />}
     </Shell>
   )

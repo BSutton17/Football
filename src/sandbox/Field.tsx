@@ -32,12 +32,22 @@ interface Props {
   carrier?: string | null
   selected?: string | null
   draggable?: boolean
+  // ⚠️ Which way `depth` counts. The offense lines up BEHIND the line and the defense in FRONT of
+  // it, so one sign flip separates the two — and getting it wrong silently mirrors a whole
+  // formation through the line of scrimmage.
+  side?: 'offense' | 'defense'
+  // The other team, drawn faintly. Authoring a defense against nothing means guessing where the
+  // receivers will be; showing a real offensive formation makes the alignment mean something.
+  ghosts?: FieldPlayer[]
   onMove?: (slot: string, dx: number, depth: number) => void
   onSelect?: (slot: string) => void
   onDrawRoute?: (slot: string, points: { x: number; y: number }[]) => void
 }
 
-const COLORS: Record<string, string> = { WR: '#4ea1ff', TE: '#ffb64e', RB: '#7ee08a' }
+const COLORS: Record<string, string> = {
+  WR: '#4ea1ff', TE: '#ffb64e', RB: '#7ee08a',
+  DL: '#ff7b72', LB: '#d2a8ff', CB: '#79c0ff', S: '#ffa657',
+}
 
 // Field x (0..53.33) and y (0 = LOS, + downfield) to SVG pixels.
 const px = (fx: number) => fx * PX
@@ -45,8 +55,10 @@ const py = (fy: number) => (AHEAD - fy) * PX
 
 export default function Field({
   players, routes = {}, blocks = new Set(), carrier = null, selected = null,
-  draggable = false, onMove, onSelect, onDrawRoute,
+  draggable = false, side = 'offense', ghosts = [], onMove, onSelect, onDrawRoute,
 }: Props) {
+  // The offense lines up behind the line, the defense in front of it.
+  const sign = side === 'defense' ? 1 : -1
   const svgRef = useRef<SVGSVGElement>(null)
   const [drawing, setDrawing] = useState<{ slot: string; pts: { x: number; y: number }[] } | null>(null)
   const ballX = FIELD_WIDTH / 2
@@ -68,7 +80,7 @@ export default function Field({
         const rect = svgRef.current!.getBoundingClientRect()
         const fx = (ev.clientX - rect.left) / rect.width * FIELD_WIDTH
         const fy = AHEAD - (ev.clientY - rect.top) / rect.height * VIEW_H
-        onMove?.(slot, +(fx - ballX).toFixed(1), +(-fy).toFixed(1))
+        onMove?.(slot, +(fx - ballX).toFixed(1), +(fy * sign).toFixed(1))
       }
       const up = () => {
         window.removeEventListener('pointermove', move)
@@ -80,7 +92,7 @@ export default function Field({
       // Not draggable means we are authoring a PLAY, and dragging draws a route instead of moving
       // the player — the user's rule: to move someone, edit the formation.
       const p = players.find(x => x.slot === slot)!
-      setDrawing({ slot, pts: [{ x: ballX + p.dx, y: -p.depth }] })
+      setDrawing({ slot, pts: [{ x: ballX + p.dx, y: sign * p.depth }] })
     }
   }
 
@@ -121,7 +133,7 @@ export default function Field({
       {Object.entries(routes).map(([slot, offsets]) => {
         const p = players.find(x => x.slot === slot)
         if (!p || !offsets?.length) return null
-        const sx = ballX + p.dx, sy = -p.depth
+        const sx = ballX + p.dx, sy = sign * p.depth
         const d = [`M ${px(sx)} ${py(sy)}`, ...offsets.map(o => `L ${px(sx + o.dx)} ${py(sy + o.dd)}`)].join(' ')
         return <path key={slot} d={d} fill="none" stroke="#ffd166" strokeWidth={2.2} strokeLinejoin="round" />
       })}
@@ -134,8 +146,19 @@ export default function Field({
         />
       )}
 
+      {/* The other team, for reference only — never interactive. */}
+      {ghosts.map(g => (
+        <g key={`ghost-${g.slot}`} opacity={0.32} style={{ pointerEvents: 'none' }}>
+          <circle cx={px(ballX + g.dx)} cy={py(-g.depth)} r={10}
+            fill="none" stroke={COLORS[g.label] ?? '#ccc'} strokeWidth={1.5} strokeDasharray="3 2" />
+          <text x={px(ballX + g.dx)} y={py(-g.depth) + 3} textAnchor="middle" fontSize={8} fill="#9fb0a4">
+            {g.label}
+          </text>
+        </g>
+      ))}
+
       {players.map(p => {
-        const cx = px(ballX + p.dx), cy = py(-p.depth)
+        const cx = px(ballX + p.dx), cy = py(sign * p.depth)
         const isCarrier = carrier === p.slot
         const isBlock = blocks.has(p.slot)
         return (
@@ -154,8 +177,12 @@ export default function Field({
       })}
 
       {/* The quarterback, drawn because a back placed on top of him is a real and easy mistake. */}
-      <circle cx={px(ballX)} cy={py(-6)} r={9} fill="none" stroke="#6b7a70" strokeDasharray="2 3" />
-      <text x={px(ballX)} y={py(-6) + 3} textAnchor="middle" fontSize={8} fill="#6b7a70">QB</text>
+      {side === 'offense' && (
+        <>
+          <circle cx={px(ballX)} cy={py(-6)} r={9} fill="none" stroke="#6b7a70" strokeDasharray="2 3" />
+          <text x={px(ballX)} y={py(-6) + 3} textAnchor="middle" fontSize={8} fill="#6b7a70">QB</text>
+        </>
+      )}
     </svg>
   )
 }

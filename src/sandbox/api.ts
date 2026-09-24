@@ -25,42 +25,51 @@ export interface Play {
   assignments: Record<Slot, Assignment>
 }
 
-// ── Defensive shells ────────────────────────────────────────────────────────
+// -- Defense ----------------------------------------------------------------
 //
-// ⚠️ These vocabularies MIRROR Server/src/ai/playbook/authored.js, which derives them from the
-// shells the engine already expands. They are duplicated here only so the editor can offer
-// dropdowns instead of free text; the server validates every save, so any drift shows up
-// immediately as a 422 naming the bad value rather than as a shell that plays as nonsense.
-export const JOB_TYPES = ['deep', 'under', 'rush', 'man', 'spy'] as const
-export const ZONE_TYPES = ['curl', 'flat', 'hook'] as const
-export const SPOTS = ['left', 'right', 'middle', 'half', 'third', 'quarter', 'strong'] as const
-export const DEF_POSITIONS = ['CB', 'S', 'LB'] as const
+// The defense mirrors the offense: a FORMATION is the alignment of all eleven, and a SHELL is what
+// those eleven are told to do.
+//
+// These vocabularies MIRROR Server/src/ai/playbook/authored.js. They are duplicated here only so
+// the editor can offer dropdowns instead of free text; the server validates every save, so drift
+// shows up immediately as a 422 naming the bad value rather than as a shell that plays as nonsense.
+export const DEF_SLOT_POOL: Record<string, number> = { DL: 4, LB: 4, CB: 4, S: 3 }
+export const DEFENDERS = 11
+export const DL_COUNT = 4
+export const JOBS = ['man', 'zone', 'rush', 'spy'] as const
+export const ZONE_TYPES = ['flat', 'curl', 'hook', 'deep'] as const
+// Man names an ALIGNMENT ROLE, never a slot, so one shell works against every offensive formation.
+// null leaves the matchup to matchMen, which pairs by position and field side.
+export const COVER_ROLES = ['X', 'SL', 'Y', 'SR', 'Z', 'RB'] as const
 
-export type JobType = typeof JOB_TYPES[number]
+export type DefJob = typeof JOBS[number]
 
-export interface ShellJob {
-  job: JobType
-  positions: string[]
-  depth?: number
-  spot?: string
-  zone?: string
-  width?: number
-  count?: number
+export interface DefSpot { slot: string; dx: number; depth: number }
+export interface DefFormation { name: string; spots: DefSpot[] }
+
+export interface DefAssignment {
+  job: DefJob
+  target?: string | null      // man only
+  zone?: string               // zone only
 }
 
 export interface Shell {
   name: string
+  formationId: string
   kind: 'man' | 'zone'
-  blurb?: string
   // null lets the AI choose inside/outside/auto at call time; 'in'/'out' pins it.
   forcedLeverage?: 'in' | 'out' | null
-  jobs: ShellJob[]
+  assignments: Record<string, DefAssignment>
+  // Nudges save onto the SHELL, not the formation — Cover 2 and Cover 3 out of one nickel should
+  // be able to show different pictures.
+  alignments?: Record<string, { dx: number; depth: number }>
 }
 
 export interface Playbook {
   version: number
   formations: Record<string, Formation>
   plays: Record<string, Play>
+  defFormations: Record<string, DefFormation>
   shells: Record<string, Shell>
   audit?: { ok: boolean; problems: string[] }
   path?: string
@@ -106,15 +115,15 @@ export const getPlaybook = () => call<Playbook>('/playbook')
 // Creating a FORMATION also creates its run play server-side — there is nothing to draw on a run,
 // so authoring one by hand per formation is pure clicking. `runPlayId` names it; `runNote` says
 // why there isn't one (an empty set has no back to hand it to).
-export const createItem = (kind: 'formations' | 'plays' | 'shells', item: unknown) =>
+export const createItem = (kind: 'formations' | 'plays' | 'defFormations' | 'shells', item: unknown) =>
   call<{ id: string; runPlayId?: string | null; runNote?: string }>(
     `/playbook/${kind}`, { method: 'POST', body: JSON.stringify(item) },
   )
 
 // ⚠️ The id is kept deliberately: every play stores a formationId, so a new id on edit would
 // orphan every play built on the formation.
-export const updateItem = (kind: 'formations' | 'plays' | 'shells', id: string, item: unknown) =>
+export const updateItem = (kind: 'formations' | 'plays' | 'defFormations' | 'shells', id: string, item: unknown) =>
   call<{ id: string }>(`/playbook/${kind}/${id}`, { method: 'PUT', body: JSON.stringify(item) })
 
-export const deleteItem = (kind: 'formations' | 'plays' | 'shells', id: string, force = false) =>
+export const deleteItem = (kind: 'formations' | 'plays' | 'defFormations' | 'shells', id: string, force = false) =>
   call<{ ok: true }>(`/playbook/${kind}/${id}${force ? '?force=1' : ''}`, { method: 'DELETE' })
