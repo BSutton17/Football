@@ -1816,12 +1816,13 @@ export default function App() {
       )}
       {/* [offline] The defensive half of Set Formation. Solo only: online, the defensive window is
           the offense's to give, and cutting it short would be a way to rush the other player.
-          PRE-SNAP ONLY: it is a declaration made BEFORE the offense locks, and that ordering is the
-          whole point — declaring first buys the short 3-second countdown. Once the offense has set,
-          the 5-second window on screen is the defense's own time to read the formation, so there is
-          nothing left to declare and the button would only sit there doing nothing. */}
+          Available through the COUNTDOWN as well as pre-snap. Pressing it before the offense locks
+          buys the short 3-second window; pressing it after means "I am ready, snap it" and ends the
+          countdown. Hiding it outside pre-snap made it useless on most downs — the play clock is
+          45s on the first snap of a drive and 30s after, and the computer sets with 20-5s left, so
+          from the second down on the button could disappear ten seconds in. */}
       {(soloGame || room.offline) && role === 'defense' && formationErrors.length === 0
-        && phase === 'pre_snap' && !timeoutPause && !kickInProgress && (
+        && (phase === 'pre_snap' || phase === 'countdown') && !timeoutPause && !kickInProgress && (
         <button
           className={`formation-ready-btn${defenseSet ? ' formation-ready-btn--set' : ''}`}
           onPointerDown={defenseSet ? undefined : () => { setDefenseSetFlag(true); setDefense() }}
