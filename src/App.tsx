@@ -158,6 +158,10 @@ export default function App() {
   // the bounds of whichever role they were saved under, so a defensive formation restored onto an
   // offense put five receivers past the line of scrimmage.
   const newGameRef = useRef(false)
+  // [offline] Where each man defender's receiver was standing the last time we moved that defender.
+  // A ref, not state: it must not itself trigger the follow effect, or the effect would re-run on
+  // its own bookkeeping. Cleared whenever the opponent's formation is wiped for a new play.
+  const followedAtRef = useRef(new Map<string, { targetId: string; x: number }>())
   // Set when possession just flipped, so the next game_state lines the new formation up on the new
   // (mirrored) LOS instead of trying to shift the old one across the direction change.
   const turnoverPendingRef = useRef(false)
@@ -879,19 +883,48 @@ export default function App() {
     if (!soloGame || room.role !== 'defense') return
     if (phase !== 'pre_snap' && phase !== 'countdown') return
 
+    // A new play wipes the opponent's formation; forget where everyone was following.
+    if (opponentPositions.length === 0) { followedAtRef.current.clear(); return }
+
     const receiverAt = new Map(opponentPositions.map(p => [p.id, p]))
+    const followedAt = followedAtRef.current
     let moved = false
 
     const next = placedPlayers.map(d => {
       if (playerCoverage[d.id] !== 'man') return d
       const target = receiverAt.get(manTargets[d.id])
       if (!target) return d
-      // Keep the leverage the shade asks for, so a lean set by hand is not thrown away.
-      const lean = manCommits[d.id] === 'in' ? -1 : manCommits[d.id] === 'out' ? 1 : 0
-      const wantX = clampX(target.x + lean)
-      if (Math.abs(d.x - wantX) < 0.25) return d
+
+      // ⚠️ FOLLOW THE RECEIVER'S MOVEMENT, DO NOT RE-DERIVE THE DEFENDER'S SPOT.
+      //
+      // This effect re-runs on ANY of its dependencies, including manCommits — so setting a shade
+      // on a defender recomputed his x from the receiver and silently discarded wherever you had
+      // just dragged him. Drag a linebacker somewhere deliberate, set him underneath, and he
+      // snapped straight back.
+      //
+      // So the receiver's last-known x is remembered per defender. Nothing moves unless the
+      // RECEIVER has actually moved, and when he does the defender shifts by the same amount —
+      // which keeps whatever relative position was set by hand instead of overwriting it.
+      // ⚠️ Keyed on the RECEIVER too. Reassigning a defender to a different man would otherwise
+      // shift him by the gap between the two receivers instead of lining him up on the new one.
+      const seen = followedAt.get(d.id)
+      const last = seen && seen.targetId === manTargets[d.id] ? seen.x : null
+
+      if (last == null) {
+        // First time lining up on this man: put him over his receiver, honouring the shade.
+        const lean = manCommits[d.id] === 'in' ? -1 : manCommits[d.id] === 'out' ? 1 : 0
+        const wantX = clampX(target.x + lean)
+        followedAt.set(d.id, { targetId: manTargets[d.id], x: target.x })
+        if (Math.abs(d.x - wantX) < 0.25) return d
+        moved = true
+        return { ...d, x: wantX }
+      }
+
+      const shift = target.x - last
+      if (Math.abs(shift) < 0.25) return d      // receiver hasn't moved — leave him where he was put
+      followedAt.set(d.id, { targetId: manTargets[d.id], x: target.x })
       moved = true
-      return { ...d, x: wantX }
+      return { ...d, x: clampX(d.x + shift) }
     })
 
     if (!moved) return
