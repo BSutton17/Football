@@ -19,7 +19,32 @@ function Root() {
     const Sandbox = lazy(() => import('./sandbox/Sandbox.tsx'))
     return <Suspense fallback={null}><Sandbox /></Suspense>
   }
-  return <App />
+  return (
+    <>
+      <App />
+      <SandboxLink />
+    </>
+  )
+}
+
+// A way in that is not "remember the query string". Inside the same DEV guard, so it is dropped
+// from a production build along with everything else the sandbox touches.
+function SandboxLink() {
+  if (!import.meta.env.DEV) return null
+  return (
+    <a
+      href="?sandbox=1"
+      title="Open the play sandbox (dev only)"
+      style={{
+        position: 'fixed', right: 10, bottom: 10, zIndex: 9999,
+        background: '#24402c', color: '#e8ecf1', border: '1px solid #3d7a4e',
+        borderRadius: 6, padding: '5px 11px', fontSize: 12, fontWeight: 600,
+        fontFamily: 'system-ui, sans-serif', textDecoration: 'none', opacity: 0.85,
+      }}
+    >
+      ✎ Sandbox
+    </a>
+  )
 }
 
 createRoot(document.getElementById('root')!).render(<Root />)
