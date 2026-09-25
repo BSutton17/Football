@@ -33,9 +33,13 @@ export interface Play {
 // These vocabularies MIRROR Server/src/ai/playbook/authored.js. They are duplicated here only so
 // the editor can offer dropdowns instead of free text; the server validates every save, so drift
 // shows up immediately as a 422 naming the bad value rather than as a shell that plays as nonsense.
-export const DEF_SLOT_POOL: Record<string, number> = { DL: 4, LB: 4, CB: 4, S: 3 }
-export const DEFENDERS = 11
-export const DL_COUNT = 4
+// A defensive formation is the SEVEN coverage players. The four linemen are auto-placed and not
+// authored, exactly like the five offensive linemen and the quarterback -- formation.ts says of
+// the defensive line that it is "always on the field and cannot be moved by either player". They
+// are DRAWN in the sandbox, because a formation you cannot see the front of is one you cannot
+// read, but they are not yours to move.
+export const DEF_SLOT_POOL: Record<string, number> = { LB: 4, CB: 4, S: 3 }
+export const COVERAGE_ON_FIELD = 7
 export const JOBS = ['man', 'zone', 'rush', 'spy'] as const
 export const ZONE_TYPES = ['flat', 'curl', 'hook', 'deep'] as const
 // Man names an ALIGNMENT ROLE, never a slot, so one shell works against every offensive formation.

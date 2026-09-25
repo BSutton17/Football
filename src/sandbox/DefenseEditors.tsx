@@ -17,7 +17,7 @@ import Field from './Field'
 import type { FieldPlayer } from './Field'
 import {
   createItem, updateItem, deleteItem,
-  DEF_SLOT_POOL, DEFENDERS, DL_COUNT, JOBS, ZONE_TYPES, COVER_ROLES,
+  DEF_SLOT_POOL, COVERAGE_ON_FIELD, JOBS, ZONE_TYPES, COVER_ROLES,
 } from './api'
 import type { Playbook, DefFormation, Shell, DefAssignment, DefJob, ApiError } from './api'
 
@@ -26,12 +26,12 @@ const labelOf = (slot: string) => slot.replace(/[0-9]+$/, '')
 const ALL_DEF_SLOTS = Object.entries(DEF_SLOT_POOL).flatMap(([label, n]) =>
   Array.from({ length: n }, (_, i) => `${label}${i + 1}`))
 
-// A sensible 4-3 to start from, so nobody has to place eleven players from an empty field.
+// A sensible 4-3 back seven to start from, so nobody places seven players from an empty field.
+// The four linemen are not here because they are not authored — the engine always puts the same
+// four out and neither player can move them.
 const STARTER: DefFormation = {
   name: '',
   spots: [
-    { slot: 'DL1', dx: -3.25, depth: 1 }, { slot: 'DL2', dx: -1.25, depth: 1 },
-    { slot: 'DL3', dx: 1.25, depth: 1 }, { slot: 'DL4', dx: 3.25, depth: 1 },
     { slot: 'LB1', dx: -5, depth: 5 }, { slot: 'LB2', dx: 0, depth: 5 }, { slot: 'LB3', dx: 5, depth: 5 },
     { slot: 'CB1', dx: -16, depth: 6 }, { slot: 'CB2', dx: 16, depth: 6 },
     { slot: 'S1', dx: -8, depth: 13 }, { slot: 'S2', dx: 8, depth: 13 },
@@ -58,9 +58,9 @@ export function DefFormationEditor({ book, onSaved, onError }: {
 
   const toggle = (slot: string) => {
     if (used.has(slot)) setDraft(d => ({ ...d, spots: d.spots.filter(s => s.slot !== slot) }))
-    else if (draft.spots.length < DEFENDERS) {
+    else if (draft.spots.length < COVERAGE_ON_FIELD) {
       const label = labelOf(slot)
-      const depth = label === 'DL' ? 1 : label === 'LB' ? 5 : label === 'S' ? 13 : 6
+      const depth = label === 'LB' ? 5 : label === 'S' ? 13 : 6
       setDraft(d => ({ ...d, spots: [...d.spots, { slot, dx: 0, depth }] }))
       setSelected(slot)
     }
@@ -110,15 +110,15 @@ export function DefFormationEditor({ book, onSaved, onError }: {
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 10 }}>
           {ALL_DEF_SLOTS.map(s => (
             <button key={s} onClick={() => toggle(s)}
-              disabled={!used.has(s) && draft.spots.length >= DEFENDERS}
-              style={chip(used.has(s), !used.has(s) && draft.spots.length >= DEFENDERS)}>{s}</button>
+              disabled={!used.has(s) && draft.spots.length >= COVERAGE_ON_FIELD}
+              style={chip(used.has(s), !used.has(s) && draft.spots.length >= COVERAGE_ON_FIELD)}>{s}</button>
           ))}
-          <span style={{ alignSelf: 'center', fontSize: 12, color: draft.spots.length === DEFENDERS ? '#7ee08a' : '#e0a24e' }}>
-            {draft.spots.length}/{DEFENDERS}
+          <span style={{ alignSelf: 'center', fontSize: 12, color: draft.spots.length === COVERAGE_ON_FIELD ? '#7ee08a' : '#e0a24e' }}>
+            {draft.spots.length}/{COVERAGE_ON_FIELD}
           </span>
         </div>
 
-        <Field players={players} ghosts={ghosts} side="defense" draggable
+        <Field players={players} opponents={ghosts} opponentSide="offense" side="defense" draggable
           selected={selected} onSelect={setSelected}
           onMove={(slot, dx, depth) =>
             setDraft(d => ({ ...d, spots: d.spots.map(s => (s.slot === slot ? { ...s, dx, depth } : s)) }))} />
@@ -128,15 +128,8 @@ export function DefFormationEditor({ book, onSaved, onError }: {
           {(counts.CB ?? 0) >= 4 ? ' Four corners is dime.' : (counts.CB ?? 0) === 3 ? ' Three corners is nickel.' : ''}
           {' '}The AI picks between formations by what the offense shows.
         </p>
-        {(counts.DL ?? 0) !== DL_COUNT && (
-          <p style={{ fontSize: 12, color: '#e0a24e', margin: '0 0 8px' }}>
-            The front is {DL_COUNT} linemen — the server and the client both build exactly four, so a
-            different number would put players on one screen that do not exist on the other.
-          </p>
-        )}
-
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={save} disabled={!draft.name || draft.spots.length !== DEFENDERS} style={primary}>
+          <button onClick={save} disabled={!draft.name || draft.spots.length !== COVERAGE_ON_FIELD} style={primary}>
             {id ? 'Save changes' : 'Create formation'}
           </button>
           {id && <button onClick={del} style={danger}>Delete</button>}
@@ -228,7 +221,7 @@ export function ShellEditor({ book, onSaved, onError }: {
           </select>
         </div>
 
-        <Field players={players} ghosts={ghosts} side="defense" draggable
+        <Field players={players} opponents={ghosts} opponentSide="offense" side="defense" draggable
           selected={selected} onSelect={setSelected}
           onMove={(slot, dx, depth) => setAlignments(a => ({ ...a, [slot]: { dx, depth } }))} />
 
@@ -249,15 +242,10 @@ export function ShellEditor({ book, onSaved, onError }: {
           <div style={{ background: '#16241a', border: '1px solid #2c3a30', borderRadius: 6, padding: '9px 12px', marginBottom: 10 }}>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <b style={{ color: '#7ee08a', minWidth: 42 }}>{selected}</b>
-              {JOBS.map(j => {
-                const isLine = labelOf(selected) === 'DL'
-                const illegal = isLine && (j === 'man' || j === 'zone')
-                return (
-                  <button key={j} disabled={illegal} onClick={() => setJob(selected, { job: j })}
-                    style={chip(sel?.job === j, illegal)}
-                    title={illegal ? 'A lineman cannot drop into coverage' : ''}>{j}</button>
-                )
-              })}
+              {JOBS.map(j => (
+                <button key={j} onClick={() => setJob(selected, { job: j })}
+                  style={chip(sel?.job === j, false)}>{j}</button>
+              ))}
               <button onClick={() => setAssignments(a => { const n = { ...a }; delete n[selected]; return n })}
                 style={{ ...chip(false, false), color: '#ff8b8b' }}>clear</button>
             </div>
@@ -333,7 +321,7 @@ export function ShellEditor({ book, onSaved, onError }: {
 function personnelLine(f: DefFormation) {
   const c: Record<string, number> = {}
   for (const s of f.spots ?? []) { const l = labelOf(s.slot); c[l] = (c[l] ?? 0) + 1 }
-  return ['DL', 'LB', 'CB', 'S'].map(l => `${c[l] ?? 0} ${l}`).join(' · ')
+  return ['CB', 'S', 'LB'].map(l => `${c[l] ?? 0} ${l}`).join(' · ')
 }
 
 function Sidebar({ title, items, activeId, onPick, onNew }: {

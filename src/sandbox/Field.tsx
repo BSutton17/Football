@@ -1,22 +1,30 @@
 // ── The sandbox field ([authored]) ──────────────────────────────────────────
 //
-// A plain top-down SVG rather than the game's GameCanvas, which is bound to live game state and
-// a camera that follows the ball. The sandbox needs the opposite: a fixed, whole-formation view
-// that never moves, so a formation can be drawn against a stable grid.
+// ⚠️ THIS DRAWS WITH THE GAME'S OWN RENDERER, not a lookalike. `drawFrame`, `computeCamera`,
+// `drawDrawnRoutes` and `drawActiveStroke` are the exact functions the live game uses, so the
+// field, the yard lines, the hash marks, the line of scrimmage, the first-down marker, the player
+// chips and the route art are identical by construction rather than by resemblance.
 //
-// ⚠️ COORDINATES ARE THE SERVER'S, UNCHANGED. `dx` is yards from the ball's hash (negative left)
-// and `depth` is yards BEHIND the line of scrimmage. Downfield is +y, exactly as the engine reads
-// it, so what is drawn here is what gets played. Converting to some sandbox-local system and back
-// is precisely how a formation ends up mirrored or a yard off.
+// The first version of this file was a hand-rolled SVG approximation. It was quicker to write and
+// it was wrong in the way that matters: a formation that looks right on a lookalike field can sit
+// a yard off on the real one, and you would not find out until you played it.
+//
+// ⚠️ THE OL, QB AND DL ARE AUTO-PLACED AND NOT DRAGGABLE. `formation.ts` says it plainly of the
+// defensive line: "always on the field and cannot be moved by either player." The same is true of
+// the five linemen and the quarterback. They are drawn here because a formation authored without
+// them is a formation you cannot actually read — but they are not yours to move.
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { drawFrame, drawDrawnRoutes, drawActiveStroke, computeCamera } from '../game/renderer'
+import { getOLQBPlayers, getDLPlayers } from '../game/formation'
+import { FIELD } from '../constants/simulation'
+import type { PositionUpdate, GameState } from '../types/game'
 import type { RouteOffset } from './api'
 
-export const FIELD_WIDTH = 53.33
-const BEHIND = 9            // yards of backfield shown
-const AHEAD = 26            // yards downfield shown
-export const VIEW_H = BEHIND + AHEAD
-const PX = 17               // pixels per yard
+export const BALL_X = FIELD.WIDTH / 2
+// A spot with room in both directions, so a deep route and a deep safety both fit on screen.
+export const LOS = 40
+export const DISTANCE = 10
 
 export interface FieldPlayer {
   slot: string
@@ -27,162 +35,145 @@ export interface FieldPlayer {
 
 interface Props {
   players: FieldPlayer[]
+  side: 'offense' | 'defense'
+  // The other team, drawn as it really is. Authoring against an empty field is guessing.
+  opponents?: FieldPlayer[]
+  opponentSide?: 'offense' | 'defense'
   routes?: Record<string, RouteOffset[]>
   blocks?: Set<string>
   carrier?: string | null
   selected?: string | null
   draggable?: boolean
-  // ⚠️ Which way `depth` counts. The offense lines up BEHIND the line and the defense in FRONT of
-  // it, so one sign flip separates the two — and getting it wrong silently mirrors a whole
-  // formation through the line of scrimmage.
-  side?: 'offense' | 'defense'
-  // The other team, drawn faintly. Authoring a defense against nothing means guessing where the
-  // receivers will be; showing a real offensive formation makes the alignment mean something.
-  ghosts?: FieldPlayer[]
   onMove?: (slot: string, dx: number, depth: number) => void
-  onSelect?: (slot: string) => void
+  onSelect?: (slot: string | null) => void
   onDrawRoute?: (slot: string, points: { x: number; y: number }[]) => void
 }
 
-const COLORS: Record<string, string> = {
-  WR: '#4ea1ff', TE: '#ffb64e', RB: '#7ee08a',
-  DL: '#ff7b72', LB: '#d2a8ff', CB: '#79c0ff', S: '#ffa657',
+// An authored spot to a real field position. The offense lines up BEHIND the line and the defense
+// in FRONT of it, and that one sign is the whole difference between the two.
+function toPosition(p: FieldPlayer, side: 'offense' | 'defense'): PositionUpdate {
+  return {
+    id: p.slot,
+    x: BALL_X + p.dx,
+    y: side === 'defense' ? LOS + p.depth : LOS - p.depth,
+    team: side === 'defense' ? 'd' : 'o',
+    label: p.label,
+    name: p.slot,
+  }
 }
 
-// Field x (0..53.33) and y (0 = LOS, + downfield) to SVG pixels.
-const px = (fx: number) => fx * PX
-const py = (fy: number) => (AHEAD - fy) * PX
-
 export default function Field({
-  players, routes = {}, blocks = new Set(), carrier = null, selected = null,
-  draggable = false, side = 'offense', ghosts = [], onMove, onSelect, onDrawRoute,
+  players, side, opponents = [], opponentSide, routes = {}, blocks = new Set(),
+  carrier = null, selected = null, draggable = false, onMove, onSelect, onDrawRoute,
 }: Props) {
-  // The offense lines up behind the line, the defense in front of it.
-  const sign = side === 'defense' ? 1 : -1
-  const svgRef = useRef<SVGSVGElement>(null)
-  const [drawing, setDrawing] = useState<{ slot: string; pts: { x: number; y: number }[] } | null>(null)
-  const ballX = FIELD_WIDTH / 2
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ w: 760, h: 440 })
+  const [stroke, setStroke] = useState<{ slot: string; pts: { x: number; y: number }[] } | null>(null)
+  const dragging = useRef<string | null>(null)
 
-  // Pointer position in FIELD yards, which is the only coordinate system this file thinks in.
-  const toField = (e: React.PointerEvent) => {
-    const rect = svgRef.current!.getBoundingClientRect()
-    const sx = (e.clientX - rect.left) / rect.width * (FIELD_WIDTH * PX)
-    const sy = (e.clientY - rect.top) / rect.height * (VIEW_H * PX)
-    return { x: sx / PX, y: AHEAD - sy / PX }
+  const otherSide = opponentSide ?? (side === 'offense' ? 'defense' : 'offense')
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth
+      setSize({ w, h: Math.round(w * 0.62) })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Everyone on the field: what is being authored, the opponent, and the auto-placed players the
+  // engine always puts out.
+  const mine = players.map(p => toPosition(p, side))
+  const theirs = opponents.map(p => toPosition(p, otherSide))
+  const auto: PositionUpdate[] = [...getOLQBPlayers(LOS, BALL_X), ...getDLPlayers(LOS, BALL_X)]
+  const all = [...auto, ...theirs, ...mine]
+
+  // Routes are keyed by slot, which is the position id, so they line up without translation.
+  const routeArt: Record<string, { dx: number; dd: number }[]> = {}
+  for (const [slot, offsets] of Object.entries(routes)) {
+    if (!blocks.has(slot)) routeArt[slot] = offsets
   }
 
-  const startDrag = (slot: string) => (e: React.PointerEvent) => {
-    e.stopPropagation()
-    ;(e.target as Element).setPointerCapture(e.pointerId)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = size.w * dpr
+    canvas.height = size.h * dpr
+    const ctx = canvas.getContext('2d')!
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+
+    // Only yardLine and distance are read for the line of scrimmage and the first-down marker.
+    const gs = { yardLine: LOS, distance: DISTANCE } as unknown as GameState
+    drawFrame(ctx, size.w, size.h, gs, all, LOS, selected ?? carrier)
+    drawDrawnRoutes(ctx, size.w, size.h, all, LOS, routeArt)
+    if (stroke) drawActiveStroke(ctx, size.w, size.h, LOS, stroke.pts)
+  })
+
+  // Screen to field yards, through the camera the renderer itself uses — so a drag lands exactly
+  // where it appears to.
+  const toField = (e: React.PointerEvent) => {
+    const rect = canvasRef.current!.getBoundingClientRect()
+    const cam = computeCamera(size.w, size.h, LOS)
+    const cx = (e.clientX - rect.left) * (size.w / rect.width)
+    const cy = (e.clientY - rect.top) * (size.h / rect.height)
+    return { x: (cx - cam.offsetX) / cam.yardPx, y: cam.topRelY - cy / cam.yardPx }
+  }
+
+  const hit = (fx: number, fy: number) => {
+    let best: { slot: string; d: number } | null = null
+    for (const p of mine) {
+      const d = Math.hypot(p.x - fx, p.y - fy)
+      if (d < 2.2 && (!best || d < best.d)) best = { slot: p.id, d }
+    }
+    return best?.slot ?? null
+  }
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    const { x, y } = toField(e)
+    const slot = hit(x, y)
     onSelect?.(slot)
-    if (draggable) {
-      const move = (ev: PointerEvent) => {
-        const rect = svgRef.current!.getBoundingClientRect()
-        const fx = (ev.clientX - rect.left) / rect.width * FIELD_WIDTH
-        const fy = AHEAD - (ev.clientY - rect.top) / rect.height * VIEW_H
-        onMove?.(slot, +(fx - ballX).toFixed(1), +(fy * sign).toFixed(1))
-      }
-      const up = () => {
-        window.removeEventListener('pointermove', move)
-        window.removeEventListener('pointerup', up)
-      }
-      window.addEventListener('pointermove', move)
-      window.addEventListener('pointerup', up)
-    } else if (onDrawRoute) {
-      // Not draggable means we are authoring a PLAY, and dragging draws a route instead of moving
-      // the player — the user's rule: to move someone, edit the formation.
-      const p = players.find(x => x.slot === slot)!
-      setDrawing({ slot, pts: [{ x: ballX + p.dx, y: sign * p.depth }] })
+    if (!slot) return
+    ;(e.target as Element).setPointerCapture(e.pointerId)
+    if (draggable) dragging.current = slot
+    else if (onDrawRoute) {
+      const p = mine.find(q => q.id === slot)!
+      setStroke({ slot, pts: [{ x: p.x, y: p.y }] })
     }
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!drawing) return
-    const pt = toField(e)
-    setDrawing(d => (d ? { ...d, pts: [...d.pts, pt] } : d))
+    if (!dragging.current && !stroke) return
+    const { x, y } = toField(e)
+    if (dragging.current) {
+      const depth = side === 'defense' ? y - LOS : LOS - y
+      onMove?.(dragging.current, +(x - BALL_X).toFixed(1), +depth.toFixed(1))
+    } else if (stroke) {
+      setStroke(s => (s ? { ...s, pts: [...s.pts, { x, y }] } : s))
+    }
   }
 
-  const endDraw = () => {
-    if (drawing && drawing.pts.length > 2) onDrawRoute?.(drawing.slot, drawing.pts)
-    setDrawing(null)
-  }
-
-  // Yard lines every 5, with the LOS drawn heavier because every depth is measured from it.
-  const lines = []
-  for (let y = -BEHIND; y <= AHEAD; y += 5) {
-    lines.push(
-      <line key={y} x1={0} x2={px(FIELD_WIDTH)} y1={py(y)} y2={py(y)}
-        stroke={y === 0 ? '#e8ecf1' : '#2c3a30'} strokeWidth={y === 0 ? 2 : 1} />,
-    )
+  const end = () => {
+    if (stroke && stroke.pts.length > 2) onDrawRoute?.(stroke.slot, stroke.pts)
+    setStroke(null)
+    dragging.current = null
   }
 
   return (
-    <svg
-      ref={svgRef}
-      viewBox={`0 0 ${px(FIELD_WIDTH)} ${VIEW_H * PX}`}
-      style={{ width: '100%', maxWidth: 760, background: '#16241a', borderRadius: 8, touchAction: 'none' }}
-      onPointerMove={onPointerMove}
-      onPointerUp={endDraw}
-      onPointerLeave={endDraw}
-    >
-      {lines}
-      {/* Hash the formation is measured from. Every dx in the file is relative to this line. */}
-      <line x1={px(ballX)} x2={px(ballX)} y1={0} y2={VIEW_H * PX} stroke="#3c5142" strokeDasharray="3 5" />
-
-      {/* Saved routes */}
-      {Object.entries(routes).map(([slot, offsets]) => {
-        const p = players.find(x => x.slot === slot)
-        if (!p || !offsets?.length) return null
-        const sx = ballX + p.dx, sy = sign * p.depth
-        const d = [`M ${px(sx)} ${py(sy)}`, ...offsets.map(o => `L ${px(sx + o.dx)} ${py(sy + o.dd)}`)].join(' ')
-        return <path key={slot} d={d} fill="none" stroke="#ffd166" strokeWidth={2.2} strokeLinejoin="round" />
-      })}
-
-      {/* The one being drawn right now */}
-      {drawing && (
-        <path
-          d={drawing.pts.map((p, i) => `${i ? 'L' : 'M'} ${px(p.x)} ${py(p.y)}`).join(' ')}
-          fill="none" stroke="#fff" strokeWidth={2} strokeDasharray="4 3"
-        />
-      )}
-
-      {/* The other team, for reference only — never interactive. */}
-      {ghosts.map(g => (
-        <g key={`ghost-${g.slot}`} opacity={0.32} style={{ pointerEvents: 'none' }}>
-          <circle cx={px(ballX + g.dx)} cy={py(-g.depth)} r={10}
-            fill="none" stroke={COLORS[g.label] ?? '#ccc'} strokeWidth={1.5} strokeDasharray="3 2" />
-          <text x={px(ballX + g.dx)} y={py(-g.depth) + 3} textAnchor="middle" fontSize={8} fill="#9fb0a4">
-            {g.label}
-          </text>
-        </g>
-      ))}
-
-      {players.map(p => {
-        const cx = px(ballX + p.dx), cy = py(sign * p.depth)
-        const isCarrier = carrier === p.slot
-        const isBlock = blocks.has(p.slot)
-        return (
-          <g key={p.slot} onPointerDown={startDrag(p.slot)} style={{ cursor: draggable ? 'grab' : 'crosshair' }}>
-            <circle
-              cx={cx} cy={cy} r={11}
-              fill={isBlock ? '#6b7280' : COLORS[p.label] ?? '#ccc'}
-              stroke={selected === p.slot ? '#fff' : isCarrier ? '#ff5d5d' : '#0d1510'}
-              strokeWidth={selected === p.slot || isCarrier ? 3 : 1.5}
-            />
-            <text x={cx} y={cy + 4} textAnchor="middle" fontSize={10} fontWeight={700} fill="#0d1510">
-              {p.slot}
-            </text>
-          </g>
-        )
-      })}
-
-      {/* The quarterback, drawn because a back placed on top of him is a real and easy mistake. */}
-      {side === 'offense' && (
-        <>
-          <circle cx={px(ballX)} cy={py(-6)} r={9} fill="none" stroke="#6b7a70" strokeDasharray="2 3" />
-          <text x={px(ballX)} y={py(-6) + 3} textAnchor="middle" fontSize={8} fill="#6b7a70">QB</text>
-        </>
-      )}
-    </svg>
+    <div ref={wrapRef} style={{ width: '100%', maxWidth: 860 }}>
+      <canvas
+        ref={canvasRef}
+        style={{ width: '100%', height: size.h, borderRadius: 8, touchAction: 'none', display: 'block',
+          cursor: draggable ? 'grab' : 'crosshair' }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={end}
+        onPointerLeave={end}
+      />
+    </div>
   )
 }

@@ -11,7 +11,7 @@
 //               them, because routes are stored as offsets from a slot rather than field points.
 
 import { useEffect, useMemo, useState } from 'react'
-import Field from './Field'
+import Field, { BALL_X, LOS } from './Field'
 import type { FieldPlayer } from './Field'
 import {
   getPlaybook, createItem, updateItem, deleteItem, ApiError,
@@ -28,6 +28,7 @@ const blank = (): Formation => ({ name: '', category: 'gun', spots: [] })
 
 export default function Sandbox() {
   const [book, setBook] = useState<Playbook | null>(null)
+  const [mode, setMode] = useState<'offense' | 'defense'>('offense')
   const [tab, setTab] = useState<'formations' | 'plays' | 'defFormations' | 'shells'>('formations')
   const [error, setError] = useState<string[]>([])
   const [note, setNote] = useState('')
@@ -54,15 +55,35 @@ export default function Sandbox() {
 
   return (
     <Shell>
+      {/* Which side of the ball you are authoring. */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 0, borderRadius: 7, overflow: 'hidden', border: '1px solid #2c3a30' }}>
+          {(['offense', 'defense'] as const).map(m => (
+            <button key={m}
+              onClick={() => { setMode(m); setTab(m === 'offense' ? 'formations' : 'defFormations'); setError([]) }}
+              style={{
+                background: mode === m ? (m === 'offense' ? '#2f5f7d' : '#7d2f36') : '#16241a',
+                color: '#e8ecf1', border: 0, padding: '8px 20px', fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', letterSpacing: 0.4,
+              }}>
+              {m === 'offense' ? 'OFFENSE' : 'DEFENSE'}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1 }} />
+        {note && <span style={{ color: '#7ee08a', alignSelf: 'center', fontSize: 13 }}>{note}</span>}
+      </div>
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-        {(['formations', 'plays', 'defFormations', 'shells'] as const).map(t => (
+        {(mode === 'offense'
+          ? (['formations', 'plays'] as const)
+          : (['defFormations', 'shells'] as const)
+        ).map(t => (
           <button key={t} onClick={() => { setTab(t); setError([]) }} style={tabStyle(tab === t)}>
-            {{ formations: 'Formations', plays: 'Plays', defFormations: 'Def Formations', shells: 'Shells' }[t]}
+            {{ formations: 'Formations', plays: 'Plays', defFormations: 'Formations', shells: 'Shells' }[t]}
             <span style={{ opacity: 0.55, marginLeft: 6 }}>{Object.keys(book[t]).length}</span>
           </button>
         ))}
-        <div style={{ flex: 1 }} />
-        {note && <span style={{ color: '#7ee08a', alignSelf: 'center', fontSize: 13 }}>{note}</span>}
       </div>
 
       {book.audit && !book.audit.ok && (
@@ -92,6 +113,8 @@ function FormationEditor({ book, onSaved, onError }: {
 
   const players: FieldPlayer[] = draft.spots.map(s => ({ ...s, label: labelOf(s.slot) }))
   const used = new Set(draft.spots.map(s => s.slot))
+  const [vsId, setVsId] = useState('')
+  const opponents: FieldPlayer[] = (book.defFormations[vsId]?.spots ?? []).map(s => ({ ...s, label: labelOf(s.slot) }))
 
   const addSlot = (slot: string) => {
     if (used.has(slot) || draft.spots.length >= MAX_SKILL) return
@@ -149,8 +172,15 @@ function FormationEditor({ book, onSaved, onError }: {
             placeholder="Sub-formation name (Deuce, U Off Trips Wk…)"
             value={draft.name}
             onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-            style={{ ...input, flex: 1, minWidth: 220 }}
+            style={{ ...input, flex: 1, minWidth: 200 }}
           />
+          <select value={vsId} onChange={e => setVsId(e.target.value)} style={input}
+            title="Show a defense on the field, to align against">
+            <option value="">(no defense shown)</option>
+            {Object.entries(book.defFormations).map(([fid, f]) => (
+              <option key={fid} value={fid}>vs {f.name}</option>
+            ))}
+          </select>
         </div>
 
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -173,6 +203,8 @@ function FormationEditor({ book, onSaved, onError }: {
 
         <Field
           players={players}
+          side="offense"
+          opponents={opponents}
           draggable
           selected={selected}
           onSelect={setSelected}
@@ -218,11 +250,13 @@ function PlayEditor({ book, onSaved, onError }: {
   const [assignments, setAssignments] = useState<Record<string, Assignment>>({})
   const [selected, setSelected] = useState<string | null>(null)
 
+  const [vsId, setVsId] = useState('')
   const formation = book.formations[formationId]
   const players: FieldPlayer[] = useMemo(
     () => (formation?.spots ?? []).map(s => ({ ...s, label: labelOf(s.slot) })),
     [formation],
   )
+  const opponents: FieldPlayer[] = (book.defFormations[vsId]?.spots ?? []).map(s => ({ ...s, label: labelOf(s.slot) }))
   const backs = players.filter(p => p.label === 'RB')
 
   const load = (pid: string) => {
@@ -244,8 +278,9 @@ function PlayEditor({ book, onSaved, onError }: {
   const draw = (slot: string, pts: { x: number; y: number }[]) => {
     if (playType === 'run') return
     const p = players.find(x => x.slot === slot)!
-    // The SAME beautifier the live game uses, so a drawn route behaves identically in both.
-    const offsets = beautifyRoute(pts, { x: 53.33 / 2 + p.dx, y: -p.depth })
+    // The SAME beautifier the live game uses, so a drawn route behaves identically in both. The
+    // points arrive in real field coordinates, so the anchor is the receiver's real spot.
+    const offsets = beautifyRoute(pts, { x: BALL_X + p.dx, y: LOS - p.depth })
     if (!offsets) return
     setAssignments(a => ({ ...a, [slot]: { kind: 'route', points: offsets } }))
   }
@@ -291,6 +326,12 @@ function PlayEditor({ book, onSaved, onError }: {
               </button>
             ))}
           </div>
+          <select value={vsId} onChange={e => setVsId(e.target.value)} style={input}>
+            <option value="">(no defense shown)</option>
+            {Object.entries(book.defFormations).map(([fid, f]) => (
+              <option key={fid} value={fid}>vs {f.name}</option>
+            ))}
+          </select>
         </div>
 
         {playType === 'run' ? (
@@ -318,6 +359,8 @@ function PlayEditor({ book, onSaved, onError }: {
 
         <Field
           players={players}
+          side="offense"
+          opponents={opponents}
           routes={playType === 'run' ? {} : routes}
           blocks={blocks}
           carrier={carrier}
