@@ -16,7 +16,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { drawFrame, drawDrawnRoutes, drawActiveStroke, computeCamera } from '../game/renderer'
-import { getOLQBPlayers, getDLPlayers } from '../game/formation'
+import { getOLQBPlayers, getPositionYBounds } from '../game/formation'
 import { FIELD } from '../constants/simulation'
 import type { PositionUpdate, GameState } from '../types/game'
 import type { RouteOffset } from './api'
@@ -47,8 +47,6 @@ interface Props {
   onMove?: (slot: string, dx: number, depth: number) => void
   onSelect?: (slot: string | null) => void
   onDrawRoute?: (slot: string, points: { x: number; y: number }[]) => void
-  // How many down linemen the chosen front puts out. Four unless a 3-4 or 3-3-5 says fewer.
-  dlCount?: number
 }
 
 // An authored spot to a real field position. The offense lines up BEHIND the line and the defense
@@ -66,7 +64,7 @@ function toPosition(p: FieldPlayer, side: 'offense' | 'defense'): PositionUpdate
 
 export default function Field({
   players, side, opponents = [], opponentSide, routes = {}, blocks = new Set(),
-  carrier = null, selected = null, draggable = false, dlCount = 4, onMove, onSelect, onDrawRoute,
+  carrier = null, selected = null, draggable = false, onMove, onSelect, onDrawRoute,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -91,7 +89,10 @@ export default function Field({
   // engine always puts out.
   const mine = players.map(p => toPosition(p, side))
   const theirs = opponents.map(p => toPosition(p, otherSide))
-  const auto: PositionUpdate[] = [...getOLQBPlayers(LOS, BALL_X), ...getDLPlayers(LOS, BALL_X, dlCount)]
+  // Only the five offensive linemen and the quarterback are auto-placed now: their spots are
+  // dictated by the snap, not by the call. The DEFENSIVE line is part of the defensive formation
+  // and slides like anyone else.
+  const auto: PositionUpdate[] = getOLQBPlayers(LOS, BALL_X)
   const all = [...auto, ...theirs, ...mine]
 
   // Routes are keyed by slot, which is the position id, so they line up without translation.
@@ -152,8 +153,17 @@ export default function Field({
     if (!dragging.current && !stroke) return
     const { x, y } = toField(e)
     if (dragging.current) {
-      const depth = side === 'defense' ? y - LOS : LOS - y
-      onMove?.(dragging.current, +(x - BALL_X).toFixed(1), +depth.toFixed(1))
+      // ⚠️ CLAMPED WITH THE GAME'S OWN BOUNDS. getPositionYBounds is the same function the live
+      // game applies to every drag, so the sandbox cannot produce a formation the game would have
+      // refused — an offense across the line, or a defender offside. Note its defensive limit
+      // holds the CENTRE a full player-radius back, because a circle centred on the line is
+      // already halfway across it.
+      const label = mine.find(q => q.id === dragging.current)?.label ?? ''
+      const b = getPositionYBounds(label, side, LOS)
+      const clampedY = Math.max(b.minY, Math.min(b.maxY, y))
+      const clampedX = Math.max(BALL_X - 26, Math.min(BALL_X + 26, x))
+      const depth = side === 'defense' ? clampedY - LOS : LOS - clampedY
+      onMove?.(dragging.current, +(clampedX - BALL_X).toFixed(1), +depth.toFixed(1))
     } else if (stroke) {
       setStroke(s => (s ? { ...s, pts: [...s.pts, { x, y }] } : s))
     }

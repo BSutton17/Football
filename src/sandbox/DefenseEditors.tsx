@@ -17,7 +17,7 @@ import Field from './Field'
 import type { FieldPlayer } from './Field'
 import {
   createItem, updateItem, deleteItem,
-  DEF_SLOT_POOL, DEF_FRONTS, coverageFor, JOBS, ZONE_TYPES, COVER_ROLES,
+  DEF_SLOT_POOL, DEF_FRONTS, DEFENDERS, JOBS, ZONE_TYPES, COVER_ROLES,
 } from './api'
 import type { Playbook, DefFormation, Shell, DefAssignment, DefJob, ApiError } from './api'
 
@@ -29,10 +29,21 @@ const ALL_DEF_SLOTS = Object.entries(DEF_SLOT_POOL).flatMap(([label, n]) =>
 // A sensible 4-3 back seven to start from, so nobody places seven players from an empty field.
 // The four linemen are not here because they are not authored — the engine always puts the same
 // four out and neither player can move them.
+// The linemen a front puts on the ball, at the spots the engine uses. They are seeded rather than
+// added by hand, because the COUNT is decided by the front — but every one of them can be slid
+// along the line afterwards, which is what shifting a front means.
+const DL_SEED: Record<number, number[]> = {
+  3: [-3.0, 0, 3.0],
+  4: [-3.25, -1.25, 1.25, 3.25],
+}
+const seedLinemen = (dl: number) =>
+  (DL_SEED[dl] ?? DL_SEED[4]).map((dx, i) => ({ slot: `DL${i + 1}`, dx, depth: 1 }))
+
 const STARTER: DefFormation = {
   name: '',
   category: '4-3',
   spots: [
+    ...seedLinemen(4),
     { slot: 'LB1', dx: -5, depth: 5 }, { slot: 'LB2', dx: 0, depth: 5 }, { slot: 'LB3', dx: 5, depth: 5 },
     { slot: 'CB1', dx: -16, depth: 6 }, { slot: 'CB2', dx: 16, depth: 6 },
     { slot: 'S1', dx: -8, depth: 13 }, { slot: 'S2', dx: 8, depth: 13 },
@@ -53,7 +64,7 @@ export function DefFormationEditor({ book, onSaved, onError }: {
   const used = new Set(draft.spots.map(s => s.slot))
   const counts = players.reduce<Record<string, number>>((a, p) => ({ ...a, [p.label]: (a[p.label] ?? 0) + 1 }), {})
   const front = DEF_FRONTS[draft.category] ?? DEF_FRONTS['4-3']
-  const wanted = coverageFor(draft.category)
+  const wanted = DEFENDERS
   const ghosts: FieldPlayer[] = (book.formations[ghostId]?.spots ?? []).map(s => ({ ...s, label: labelOf(s.slot) }))
 
   const load = (fid: string) => { setId(fid); setDraft(structuredClone(book.defFormations[fid])); setSelected(null) }
@@ -61,7 +72,7 @@ export function DefFormationEditor({ book, onSaved, onError }: {
 
   const toggle = (slot: string) => {
     if (used.has(slot)) setDraft(d => ({ ...d, spots: d.spots.filter(s => s.slot !== slot) }))
-    else if (draft.spots.length < coverageFor(draft.category)) {
+    else if (draft.spots.length < wanted) {
       const label = labelOf(slot)
       const depth = label === 'LB' ? 5 : label === 'S' ? 13 : 6
       setDraft(d => ({ ...d, spots: [...d.spots, { slot, dx: 0, depth }] }))
@@ -101,7 +112,15 @@ export function DefFormationEditor({ book, onSaved, onError }: {
       <div style={{ flex: '1 1 480px' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
           <select value={draft.category}
-            onChange={e => setDraft(d => ({ ...d, category: e.target.value }))} style={input}>
+            onChange={e => {
+              const cat = e.target.value
+              const dl = DEF_FRONTS[cat]?.dl ?? 4
+              // Reseed the line for the new front and keep everyone else exactly where they are.
+              setDraft(d => ({
+                ...d, category: cat,
+                spots: [...seedLinemen(dl), ...d.spots.filter(sp => labelOf(sp.slot) !== 'DL')],
+              }))
+            }} style={input}>
             {Object.entries(DEF_FRONTS).map(([k, f]) => <option key={k} value={k}>{f.name}</option>)}
           </select>
           <input placeholder="Sub-formation name (Over, Under, Bear, Mike Walk…)" value={draft.name}
@@ -115,7 +134,7 @@ export function DefFormationEditor({ book, onSaved, onError }: {
         </div>
 
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 10 }}>
-          {ALL_DEF_SLOTS.map(s => (
+          {ALL_DEF_SLOTS.filter(s => labelOf(s) !== 'DL').map(s => (
             <button key={s} onClick={() => toggle(s)}
               disabled={!used.has(s) && draft.spots.length >= wanted}
               style={chip(used.has(s), !used.has(s) && draft.spots.length >= wanted)}>{s}</button>
@@ -126,15 +145,20 @@ export function DefFormationEditor({ book, onSaved, onError }: {
         </div>
 
         <Field players={players} opponents={ghosts} opponentSide="offense" side="defense" draggable
-          dlCount={front.dl}
           selected={selected} onSelect={setSelected}
           onMove={(slot, dx, depth) =>
             setDraft(d => ({ ...d, spots: d.spots.map(s => (s.slot === slot ? { ...s, dx, depth } : s)) }))} />
 
         <p style={{ fontSize: 12, color: '#8b9a90', margin: '8px 0' }}>
+          <b>{front.name}</b> — {front.blurb} Its {front.dl} linemen come with the front and{' '}
+          <b>slide along the line</b> like anyone else; the other {DEFENDERS - front.dl} are yours to add.
+          {draft.category === '5-2' && ' Walk a linebacker onto the ball for the fifth man and give him a rush job.'}
+          <br />
           This formation <b>declares its personnel</b>: {personnelLine(draft)}.
           {(counts.CB ?? 0) >= 4 ? ' Four corners is dime.' : (counts.CB ?? 0) === 3 ? ' Three corners is nickel.' : ''}
           {' '}The AI picks between formations by what the offense shows.
+          <br />
+          Nobody can be dragged across the line — the same bounds the live game applies.
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={save} disabled={!draft.name || draft.spots.length !== wanted} style={primary}>
@@ -230,7 +254,6 @@ export function ShellEditor({ book, onSaved, onError }: {
         </div>
 
         <Field players={players} opponents={ghosts} opponentSide="offense" side="defense" draggable
-          dlCount={DEF_FRONTS[formation?.category ?? '4-3']?.dl ?? 4}
           selected={selected} onSelect={setSelected}
           onMove={(slot, dx, depth) => setAlignments(a => ({ ...a, [slot]: { dx, depth } }))} />
 
@@ -330,7 +353,7 @@ export function ShellEditor({ book, onSaved, onError }: {
 function personnelLine(f: DefFormation) {
   const c: Record<string, number> = {}
   for (const s of f.spots ?? []) { const l = labelOf(s.slot); c[l] = (c[l] ?? 0) + 1 }
-  return ['CB', 'S', 'LB'].map(l => `${c[l] ?? 0} ${l}`).join(' · ')
+  return ['DL', 'LB', 'CB', 'S'].map(l => `${c[l] ?? 0} ${l}`).join(' · ')
 }
 
 function Sidebar({ title, items, activeId, onPick, onNew }: {

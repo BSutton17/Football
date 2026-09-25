@@ -38,7 +38,7 @@ export interface Play {
 // the defensive line that it is "always on the field and cannot be moved by either player". They
 // are DRAWN in the sandbox, because a formation you cannot see the front of is one you cannot
 // read, but they are not yours to move.
-export const DEF_SLOT_POOL: Record<string, number> = { LB: 5, CB: 4, S: 3 }
+export const DEF_SLOT_POOL: Record<string, number> = { DL: 5, LB: 5, CB: 4, S: 3 }
 export const DEFENDERS = 11
 
 // The defensive answer to Gun/Pistol. The front decides how many linemen the engine puts out, and
