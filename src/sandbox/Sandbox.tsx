@@ -116,6 +116,17 @@ function FormationEditor({ book, onSaved, onError }: {
   const [vsId, setVsId] = useState('')
   const opponents: FieldPlayer[] = (book.defFormations[vsId]?.spots ?? []).map(s => ({ ...s, label: labelOf(s.slot) }))
 
+  // Mirrors whyNoRun on the server: a back has to be behind the line AND inside the formation.
+  // The tackles sit at ±3.5, so within about seven is still behind it.
+  const backs = draft.spots.filter(sp => labelOf(sp.slot) === 'RB')
+  const inBackfield = backs.filter(sp => sp.depth >= 2 && Math.abs(sp.dx) <= 7)
+  const canRun = inBackfield.length > 0
+  const runBlocker = backs.length === 0
+    ? 'no back in this formation'
+    : backs.every(sp => Math.abs(sp.dx) > 7)
+      ? 'the back is split out wide'
+      : 'the back is not behind the line'
+
   const addSlot = (slot: string) => {
     if (used.has(slot) || draft.spots.length >= MAX_SKILL) return
     // Drop him somewhere sensible so he is visible and draggable, not at 0,0.
@@ -131,9 +142,11 @@ function FormationEditor({ book, onSaved, onError }: {
       else {
         const r = await createItem('formations', draft)
         setId(r.id)
+        // A formation with nobody in the backfield gets no run play, and says why rather than
+        // leaving it a mystery.
         onSaved(r.runPlayId
           ? `Created ${draft.name} — and "${draft.name} Run" with it`
-          : `Created ${draft.name}${r.runNote ? ` (${r.runNote})` : ''}`)
+          : `Created ${draft.name}${r.runNote ? ` — ${r.runNote}` : ''}`)
       }
     } catch (e) { onError(e) }
   }
@@ -216,12 +229,19 @@ function FormationEditor({ book, onSaved, onError }: {
           Drag to place. <b>dx</b> is yards from the ball's hash, <b>depth</b> is yards behind the line —
           so the formation works from anywhere on the field and from either hash.
         </p>
-        {!id && (
-          <p style={{ fontSize: 12, color: '#7ee08a', margin: '0 0 8px' }}>
-            A run play is created with it automatically — the lane is read off the defensive front at
-            the line, so there is nothing to draw. You only draw the pass plays.
-          </p>
-        )}
+        {!id && (canRun
+          ? (
+            <p style={{ fontSize: 12, color: '#7ee08a', margin: '0 0 8px' }}>
+              A run play is created with it automatically — the lane is read off the defensive front
+              at the line, so there is nothing to draw. You only draw the pass plays.
+            </p>
+          )
+          : (
+            <p style={{ fontSize: 12, color: '#e0a24e', margin: '0 0 8px' }}>
+              No run play: {runBlocker}. Nobody here can take a handoff, so a run would be a call
+              that cannot be run.
+            </p>
+          ))}
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button onClick={save} disabled={!draft.name || draft.spots.length !== MAX_SKILL} style={primary}>
