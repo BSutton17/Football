@@ -50,7 +50,6 @@ export const DEF_FRONTS: Record<string, { name: string; dl: number; blurb: strin
   '4-3': { name: '4-3', dl: 4, blurb: 'Four down, three linebackers. The base front.' },
   '3-4': { name: '3-4', dl: 3, blurb: 'Three down, four linebackers — one usually rushing.' },
   '5-2': { name: '5-2', dl: 4, blurb: 'Five on the ball — the fifth is a linebacker walked down.' },
-  '2-5': { name: '2-5', dl: 2, blurb: 'Two down, five off the ball. Pressure/coverage hybrid.' },
   '3-3-5': { name: '3-3-5', dl: 3, blurb: 'Three down, three linebackers, five defensive backs.' },
   nickel: { name: 'Nickel', dl: 4, blurb: 'Four down, a fifth DB for the third receiver.' },
   dime: { name: 'Dime', dl: 4, blurb: 'Four down, six defensive backs. Obvious passing down.' },

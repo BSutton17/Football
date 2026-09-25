@@ -47,7 +47,7 @@ interface Props {
   onMove?: (slot: string, dx: number, depth: number) => void
   onSelect?: (slot: string | null) => void
   onDrawRoute?: (slot: string, points: { x: number; y: number }[]) => void
-  // How many down linemen the chosen front puts out. Four unless a 3-4 / 2-5 / 3-3-5 says fewer.
+  // How many down linemen the chosen front puts out. Four unless a 3-4 or 3-3-5 says fewer.
   dlCount?: number
 }
 

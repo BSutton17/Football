@@ -38,13 +38,12 @@ function offenseAutoPlaced(yardLine: number, centerX: number = MID): PositionUpd
 // interior linemen sit over the guards.
 
 // Where the down linemen line up, by how many of them there are. Spacing is listed per count
-// rather than computed, because the alignments genuinely differ: two sit outside the tackles,
-// three is a nose with two ends, four is the base front.
+// rather than computed, because the alignments genuinely differ: three is a nose with two ends,
+// four is the base front.
 //
 // ⚠️ MUST MATCH `DL_SPACING` in Server/src/ai/controller.js, or the two screens draw a different
 // defense. The four-man row is byte-identical to what shipped before this became variable.
 export const DL_SPACING: Record<number, number[]> = {
-  2: [-3.0, 3.0],
   3: [-3.0, 0, 3.0],
   4: [-3.25, -1.25, 1.25, 3.25],
 }
