@@ -239,7 +239,8 @@ export default function App() {
     kind: 'quarter' | 'halftime'
     endedQuarter: number
     stats?: { top: StatLeader[] }
-    adjustments?: string[]
+    // ⚠️ No adjustments field, deliberately. What the AI read off the first half is its own
+    // thinking; showing a player "they are stacking the box" hands them the counter for free.
   } | null>(null)
   // [70] Timeouts remaining, viewer-relative (own = this team). Synced from game_state + timeout events.
   const [timeouts, setTimeouts] = useState<{ own: number; opp: number }>({ own: 3, opp: 3 })
@@ -1747,16 +1748,6 @@ export default function App() {
               ? 'HALFTIME'
               : `END OF Q${periodTransition.endedQuarter}`}
           </div>
-          {/* [halftime] What the AI read off the first half. Only the leans worth acting on appear —
-              a report listing three things that all say "normal" is noise. */}
-          {periodTransition.kind === 'halftime' && !!periodTransition.adjustments?.length && (
-            <div className="halftime-read">
-              <div className="stat-leaders-title">Adjustments</div>
-              {periodTransition.adjustments.map((line, i) => (
-                <div key={i} className="halftime-read-line">{line}</div>
-              ))}
-            </div>
-          )}
           {/* [stats] Halftime carries the box score; an ordinary quarter break does not — it is a
               five-second breather, not a report. */}
           {periodTransition.kind === 'halftime' && !!periodTransition.stats?.top?.length && (
