@@ -13,8 +13,9 @@
 //   ZONE — he holds the spot authored for him, so the shell keeps the shape it was drawn with.
 
 import { useMemo, useState } from 'react'
-import Field from './Field'
+import Field, { BALL_X, LOS } from './Field'
 import type { FieldPlayer } from './Field'
+import { computeZoneShell, SHELL_ORDER, SHELL_LABEL } from '../game/zoneShells'
 import {
   createItem, updateItem, deleteItem,
   DEF_SLOT_POOL, DEF_FRONTS, DEFENDERS, JOBS, ZONE_TYPES, COVER_ROLES,
@@ -186,12 +187,36 @@ export function ShellEditor({ book, onSaved, onError }: {
   const [alignments, setAlignments] = useState<Record<string, { dx: number; depth: number }>>({})
   const [selected, setSelected] = useState<string | null>(null)
   const [ghostId, setGhostId] = useState<string>('')
+  const [presetIndex, setPresetIndex] = useState(0)
 
   const formation = book.defFormations[formationId]
   const players: FieldPlayer[] = useMemo(
     () => (formation?.spots ?? []).map(s => ({ ...s, ...(alignments[s.slot] ?? {}), label: labelOf(s.slot) })),
     [formation, alignments],
   )
+
+  // ⚠️ THE COVERAGE ART IS THE GAME'S. drawFrame already knows how to draw a man line, a zone
+  // bubble, a blitz arrow and a spy; these are just the assignments in the shape it wants, so the
+  // sandbox shows the same picture a defense sees in a real game.
+  const art = useMemo(() => {
+    const manTargets: Record<string, string> = {}
+    const zoneTypes: Record<string, string> = {}
+    const zoneCenters: Record<string, { x: number; y: number }> = {}
+    const blitzIds: string[] = []
+    const spyIds: string[] = []
+    for (const [slot, a] of Object.entries(assignments)) {
+      if (a.job === 'man') { if (a.target) manTargets[slot] = a.target }
+      else if (a.job === 'zone') {
+        zoneTypes[slot] = a.zone ?? 'hook'
+        const spot = players.find(p => p.slot === slot)
+        // No authored centre yet: park the bubble on the defender so it is there to be dragged.
+        const c = a.center ?? { dx: spot?.dx ?? 0, depth: (spot?.depth ?? 5) + 2 }
+        zoneCenters[slot] = { x: BALL_X + c.dx, y: LOS + c.depth }
+      } else if (a.job === 'rush') blitzIds.push(slot)
+      else if (a.job === 'spy') spyIds.push(slot)
+    }
+    return { manTargets, zoneTypes, zoneCenters, blitzIds, spyIds }
+  }, [assignments, players])
   const ghosts: FieldPlayer[] = (book.formations[ghostId]?.spots ?? []).map(s => ({ ...s, label: labelOf(s.slot) }))
 
   const load = (sid: string) => {
@@ -209,6 +234,35 @@ export function ShellEditor({ book, onSaved, onError }: {
 
   const setJob = (slot: string, patch: Partial<DefAssignment>) =>
     setAssignments(a => ({ ...a, [slot]: { ...(a[slot] ?? { job: 'zone' as DefJob }), ...patch } }))
+
+  // ⚠️ THE SAME FUNCTION THE GAME'S "ZONE ALL" BUTTON USES. computeZoneShell reads the actual
+  // defender positions and builds Cover 2 / 3 / 4 from them, so a preset here lands exactly where
+  // it would in a real game — and is then yours to drag.
+  const applyPreset = () => {
+    const preset = SHELL_ORDER[presetIndex]
+    setPresetIndex(i => (i + 1) % SHELL_ORDER.length)
+
+    if (preset === 'reset') { setAssignments({}); return }
+
+    const defenders = players
+      .filter(p => p.label === 'CB' || p.label === 'S' || p.label === 'LB')
+      .map(p => ({ id: p.slot, x: BALL_X + p.dx, y: LOS + p.depth, label: p.label, speed: 50 }))
+    const receivers = (book.formations[ghostId]?.spots ?? [])
+      .map(r => ({ id: r.slot, x: BALL_X + r.dx, y: LOS - r.depth }))
+
+    const out = computeZoneShell(preset, defenders, receivers, BALL_X, LOS, 53.33)
+    const next: Record<string, DefAssignment> = {}
+    // Linemen are not in the preset — they rush, which is what they were already doing.
+    for (const p of players) if (p.label === 'DL') next[p.slot] = { job: 'rush' }
+    for (const a of out) {
+      if (a.kind === 'zone') {
+        next[a.id] = { job: 'zone', zone: a.zoneType, center: { dx: a.x - BALL_X, depth: a.y - LOS } }
+      } else if (a.kind === 'man') {
+        next[a.id] = { job: 'man', target: null }
+      }
+    }
+    setAssignments(next)
+  }
 
   const save = async () => {
     const shell: Shell = { name, formationId, kind, forcedLeverage, assignments, alignments }
@@ -253,13 +307,29 @@ export function ShellEditor({ book, onSaved, onError }: {
           </select>
         </div>
 
+        {/* The game's own one-press coverage shell, cycling Cover 2 → 3 → 4 → Reset. */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>
+          <button onClick={applyPreset} style={{ ...primary, background: '#2f5f7d' }}>
+            {SHELL_LABEL[SHELL_ORDER[presetIndex]]}
+          </button>
+          <span style={{ fontSize: 11, color: '#6b7a70' }}>
+            Builds the whole coverage from where the defenders actually stand — the same function the
+            game uses — then drag any zone to adjust it.
+          </span>
+        </div>
+
         <Field players={players} opponents={ghosts} opponentSide="offense" side="defense" draggable
           selected={selected} onSelect={setSelected}
-          onMove={(slot, dx, depth) => setAlignments(a => ({ ...a, [slot]: { dx, depth } }))} />
+          manTargets={art.manTargets} zoneTypes={art.zoneTypes} zoneCenters={art.zoneCenters}
+          blitzIds={art.blitzIds} spyIds={art.spyIds}
+          onMove={(slot, dx, depth) => setAlignments(a => ({ ...a, [slot]: { dx, depth } }))}
+          onMoveZone={(slot, dx, depth) =>
+            setAssignments(a => ({ ...a, [slot]: { ...(a[slot] ?? { job: 'zone' }), job: 'zone', center: { dx, depth } } }))} />
 
         <p style={{ fontSize: 12, color: '#8b9a90', margin: '8px 0' }}>
-          Drag to adjust — moves save onto <b>this shell</b>, not the formation, so another shell out
-          of the same formation keeps its own look.
+          Drag a <b>defender</b> to adjust his alignment — saved onto this shell, not the formation,
+          so another shell out of the same formation keeps its own look. Drag a <b>zone bubble</b> to
+          move the zone itself.
           {Object.keys(alignments).length > 0 && (
             <>
               {' '}<button onClick={() => setAlignments({})} style={{ ...chip(false, false), padding: '1px 7px' }}>

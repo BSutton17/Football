@@ -47,6 +47,16 @@ interface Props {
   onMove?: (slot: string, dx: number, depth: number) => void
   onSelect?: (slot: string | null) => void
   onDrawRoute?: (slot: string, points: { x: number; y: number }[]) => void
+  // ⚠️ COVERAGE ART COMES FROM THE GAME'S RENDERER. drawFrame already knows how to draw a man
+  // line, a zone bubble, a blitz arrow and a spy — handing it these is what makes the sandbox show
+  // the same picture the defense sees in a real game, rather than a second drawing of the same idea.
+  manTargets?: Record<string, string>
+  zoneTypes?: Record<string, string>
+  zoneCenters?: Record<string, { x: number; y: number }>
+  blitzIds?: string[]
+  spyIds?: string[]
+  // Dragging a zone bubble moves the zone, not the defender playing it.
+  onMoveZone?: (slot: string, dx: number, depth: number) => void
 }
 
 // An authored spot to a real field position. The offense lines up BEHIND the line and the defense
@@ -65,12 +75,14 @@ function toPosition(p: FieldPlayer, side: 'offense' | 'defense'): PositionUpdate
 export default function Field({
   players, side, opponents = [], opponentSide, routes = {}, blocks = new Set(),
   carrier = null, selected = null, draggable = false, onMove, onSelect, onDrawRoute,
+  manTargets = {}, zoneTypes = {}, zoneCenters = {}, blitzIds = [], spyIds = [], onMoveZone,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 760, h: 440 })
   const [stroke, setStroke] = useState<{ slot: string; pts: { x: number; y: number }[] } | null>(null)
   const dragging = useRef<string | null>(null)
+  const draggingZone = useRef<string | null>(null)
 
   const otherSide = opponentSide ?? (side === 'offense' ? 'defense' : 'offense')
 
@@ -112,7 +124,10 @@ export default function Field({
 
     // Only yardLine and distance are read for the line of scrimmage and the first-down marker.
     const gs = { yardLine: LOS, distance: DISTANCE } as unknown as GameState
-    drawFrame(ctx, size.w, size.h, gs, all, LOS, selected ?? carrier)
+    drawFrame(
+      ctx, size.w, size.h, gs, all, LOS, selected ?? carrier,
+      {}, null, manTargets, zoneTypes, zoneCenters, blitzIds, spyIds,
+    )
     drawDrawnRoutes(ctx, size.w, size.h, all, LOS, routeArt)
     if (stroke) drawActiveStroke(ctx, size.w, size.h, LOS, stroke.pts)
   })
@@ -136,8 +151,29 @@ export default function Field({
     return best?.slot ?? null
   }
 
+  // A zone bubble is a bigger target than a player and sits away from him, so it is checked first.
+  const hitZone = (fx: number, fy: number) => {
+    let best: { slot: string; d: number } | null = null
+    for (const [slot, c] of Object.entries(zoneCenters)) {
+      const d = Math.hypot(c.x - fx, c.y - fy)
+      if (d < 3.5 && (!best || d < best.d)) best = { slot, d }
+    }
+    return best?.slot ?? null
+  }
+
   const onPointerDown = (e: React.PointerEvent) => {
     const { x, y } = toField(e)
+
+    if (onMoveZone) {
+      const zone = hitZone(x, y)
+      if (zone) {
+        ;(e.target as Element).setPointerCapture(e.pointerId)
+        draggingZone.current = zone
+        onSelect?.(zone)
+        return
+      }
+    }
+
     const slot = hit(x, y)
     onSelect?.(slot)
     if (!slot) return
@@ -150,8 +186,16 @@ export default function Field({
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging.current && !stroke) return
+    if (!dragging.current && !draggingZone.current && !stroke) return
     const { x, y } = toField(e)
+    if (draggingZone.current) {
+      // A zone is a landmark, not a player: it may sit deeper than anyone lines up, but never
+      // behind the line of scrimmage.
+      const depth = Math.max(0, Math.min(35, y - LOS))
+      const dx = Math.max(-26, Math.min(26, x - BALL_X))
+      onMoveZone?.(draggingZone.current, +dx.toFixed(1), +depth.toFixed(1))
+      return
+    }
     if (dragging.current) {
       // ⚠️ CLAMPED WITH THE GAME'S OWN BOUNDS. getPositionYBounds is the same function the live
       // game applies to every drag, so the sandbox cannot produce a formation the game would have
@@ -173,6 +217,7 @@ export default function Field({
     if (stroke && stroke.pts.length > 2) onDrawRoute?.(stroke.slot, stroke.pts)
     setStroke(null)
     dragging.current = null
+    draggingZone.current = null
   }
 
   return (

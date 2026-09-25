@@ -69,8 +69,12 @@ export interface DefFormation { name: string; category: string; spots: DefSpot[]
 
 export interface DefAssignment {
   job: DefJob
-  target?: string | null      // man only
-  zone?: string               // zone only
+  target?: string | null                        // man only
+  zone?: string                                 // zone only
+  // WHERE the zone sits, not just what kind it is. A hook over the left hash and one over the
+  // right are different coverages, and the shape of a shell is the set of these. Omitted means
+  // the engine uses the landmark it would have computed.
+  center?: { dx: number; depth: number }
 }
 
 export interface Shell {
