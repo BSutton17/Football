@@ -2563,3 +2563,21 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .stat-totals-label { color: #b9c6bd; }
+
+
+/* ── [halftime] What the AI read off the first half ─────────────────────── */
+.halftime-read {
+  width: min(92vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.halftime-read-line {
+  font-size: 13px;
+  color: #ffd166;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: 7px;
+  background: rgba(255, 209, 102, 0.1);
+  border: 1px solid rgba(255, 209, 102, 0.24);
+}

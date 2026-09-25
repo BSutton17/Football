@@ -235,8 +235,12 @@ export default function App() {
   // [transition screens] Full-screen End-of-Quarter / Halftime interstitial, or null. Server-driven
   // (period_transition) and self-clearing after its own 5s timer, so a mid-transition game_state
   // (the next play lining up behind it) doesn't dismiss it early. [219][220] final result overlay.
-  const [periodTransition, setPeriodTransition] = useState<
-    { kind: 'quarter' | 'halftime'; endedQuarter: number; stats?: { top: StatLeader[] } } | null>(null)
+  const [periodTransition, setPeriodTransition] = useState<{
+    kind: 'quarter' | 'halftime'
+    endedQuarter: number
+    stats?: { top: StatLeader[] }
+    adjustments?: string[]
+  } | null>(null)
   // [70] Timeouts remaining, viewer-relative (own = this team). Synced from game_state + timeout events.
   const [timeouts, setTimeouts] = useState<{ own: number; opp: number }>({ own: 3, opp: 3 })
   // [69] Active timeout freeze: { byYou } while play is paused, else null. Shows a banner + blocks the
@@ -1743,6 +1747,16 @@ export default function App() {
               ? 'HALFTIME'
               : `END OF Q${periodTransition.endedQuarter}`}
           </div>
+          {/* [halftime] What the AI read off the first half. Only the leans worth acting on appear —
+              a report listing three things that all say "normal" is noise. */}
+          {periodTransition.kind === 'halftime' && !!periodTransition.adjustments?.length && (
+            <div className="halftime-read">
+              <div className="stat-leaders-title">Adjustments</div>
+              {periodTransition.adjustments.map((line, i) => (
+                <div key={i} className="halftime-read-line">{line}</div>
+              ))}
+            </div>
+          )}
           {/* [stats] Halftime carries the box score; an ordinary quarter break does not — it is a
               five-second breather, not a report. */}
           {periodTransition.kind === 'halftime' && !!periodTransition.stats?.top?.length && (
