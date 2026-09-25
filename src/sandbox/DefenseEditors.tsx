@@ -183,7 +183,10 @@ export function ShellEditor({ book, onSaved, onError }: {
   const [name, setName] = useState('')
   const [kind, setKind] = useState<'man' | 'zone'>('zone')
   const [forcedLeverage, setForcedLeverage] = useState<'in' | 'out' | null>(null)
-  const [assignments, setAssignments] = useState<Record<string, DefAssignment>>({})
+  const [assignments, setAssignments] = useState<Record<string, DefAssignment>>(() =>
+    Object.fromEntries((book.defFormations[defIds[0]]?.spots ?? [])
+      .filter(sp => labelOf(sp.slot) === 'DL')
+      .map(sp => [sp.slot, { job: 'rush' } as DefAssignment])))
   // Read and written back, but never produced any more: players do not move in shell mode, so the
   // only alignments here are ones an older shell already carried. Keeping the round-trip means
   // such a shell keeps the look it was saved with.
@@ -230,9 +233,18 @@ export function ShellEditor({ book, onSaved, onError }: {
     setAlignments(structuredClone(s.alignments ?? {}))
     setSelected(null)
   }
+  // ⚠️ THE LINEMEN ALWAYS RUSH unless told otherwise. A down lineman dropping is a specific,
+  // unusual call; rushing is simply what he does, so a blank shell starts him there rather than
+  // making anyone click `rush` four times to describe a completely normal defense.
+  const rushingLine = (fid: string) => Object.fromEntries(
+    (book.defFormations[fid]?.spots ?? [])
+      .filter(sp => labelOf(sp.slot) === 'DL')
+      .map(sp => [sp.slot, { job: 'rush' } as DefAssignment]),
+  )
+
   const reset = () => {
     setId(null); setName(''); setKind('zone'); setForcedLeverage(null)
-    setAssignments({}); setAlignments({}); setSelected(null)
+    setAssignments(rushingLine(formationId)); setAlignments({}); setSelected(null)
   }
 
   const setJob = (slot: string, patch: Partial<DefAssignment>) =>
@@ -295,7 +307,9 @@ export function ShellEditor({ book, onSaved, onError }: {
 
       <div style={{ flex: '1 1 480px' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-          <select value={formationId} onChange={e => { setFormationId(e.target.value); setAssignments({}); setAlignments({}) }} style={input}>
+          <select value={formationId}
+            onChange={e => { setFormationId(e.target.value); setAssignments(rushingLine(e.target.value)); setAlignments({}) }}
+            style={input}>
             {defIds.map(fid => <option key={fid} value={fid}>{book.defFormations[fid].name}</option>)}
           </select>
           <input placeholder="Shell name (Cover 3, Nickel Blitz…)" value={name}
