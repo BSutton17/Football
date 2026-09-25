@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
 import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, SESSION_KEY } from './socket/index.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
+import type { StatLeader } from './types/game.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
 import type { RouteOffset } from './game/routeDraw.ts'
 import RoomScreen from './components/RoomScreen.tsx'
@@ -234,7 +235,8 @@ export default function App() {
   // [transition screens] Full-screen End-of-Quarter / Halftime interstitial, or null. Server-driven
   // (period_transition) and self-clearing after its own 5s timer, so a mid-transition game_state
   // (the next play lining up behind it) doesn't dismiss it early. [219][220] final result overlay.
-  const [periodTransition, setPeriodTransition] = useState<{ kind: 'quarter' | 'halftime'; endedQuarter: number } | null>(null)
+  const [periodTransition, setPeriodTransition] = useState<
+    { kind: 'quarter' | 'halftime'; endedQuarter: number; stats?: { top: StatLeader[] } } | null>(null)
   // [70] Timeouts remaining, viewer-relative (own = this team). Synced from game_state + timeout events.
   const [timeouts, setTimeouts] = useState<{ own: number; opp: number }>({ own: 3, opp: 3 })
   // [69] Active timeout freeze: { byYou } while play is paused, else null. Shows a banner + blocks the
@@ -1741,6 +1743,22 @@ export default function App() {
               ? 'HALFTIME'
               : `END OF Q${periodTransition.endedQuarter}`}
           </div>
+          {/* [stats] Halftime carries the box score; an ordinary quarter break does not — it is a
+              five-second breather, not a report. */}
+          {periodTransition.kind === 'halftime' && !!periodTransition.stats?.top?.length && (
+            <div className="stat-leaders">
+              <div className="stat-leaders-title">Top Performers</div>
+              {periodTransition.stats.top.map((p, i) => (
+                <div key={p.id} className="stat-leader">
+                  <div className="stat-leader-rank">{i + 1}</div>
+                  <div className="stat-leader-who">
+                    <div className="stat-leader-name">{p.name}</div>
+                    <div className="stat-leader-line">{p.label} · {p.summary}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {gameOver && (
@@ -1760,6 +1778,41 @@ export default function App() {
               <div className="gameover-team-score">{gameOver.score.defense}</div>
             </div>
           </div>
+          {!!gameOver.top?.length && (
+            <div className="stat-leaders stat-leaders--final">
+              <div className="stat-leaders-title">Top Performers</div>
+              {gameOver.top.map((p, i) => (
+                <div key={p.id} className="stat-leader">
+                  <div className="stat-leader-rank">{i + 1}</div>
+                  <div className="stat-leader-who">
+                    <div className="stat-leader-name">{p.name}</div>
+                    <div className="stat-leader-line">{p.label} · {p.summary}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {gameOver.teams && (
+            <table className="stat-totals">
+              <thead>
+                <tr><th /><th>You</th><th>Opp</th></tr>
+              </thead>
+              <tbody>
+                {([
+                  ['Total offense', 'totalOffense'],
+                  ['Passing yards', 'passYards'],
+                  ['Rushing yards', 'rushYards'],
+                  ['Takeaways', 'takeaways'],
+                ] as const).map(([label, key]) => (
+                  <tr key={key}>
+                    <td className="stat-totals-label">{label}</td>
+                    <td>{gameOver.teams!.yours[key]}</td>
+                    <td>{gameOver.teams!.theirs[key]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
           <button className="gameover-btn" onPointerDown={handlePlayAgain}>Play Again</button>
         </div>
       )}

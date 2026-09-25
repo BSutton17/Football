@@ -1544,8 +1544,12 @@ body {
   inset: 0;
   z-index: 1200;
   display: flex;
+  /* [stats] Stacks now: halftime carries a leaderboard under the heading. A quarter break still
+     shows only the heading, and a lone centred item looks the same either way. */
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 22px;
   background: #000;
   border: 6px solid #fff;
 }
@@ -2483,3 +2487,79 @@ body {
   border-color: #b45309;
   color: #fff;
 }
+
+
+/* ── [stats] Top performers, on the halftime and final screens ──────────────
+   Deliberately one shared block: the two screens show the same thing and should read the same,
+   and the only difference is that the final screen sits on a tighter layout. */
+.stat-leaders {
+  width: min(92vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stat-leaders--final { margin: 4px 0 2px; }
+.stat-leaders-title {
+  font-size: 12px;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: #9fb0a4;
+  text-align: center;
+}
+.stat-leader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.stat-leader-rank {
+  flex: 0 0 22px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffd166;
+  text-align: center;
+}
+.stat-leader-who { min-width: 0; }
+.stat-leader-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-leader-line {
+  font-size: 12px;
+  color: #b9c6bd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Team totals — a plain two-column comparison, because that is what it is. */
+.stat-totals {
+  width: min(92vw, 420px);
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #e8ecf1;
+  margin-bottom: 4px;
+}
+.stat-totals th {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: #9fb0a4;
+  font-weight: 600;
+  padding-bottom: 4px;
+}
+.stat-totals th:not(:first-child),
+.stat-totals td:not(:first-child) { text-align: right; width: 68px; }
+.stat-totals td {
+  padding: 5px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-variant-numeric: tabular-nums;
+}
+.stat-totals-label { color: #b9c6bd; }

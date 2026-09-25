@@ -180,7 +180,28 @@ export interface PlayDecision {
 
 export type GameResult = 'win' | 'loss' | 'tie'
 
+// [stats] One player's line on the halftime / final screen. `summary` is built server-side from
+// what he actually did, so a corner shows tackles rather than a row of empty yardage.
+export interface StatLeader {
+  id: string
+  name: string
+  label: string
+  score: number
+  summary: string
+}
+
+export interface TeamTotals {
+  passYards: number
+  rushYards: number
+  totalOffense: number
+  takeaways: number
+}
+
 export interface GameOver {
   score: Score
   result: GameResult
+  top?: StatLeader[]
+  // ⚠️ VIEWER-RELATIVE, like the score beside it. Slot-indexed totals would show one of the two
+  // players their opponent's yards under their own heading.
+  teams?: { yours: TeamTotals; theirs: TeamTotals }
 }
