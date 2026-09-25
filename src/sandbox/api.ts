@@ -38,8 +38,25 @@ export interface Play {
 // the defensive line that it is "always on the field and cannot be moved by either player". They
 // are DRAWN in the sandbox, because a formation you cannot see the front of is one you cannot
 // read, but they are not yours to move.
-export const DEF_SLOT_POOL: Record<string, number> = { LB: 4, CB: 4, S: 3 }
-export const COVERAGE_ON_FIELD = 7
+export const DEF_SLOT_POOL: Record<string, number> = { LB: 5, CB: 4, S: 3 }
+export const DEFENDERS = 11
+
+// The defensive answer to Gun/Pistol. The front decides how many linemen the engine puts out, and
+// therefore how many players are yours to place: 11 minus the front.
+//
+// ⚠️ A 5-2 does NOT field five linemen. Every roster carries exactly four, so its fifth man on the
+// ball is a LINEBACKER walked down and given a rush job — which is what a real 5-2 does anyway.
+export const DEF_FRONTS: Record<string, { name: string; dl: number; blurb: string }> = {
+  '4-3': { name: '4-3', dl: 4, blurb: 'Four down, three linebackers. The base front.' },
+  '3-4': { name: '3-4', dl: 3, blurb: 'Three down, four linebackers — one usually rushing.' },
+  '5-2': { name: '5-2', dl: 4, blurb: 'Five on the ball — the fifth is a linebacker walked down.' },
+  '2-5': { name: '2-5', dl: 2, blurb: 'Two down, five off the ball. Pressure/coverage hybrid.' },
+  '3-3-5': { name: '3-3-5', dl: 3, blurb: 'Three down, three linebackers, five defensive backs.' },
+  nickel: { name: 'Nickel', dl: 4, blurb: 'Four down, a fifth DB for the third receiver.' },
+  dime: { name: 'Dime', dl: 4, blurb: 'Four down, six defensive backs. Obvious passing down.' },
+}
+
+export const coverageFor = (category: string) => DEFENDERS - (DEF_FRONTS[category]?.dl ?? 4)
 export const JOBS = ['man', 'zone', 'rush', 'spy'] as const
 export const ZONE_TYPES = ['flat', 'curl', 'hook', 'deep'] as const
 // Man names an ALIGNMENT ROLE, never a slot, so one shell works against every offensive formation.
@@ -49,7 +66,7 @@ export const COVER_ROLES = ['X', 'SL', 'Y', 'SR', 'Z', 'RB'] as const
 export type DefJob = typeof JOBS[number]
 
 export interface DefSpot { slot: string; dx: number; depth: number }
-export interface DefFormation { name: string; spots: DefSpot[] }
+export interface DefFormation { name: string; category: string; spots: DefSpot[] }
 
 export interface DefAssignment {
   job: DefJob

@@ -17,7 +17,7 @@ import Field from './Field'
 import type { FieldPlayer } from './Field'
 import {
   createItem, updateItem, deleteItem,
-  DEF_SLOT_POOL, COVERAGE_ON_FIELD, JOBS, ZONE_TYPES, COVER_ROLES,
+  DEF_SLOT_POOL, DEF_FRONTS, coverageFor, JOBS, ZONE_TYPES, COVER_ROLES,
 } from './api'
 import type { Playbook, DefFormation, Shell, DefAssignment, DefJob, ApiError } from './api'
 
@@ -31,6 +31,7 @@ const ALL_DEF_SLOTS = Object.entries(DEF_SLOT_POOL).flatMap(([label, n]) =>
 // four out and neither player can move them.
 const STARTER: DefFormation = {
   name: '',
+  category: '4-3',
   spots: [
     { slot: 'LB1', dx: -5, depth: 5 }, { slot: 'LB2', dx: 0, depth: 5 }, { slot: 'LB3', dx: 5, depth: 5 },
     { slot: 'CB1', dx: -16, depth: 6 }, { slot: 'CB2', dx: 16, depth: 6 },
@@ -51,6 +52,8 @@ export function DefFormationEditor({ book, onSaved, onError }: {
   const players: FieldPlayer[] = draft.spots.map(s => ({ ...s, label: labelOf(s.slot) }))
   const used = new Set(draft.spots.map(s => s.slot))
   const counts = players.reduce<Record<string, number>>((a, p) => ({ ...a, [p.label]: (a[p.label] ?? 0) + 1 }), {})
+  const front = DEF_FRONTS[draft.category] ?? DEF_FRONTS['4-3']
+  const wanted = coverageFor(draft.category)
   const ghosts: FieldPlayer[] = (book.formations[ghostId]?.spots ?? []).map(s => ({ ...s, label: labelOf(s.slot) }))
 
   const load = (fid: string) => { setId(fid); setDraft(structuredClone(book.defFormations[fid])); setSelected(null) }
@@ -58,7 +61,7 @@ export function DefFormationEditor({ book, onSaved, onError }: {
 
   const toggle = (slot: string) => {
     if (used.has(slot)) setDraft(d => ({ ...d, spots: d.spots.filter(s => s.slot !== slot) }))
-    else if (draft.spots.length < COVERAGE_ON_FIELD) {
+    else if (draft.spots.length < coverageFor(draft.category)) {
       const label = labelOf(slot)
       const depth = label === 'LB' ? 5 : label === 'S' ? 13 : 6
       setDraft(d => ({ ...d, spots: [...d.spots, { slot, dx: 0, depth }] }))
@@ -90,16 +93,20 @@ export function DefFormationEditor({ book, onSaved, onError }: {
       <Sidebar
         title="Defensive formations"
         items={Object.entries(book.defFormations).map(([fid, f]) => ({
-          id: fid, label: f.name, sub: personnelLine(f),
+          id: fid, label: f.name, sub: `${DEF_FRONTS[f.category]?.name ?? f.category} · ${personnelLine(f)}`,
         }))}
         activeId={id} onPick={load} onNew={reset}
       />
 
       <div style={{ flex: '1 1 480px' }}>
         <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-          <input placeholder="Formation name (Nickel, Dime, 4-3 Over…)" value={draft.name}
+          <select value={draft.category}
+            onChange={e => setDraft(d => ({ ...d, category: e.target.value }))} style={input}>
+            {Object.entries(DEF_FRONTS).map(([k, f]) => <option key={k} value={k}>{f.name}</option>)}
+          </select>
+          <input placeholder="Sub-formation name (Over, Under, Bear, Mike Walk…)" value={draft.name}
             onChange={e => setDraft(d => ({ ...d, name: e.target.value }))}
-            style={{ ...input, flex: 1, minWidth: 220 }} />
+            style={{ ...input, flex: 1, minWidth: 200 }} />
           <select value={ghostId} onChange={e => setGhostId(e.target.value)} style={input}
             title="Show an offensive formation faintly, to align against">
             <option value="">(no offense shown)</option>
@@ -110,15 +117,16 @@ export function DefFormationEditor({ book, onSaved, onError }: {
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 10 }}>
           {ALL_DEF_SLOTS.map(s => (
             <button key={s} onClick={() => toggle(s)}
-              disabled={!used.has(s) && draft.spots.length >= COVERAGE_ON_FIELD}
-              style={chip(used.has(s), !used.has(s) && draft.spots.length >= COVERAGE_ON_FIELD)}>{s}</button>
+              disabled={!used.has(s) && draft.spots.length >= wanted}
+              style={chip(used.has(s), !used.has(s) && draft.spots.length >= wanted)}>{s}</button>
           ))}
-          <span style={{ alignSelf: 'center', fontSize: 12, color: draft.spots.length === COVERAGE_ON_FIELD ? '#7ee08a' : '#e0a24e' }}>
-            {draft.spots.length}/{COVERAGE_ON_FIELD}
+          <span style={{ alignSelf: 'center', fontSize: 12, color: draft.spots.length === wanted ? '#7ee08a' : '#e0a24e' }}>
+            {draft.spots.length}/{wanted}
           </span>
         </div>
 
         <Field players={players} opponents={ghosts} opponentSide="offense" side="defense" draggable
+          dlCount={front.dl}
           selected={selected} onSelect={setSelected}
           onMove={(slot, dx, depth) =>
             setDraft(d => ({ ...d, spots: d.spots.map(s => (s.slot === slot ? { ...s, dx, depth } : s)) }))} />
@@ -129,7 +137,7 @@ export function DefFormationEditor({ book, onSaved, onError }: {
           {' '}The AI picks between formations by what the offense shows.
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={save} disabled={!draft.name || draft.spots.length !== COVERAGE_ON_FIELD} style={primary}>
+          <button onClick={save} disabled={!draft.name || draft.spots.length !== wanted} style={primary}>
             {id ? 'Save changes' : 'Create formation'}
           </button>
           {id && <button onClick={del} style={danger}>Delete</button>}
@@ -222,6 +230,7 @@ export function ShellEditor({ book, onSaved, onError }: {
         </div>
 
         <Field players={players} opponents={ghosts} opponentSide="offense" side="defense" draggable
+          dlCount={DEF_FRONTS[formation?.category ?? '4-3']?.dl ?? 4}
           selected={selected} onSelect={setSelected}
           onMove={(slot, dx, depth) => setAlignments(a => ({ ...a, [slot]: { dx, depth } }))} />
 

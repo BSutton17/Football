@@ -16,8 +16,8 @@ export function getOLQBPlayers(yardLine: number, centerX: number = MID): Positio
   return offenseAutoPlaced(yardLine, centerX)
 }
 
-export function getDLPlayers(yardLine: number, centerX: number = MID): PositionUpdate[] {
-  return defenseAutoPlaced(yardLine, centerX)
+export function getDLPlayers(yardLine: number, centerX: number = MID, count = 4): PositionUpdate[] {
+  return defenseAutoPlaced(yardLine, centerX, count)
 }
 
 function offenseAutoPlaced(yardLine: number, centerX: number = MID): PositionUpdate[] {
@@ -37,13 +37,25 @@ function offenseAutoPlaced(yardLine: number, centerX: number = MID): PositionUpd
 // up outside the offensive tackles (±3) so they can rush the edge, while the two
 // interior linemen sit over the guards.
 
-function defenseAutoPlaced(yardLine: number, centerX: number = MID): PositionUpdate[] {
-  return [
-    { id: 'auto_dl1', x: centerX - 3.25, y: yardLine + 1, team: 'd', label: 'DL' },
-    { id: 'auto_dl2', x: centerX - 1.25, y: yardLine + 1, team: 'd', label: 'DL' },
-    { id: 'auto_dl3', x: centerX + 1.25, y: yardLine + 1, team: 'd', label: 'DL' },
-    { id: 'auto_dl4', x: centerX + 3.25, y: yardLine + 1, team: 'd', label: 'DL' },
-  ]
+// Where the down linemen line up, by how many of them there are. Spacing is listed per count
+// rather than computed, because the alignments genuinely differ: two sit outside the tackles,
+// three is a nose with two ends, four is the base front.
+//
+// ⚠️ MUST MATCH `DL_SPACING` in Server/src/ai/controller.js, or the two screens draw a different
+// defense. The four-man row is byte-identical to what shipped before this became variable.
+export const DL_SPACING: Record<number, number[]> = {
+  2: [-3.0, 3.0],
+  3: [-3.0, 0, 3.0],
+  4: [-3.25, -1.25, 1.25, 3.25],
+}
+
+// ⚠️ The count is variable but DEFAULTS TO FOUR, so nothing about the live game moves. An authored
+// 3-4 or 3-3-5 asks for fewer; a 5-2 does NOT ask for five, because every roster carries exactly
+// four linemen — its fifth man on the ball is a linebacker walked down.
+function defenseAutoPlaced(yardLine: number, centerX: number = MID, count = 4): PositionUpdate[] {
+  return (DL_SPACING[count] ?? DL_SPACING[4]).map((dx, i) => ({
+    id: `auto_dl${i + 1}`, x: centerX + dx, y: yardLine + 1, team: 'd' as const, label: 'DL',
+  }))
 }
 
 // Returns all auto-placed players for both teams.

@@ -47,6 +47,8 @@ interface Props {
   onMove?: (slot: string, dx: number, depth: number) => void
   onSelect?: (slot: string | null) => void
   onDrawRoute?: (slot: string, points: { x: number; y: number }[]) => void
+  // How many down linemen the chosen front puts out. Four unless a 3-4 / 2-5 / 3-3-5 says fewer.
+  dlCount?: number
 }
 
 // An authored spot to a real field position. The offense lines up BEHIND the line and the defense
@@ -64,7 +66,7 @@ function toPosition(p: FieldPlayer, side: 'offense' | 'defense'): PositionUpdate
 
 export default function Field({
   players, side, opponents = [], opponentSide, routes = {}, blocks = new Set(),
-  carrier = null, selected = null, draggable = false, onMove, onSelect, onDrawRoute,
+  carrier = null, selected = null, draggable = false, dlCount = 4, onMove, onSelect, onDrawRoute,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -89,7 +91,7 @@ export default function Field({
   // engine always puts out.
   const mine = players.map(p => toPosition(p, side))
   const theirs = opponents.map(p => toPosition(p, otherSide))
-  const auto: PositionUpdate[] = [...getOLQBPlayers(LOS, BALL_X), ...getDLPlayers(LOS, BALL_X)]
+  const auto: PositionUpdate[] = [...getOLQBPlayers(LOS, BALL_X), ...getDLPlayers(LOS, BALL_X, dlCount)]
   const all = [...auto, ...theirs, ...mine]
 
   // Routes are keyed by slot, which is the position id, so they line up without translation.
