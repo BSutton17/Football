@@ -184,6 +184,9 @@ export function ShellEditor({ book, onSaved, onError }: {
   const [kind, setKind] = useState<'man' | 'zone'>('zone')
   const [forcedLeverage, setForcedLeverage] = useState<'in' | 'out' | null>(null)
   const [assignments, setAssignments] = useState<Record<string, DefAssignment>>({})
+  // Read and written back, but never produced any more: players do not move in shell mode, so the
+  // only alignments here are ones an older shell already carried. Keeping the round-trip means
+  // such a shell keeps the look it was saved with.
   const [alignments, setAlignments] = useState<Record<string, { dx: number; depth: number }>>({})
   const [selected, setSelected] = useState<string | null>(null)
   const [ghostId, setGhostId] = useState<string>('')
@@ -318,25 +321,20 @@ export function ShellEditor({ book, onSaved, onError }: {
           </span>
         </div>
 
-        <Field players={players} opponents={ghosts} opponentSide="offense" side="defense" draggable
+        {/* ⚠️ NOT draggable. A shell says what the eleven DO; where they stand is the formation's
+            job. Letting a defender be moved here would mean the same alignment lived in two
+            places, and the one you happened to edit last would win. Zones still drag. */}
+        <Field players={players} opponents={ghosts} opponentSide="offense" side="defense"
           selected={selected} onSelect={setSelected}
           manTargets={art.manTargets} zoneTypes={art.zoneTypes} zoneCenters={art.zoneCenters}
           blitzIds={art.blitzIds} spyIds={art.spyIds}
-          onMove={(slot, dx, depth) => setAlignments(a => ({ ...a, [slot]: { dx, depth } }))}
           onMoveZone={(slot, dx, depth) =>
             setAssignments(a => ({ ...a, [slot]: { ...(a[slot] ?? { job: 'zone' }), job: 'zone', center: { dx, depth } } }))} />
 
         <p style={{ fontSize: 12, color: '#8b9a90', margin: '8px 0' }}>
-          Drag a <b>defender</b> to adjust his alignment — saved onto this shell, not the formation,
-          so another shell out of the same formation keeps its own look. Drag a <b>zone bubble</b> to
-          move the zone itself.
-          {Object.keys(alignments).length > 0 && (
-            <>
-              {' '}<button onClick={() => setAlignments({})} style={{ ...chip(false, false), padding: '1px 7px' }}>
-                reset {Object.keys(alignments).length} nudge(s)
-              </button>
-            </>
-          )}
+          Click a defender to give him a job; drag a <b>zone bubble</b> to move the zone.
+          Players do not move here — their spots belong to the formation, so edit
+          <b> {formation?.name ?? 'the formation'}</b> to change where anyone lines up.
         </p>
 
         {/* Per-defender assignment */}

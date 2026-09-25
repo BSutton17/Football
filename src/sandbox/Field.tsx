@@ -122,8 +122,11 @@ export default function Field({
     const ctx = canvas.getContext('2d')!
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-    // Only yardLine and distance are read for the line of scrimmage and the first-down marker.
-    const gs = { yardLine: LOS, distance: DISTANCE } as unknown as GameState
+    // ⚠️ PHASE IS LOAD-BEARING, not decoration. drawFrame gates ALL the design overlays — zone
+    // bubbles, man lines, blitz arrows, route art — behind `phase === 'pre_snap' || 'countdown'`,
+    // because in a real game they are a pre-snap picture that disappears at the snap. A state
+    // without one drew the field and the players perfectly and silently skipped every overlay.
+    const gs = { yardLine: LOS, distance: DISTANCE, phase: 'pre_snap' } as unknown as GameState
     drawFrame(
       ctx, size.w, size.h, gs, all, LOS, selected ?? carrier,
       {}, null, manTargets, zoneTypes, zoneCenters, blitzIds, spyIds,
