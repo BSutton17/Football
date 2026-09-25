@@ -962,6 +962,10 @@ body {
   /* [route draw] Positioned by .route-rail now — it and the mode switch share one stack so they
      can never overlap, whatever height the list happens to be. */
   position: static;
+  /* Shrinks to whatever the rail has left after the fixed controls above it, rather than claiming
+     a height of its own and pushing them off screen. */
+  flex: 0 1 auto;
+  min-height: 0;
   max-height: calc(100svh - 190px);
   overflow-y: auto;
   scrollbar-width: none;
@@ -2244,6 +2248,14 @@ body {
   align-items: flex-end;
   gap: 6px;
   pointer-events: none;   /* the gaps stay click-through; the controls re-enable it */
+
+  /* ⚠️ THE RAIL IS BOUNDED, AND THE LIST IS WHAT GIVES WAY. The stack grew a fourth item when
+     PLAYS was added, and a centred stack taller than the screen overflows at BOTH ends — so the
+     mode switch goes off the top and the route list off the bottom, which is exactly the "buttons
+     are covered" complaint. Capping the rail and letting only the list shrink keeps the controls
+     reachable at any height: the list already scrolls, so nothing is lost by making it shorter. */
+  max-height: calc(100svh - 108px);   /* clear of the two HUD bars */
+  min-height: 0;
 }
 
 .route-rail > * { pointer-events: auto; }
@@ -2795,4 +2807,8 @@ body {
   .play-picker-list    { gap: 6px; }
   .plays-btn           { padding: 5px 11px; font-size: 0.55rem; }
   .shells-rail         { margin-right: 90px; }   /* the landscape sidebar is wider, tab included */
+  /* A 500px-tall screen minus both HUD bars leaves very little; the list takes the hit so the
+     mode switch, CLEAR ROUTES and PLAYS all stay on screen and tappable. */
+  .route-rail          { max-height: calc(100svh - 76px); gap: 3px; }
+  .route-menu          { max-height: calc(100svh - 150px); }
 }
