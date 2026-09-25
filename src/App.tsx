@@ -1814,20 +1814,27 @@ export default function App() {
           {lockedFormation ? 'Formation Set' : 'Set Formation'}
         </button>
       )}
-      {/* [offline] The defensive half of Set Formation. Solo only: online, the defensive window is
-          the offense's to give, and cutting it short would be a way to rush the other player.
-          Available through the COUNTDOWN as well as pre-snap. Pressing it before the offense locks
-          buys the short 3-second window; pressing it after means "I am ready, snap it" and ends the
-          countdown. Hiding it outside pre-snap made it useless on most downs — the play clock is
-          45s on the first snap of a drive and 30s after, and the computer sets with 20-5s left, so
-          from the second down on the button could disappear ten seconds in. */}
-      {(soloGame || room.offline) && role === 'defense' && formationErrors.length === 0
-        && (phase === 'pre_snap' || phase === 'countdown') && !timeoutPause && !kickInProgress && (
+      {/* The defensive half of Set Formation.
+          ⚠️ ONLINE IT APPEARS ONLY DURING THE COUNTDOWN, and that distinction is the safety
+          argument. During the countdown the defense is ending its OWN adjust window — the only
+          side it can disadvantage is itself, and the offense merely gets to snap sooner. BEFORE
+          the offense locks there is no window to decline, and a "set" then would be one player
+          hurrying the other, so pre-snap stays solo-only.
+          Solo keeps both: pressing before the offense locks buys the short window, pressing after
+          means "I am ready, snap it". Hiding it outside pre-snap made it useless on most downs —
+          the play clock is 45s on the first snap of a drive and 30s after, and the computer sets
+          with 20-5s left, so from the second down on it could vanish ten seconds in. */}
+      {role === 'defense' && formationErrors.length === 0 && !timeoutPause && !kickInProgress
+        && ((soloGame || room.offline)
+          ? (phase === 'pre_snap' || phase === 'countdown')
+          : phase === 'countdown') && (
         <button
           className={`formation-ready-btn${defenseSet ? ' formation-ready-btn--set' : ''}`}
           onPointerDown={defenseSet ? undefined : () => { setDefenseSetFlag(true); setDefense() }}
         >
-          {defenseSet ? 'Defense Set' : 'Set Defense'}
+          {phase === 'countdown'
+            ? (defenseSet ? 'Ready ✓' : 'Ready')
+            : (defenseSet ? 'Defense Set' : 'Set Defense')}
         </button>
       )}
       {phase === 'countdown' && hikeCount !== null && hikeCount > 0 && (
