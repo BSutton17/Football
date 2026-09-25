@@ -63,6 +63,9 @@ export interface AssignSafetyHelpPayload {
 // ─── Server → Client ─────────────────────────────────────────────────────────
 
 export interface ServerToClientEvents {
+  // [authored] The AI's own shortlist, offered to the player who asked for it.
+  plays_offered: (payload: import('./playbook.ts').PlaysOffered) => void
+  shells_offered: (payload: import('./playbook.ts').ShellsOffered) => void
   // Room
   room_joined:          (data: { slot: number; mode?: GameMode; difficulty?: Difficulty }) => void
   room_full:            () => void
@@ -150,6 +153,10 @@ export interface ServerToClientEvents {
 // ─── Client → Server ─────────────────────────────────────────────────────────
 
 export interface ClientToServerEvents {
+  // [authored] Each side may only ask for its own: the offense's shortlist IS the play call, and
+  // the defense never sees it. The server enforces that; this only describes the wire.
+  request_plays: () => void
+  request_shells: () => void
   // Room
   // [manual] The creator fixes the room's mode (and, for manual, its difficulty); a joiner sends the
   // mode it picked in the lobby so a mismatch can be refused rather than silently switched.

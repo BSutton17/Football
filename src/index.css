@@ -2581,3 +2581,218 @@ body {
   background: rgba(255, 209, 102, 0.1);
   border: 1px solid rgba(255, 209, 102, 0.24);
 }
+
+
+/* ─── The coordinator's shortlist ([authored]) ────────────────────────────────
+   Two buttons and one full-screen panel.
+
+   ⚠️ FULL SCREEN IS THE FIX, NOT A STYLE CHOICE. Every other pre-snap control is a rail or a
+   sidebar competing for the same edges, and the standing complaint about this UI is that buttons
+   end up underneath one another. A panel that owns the screen cannot be covered by anything and
+   needs no space reserved for it in either orientation. */
+
+.plays-btn {
+  padding: 7px 14px;
+  border: none;
+  border-radius: 999px 0 0 999px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #1a1207;
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  touch-action: manipulation;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+/* The defense has no route rail to live in, so its button gets the same anchor the rail uses. */
+.shells-rail {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  /* Clear of the roster sidebar, which is on this side for the defense. */
+  margin-right: 72px;
+}
+
+.play-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 60;            /* above every rail, sidebar and HUD bar */
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 11, 18, 0.97);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding-top:    max(10px, env(safe-area-inset-top));
+  padding-bottom: max(10px, env(safe-area-inset-bottom));
+  padding-left:   max(12px, env(safe-area-inset-left));
+  padding-right:  max(12px, env(safe-area-inset-right));
+}
+
+.play-picker-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 10px;
+  flex-shrink: 0;
+}
+
+.play-picker-titles { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+
+.play-picker-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #f59e0b;
+}
+
+.play-picker-situation {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.play-picker-close {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* The list scrolls; the bar and the footer do not. On a short landscape screen three cards plus a
+   header do not fit, and a panel you cannot scroll is a panel with an unreachable third option. */
+.play-picker-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.play-picker-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.85rem;
+}
+
+.play-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.play-card:active { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.5); }
+
+.play-card-rank {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.18);
+  color: #f59e0b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-card-body { flex: 1 1 auto; min-width: 0; }
+
+.play-card-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.play-card-formation {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.play-card-why {
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.play-card-depth {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.play-card-depth-num { font-size: 1.15rem; font-weight: 800; color: #f59e0b; }
+.play-card-depth-unit { font-size: 0.55rem; color: rgba(255, 255, 255, 0.4); letter-spacing: 0.1em; }
+
+.play-card-kind {
+  flex-shrink: 0;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.pick-kind--zone  { background: rgba(56, 189, 248, 0.18); color: #38bdf8; }
+.pick-kind--man   { background: rgba(167, 139, 250, 0.18); color: #a78bfa; }
+.pick-kind--blitz { background: rgba(248, 113, 113, 0.20); color: #f87171; }
+
+.play-picker-foot {
+  flex-shrink: 0;
+  padding: 10px 4px 2px;
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+}
+
+/* Landscape phones: the panel is the same, only tighter. Cards lose the second line of breathing
+   room rather than the third card losing its place on screen. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .play-picker-bar     { padding: 2px 4px 6px; }
+  .play-picker-title   { font-size: 0.9rem; }
+  .play-card           { padding: 8px 12px; gap: 10px; }
+  .play-card-name      { font-size: 0.85rem; }
+  .play-card-why       { margin-top: 1px; font-size: 0.66rem; }
+  .play-picker-foot    { padding: 6px 4px 0; font-size: 0.62rem; }
+  .play-picker-list    { gap: 6px; }
+  .plays-btn           { padding: 5px 11px; font-size: 0.55rem; }
+  .shells-rail         { margin-right: 90px; }   /* the landscape sidebar is wider, tab included */
+}

@@ -111,6 +111,17 @@ export function placePlayer(data: PlacePlayerPayload): void {
   if (socket.connected) socket.emit('place_player', data)
 }
 
+// [authored] Ask the server what it would call here. The answer comes back on 'plays_offered' /
+// 'shells_offered' — see types/playbook.ts. Each side may only ask for its own: the offense's
+// shortlist IS the play call, and the defense never sees it.
+export function requestPlays(): void {
+  if (socket.connected) socket.emit('request_plays')
+}
+
+export function requestShells(): void {
+  if (socket.connected) socket.emit('request_shells')
+}
+
 // [Special Teams][12][14][21] Send a kick input — directional aim (left/right) or the punt backspin
 // toggle. The server is authoritative for the outcome; the client only transmits intent.
 export function sendSpecialTeamsInput(data: { aim?: 'left' | 'right'; backspin?: boolean }): void {

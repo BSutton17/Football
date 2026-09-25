@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
-import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, SESSION_KEY } from './socket/index.ts'
+import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, SESSION_KEY } from './socket/index.ts'
+import PlayPicker from './components/PlayPicker.tsx'
+import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './types/playbook.ts'
+import { fillSlots } from './game/loadPlay.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
 import type { StatLeader } from './types/game.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
@@ -187,6 +190,17 @@ export default function App() {
   // lets the offense trace routes on the field. It is purely an INPUT mode — routes already
   // assigned either way survive switching, so you can menu three receivers and draw the fourth.
   const [routeMode, setRouteMode] = useState<'menu' | 'draw'>('menu')
+  // [authored] The coordinator's shortlist, and whether it is on screen.
+  //
+  // ⚠️ IT IS NEVER OPENED FOR YOU. `pickerOpen` is set by a button press and by nothing else, so a
+  // player who ignores the feature plays exactly the game they had before.
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [offeredPlays, setOfferedPlays] = useState<OfferedPlay[] | null>(null)
+  const [offeredShells, setOfferedShells] = useState<OfferedShell[] | null>(null)
+  // ⚠️ THE SHORTLIST IS STICKY FOR THE DOWN. Re-asking on every press would hand back a different
+  // three each time the panel is reopened, which reads as the advice changing its mind mid-play.
+  // Cleared when the situation does — see the effect below.
+  const offeredFor = useRef<string | null>(null)
   // playerId → the beautified route he was drawn, as offsets from his own position.
   const [drawnRoutes, setDrawnRoutes] = useState<Record<string, RouteOffset[]>>({})
   // The receiver currently armed for drawing (double-tapped), or null.
@@ -1502,6 +1516,137 @@ export default function App() {
   }
 
   // Switching modes never destroys work; it only changes how the next route is assigned.
+  // ── [authored] The coordinator's shortlist ────────────────────────────────
+  //
+  // The situation this advice was given for. When it changes the shortlist is stale, so it is
+  // dropped rather than shown against a down it was not computed for.
+  const situationKey = `${down}|${distance}|${Math.round(losYardLine)}|${role}`
+
+  useEffect(() => {
+    function onPlaysOffered(payload: PlaysOffered) {
+      setOfferedPlays(payload.plays)
+      offeredFor.current = situationKey
+    }
+    function onShellsOffered(payload: ShellsOffered) {
+      setOfferedShells(payload.shells)
+      offeredFor.current = situationKey
+    }
+    socket.on('plays_offered', onPlaysOffered)
+    socket.on('shells_offered', onShellsOffered)
+    return () => {
+      socket.off('plays_offered', onPlaysOffered)
+      socket.off('shells_offered', onShellsOffered)
+    }
+  }, [situationKey])
+
+  // A new down is a new question. The panel also closes: leaving it open across a snap would put a
+  // full-screen menu over a live play.
+  useEffect(() => {
+    if (offeredFor.current !== null && offeredFor.current !== situationKey) {
+      setOfferedPlays(null)
+      setOfferedShells(null)
+      offeredFor.current = null
+      setPickerOpen(false)
+    }
+  }, [situationKey])
+
+  useEffect(() => { if (phase === 'live') setPickerOpen(false) }, [phase])
+
+  function handleOpenPicker() {
+    setPickerOpen(true)
+    setSelectedId(null)
+    setDrawingFor(null)
+    // Sticky: only ask again when the advice on hand is for a different situation.
+    if (offeredFor.current === situationKey) return
+    if (role === 'offense') requestPlays()
+    else requestShells()
+  }
+
+  // Put a recommended play on the field.
+  //
+  // ⚠️ THE SLOTS ARE FILLED FROM THIS CLIENT'S BENCH, which is the whole substitution story: the
+  // server sends WR1/WR2/TE1 and has no idea who those are. An empty set and a heavy formation want
+  // different people, and asking for the best available at each position IS the personnel change.
+  function handleLoadPlay(play: OfferedPlay) {
+    const { filled, usedIds: taken } = fillSlots(play.layout.spots, teamRoster.offense)
+    const next: PositionUpdate[] = []
+    const routes: Record<string, RouteOffset[]> = {}
+
+    for (const { spot, player } of filled) {
+      next.push({ id: player.id, x: spot.x, y: spot.y, team: 'o', label: player.position })
+      // A blocker carries NO route rather than an empty one — the engine reads "has a drawn route"
+      // as "is running it", so an empty array would send him nowhere at full speed.
+      if (spot.route && spot.route.length) routes[player.id] = spot.route
+    }
+    if (!next.length) return
+
+    // Anyone the new personnel grouping does not use comes off, or the field keeps last play's
+    // receivers standing around and the formation is over eleven.
+    for (const p of placedPlayers) if (!taken.has(p.id)) removePlayer(p.id)
+
+    setLockedFormation(null)
+    setPlacedPlayers(next)
+    setDrawnRoutes(routes)
+    setPlayerRoutes({})        // a loaded play owns every assignment, so no stale named route survives
+    setPlayType(play.playType === 'run' ? 'run' : 'pass')
+    setRouteMode('draw')       // …so the next tap edits the loaded routes rather than replacing them
+    for (const p of next) {
+      placePlayer({ id: p.id, x: p.x, y: p.y, label: p.label ?? '', team: 'o', ratings: teamRoster.ratingsById[p.id], xFactor: teamRoster.xFactorById[p.id] })
+    }
+    setPickerOpen(false)
+  }
+
+  // The same for a shell. The positions arrive already aligned against the offense that is on the
+  // field — corners across from their receivers, zones landmarked — because the server ran the
+  // same alignment layer the computer's own defense uses.
+  function handleLoadShell(shell: OfferedShell) {
+    const layout = shell.layout
+    if (!layout) return
+    const { filled, usedIds: taken } = fillSlots(layout.spots, teamRoster.defense)
+    const next: PositionUpdate[] = []
+    const coverage: Record<string, CoverageType> = {}
+    const zones: Record<string, ZoneType> = {}
+    const centers: Record<string, { x: number; y: number }> = {}
+    const targets: Record<string, string> = {}
+    const pending: AssignCoveragePayload[] = []
+
+    for (const { spot, player: pick } of filled) {
+      next.push({ id: pick.id, x: spot.x, y: spot.y, team: 'd', label: pick.position })
+
+      if (spot.job === 'man' && spot.covers) {
+        coverage[pick.id] = 'man'
+        targets[pick.id] = spot.covers
+        pending.push({ playerId: pick.id, type: 'man', targetId: spot.covers })
+      } else if (spot.job === 'zone') {
+        const center = { x: spot.zoneCenterX ?? spot.x, y: spot.zoneCenterY ?? spot.y + 3 }
+        coverage[pick.id] = 'zone'
+        zones[pick.id] = (spot.zone ?? 'hook') as ZoneType
+        centers[pick.id] = center
+        pending.push({ playerId: pick.id, type: 'zone', zoneType: zones[pick.id], zoneCenterX: center.x, zoneCenterY: center.y })
+      } else {
+        coverage[pick.id] = spot.job === 'spy' ? 'spy' : 'blitz'
+        pending.push({ playerId: pick.id, type: coverage[pick.id] })
+      }
+    }
+    if (!next.length) return
+
+    for (const p of placedPlayers) if (!taken.has(p.id)) removePlayer(p.id)
+
+    setLockedFormation(null)
+    setPlacedPlayers(next)
+    setPlayerCoverage(coverage)
+    setZoneTypes(zones)
+    setZoneCenters(centers)
+    setManTargets(targets)
+    for (const p of next) {
+      placePlayer({ id: p.id, x: p.x, y: p.y, label: p.label ?? '', team: 'd', ratings: teamRoster.ratingsById[p.id], xFactor: teamRoster.xFactorById[p.id] })
+    }
+    // Placement first, then assignments: an assignment for a player the server has not been told
+    // about yet is refused, and a refused coverage leaves that defender rushing with no sign of it.
+    for (const a of pending) assignCoverage(a)
+    setPickerOpen(false)
+  }
+
   function handleRouteModeChange(mode: 'menu' | 'draw') {
     setRouteMode(mode)
     setDrawingFor(null)
@@ -2011,6 +2156,13 @@ export default function App() {
             </div>
           )}
 
+          {/* [authored] The coordinator's shortlist. It lives INSIDE the rail stack rather than
+              being positioned on its own, for the reason the rail exists at all: anything placed
+              independently eventually lands on top of something else. */}
+          {!lockedFormation && (
+            <button className="plays-btn" onPointerDown={handleOpenPicker}>PLAYS</button>
+          )}
+
           {/* Clearing every route at once. Sits under the mode switch, above the route list, and is
               only offered when there is actually something to clear. */}
           {!lockedFormation && (Object.keys(drawnRoutes).length > 0 || Object.keys(playerRoutes).length > 0) && (
@@ -2029,6 +2181,34 @@ export default function App() {
           )}
         </div>
       )}
+      {/* [authored] The defensive shortlist, offered once there is a full offense to read. Before
+          eleven are out there the formation is still changing, and a recommendation against half a
+          formation is advice about something that is not going to be on the field. */}
+      {role === 'defense' && isPreSnap && !kickInProgress && opponentPositions.length >= 5 && (
+        <div className="shells-rail">
+          <button className="plays-btn" onPointerDown={handleOpenPicker}>SHELLS</button>
+        </div>
+      )}
+
+      {pickerOpen && role === 'offense' && (
+        <PlayPicker
+          kind="plays"
+          situation={`${down} & ${distance}`}
+          items={offeredPlays ?? []}
+          onPick={handleLoadPlay}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+      {pickerOpen && role === 'defense' && (
+        <PlayPicker
+          kind="shells"
+          situation={`${down} & ${distance}`}
+          items={offeredShells ?? []}
+          onPick={handleLoadShell}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
+
       {showCoverageMenu && selectedPlayer && (
         <CoverageMenu
           playerId={selectedPlayer.id}
