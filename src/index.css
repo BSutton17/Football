@@ -1733,6 +1733,42 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* [chew clock] The game clock is a double-tap target for the offense. A faint dotted underline is the
+   only hint it gives — enough to be discoverable, quiet enough not to look like a button. */
+.hud-clock--tappable {
+  cursor: pointer;
+  border-bottom: 1px dotted rgba(255,255,255,0.35);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* While the fast-forward runs, the clock says so — otherwise a clock spinning down at 8x looks like
+   a bug rather than something that was asked for. */
+.hud-clock--chewing {
+  color: #fbbf24;
+  animation: chew-pulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes chew-pulse {
+  from { opacity: 0.6; }
+  to   { opacity: 1; }
+}
+
+.hud-chew-btn {
+  margin-top: 2px;
+  padding: 3px 9px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1c1917;
+  background: #fbbf24;
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.4);
+}
+
 .hud-playclock {
   font-size: 1.1rem;
   font-weight: 700;

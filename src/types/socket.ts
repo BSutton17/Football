@@ -127,6 +127,8 @@ export interface ServerToClientEvents {
   // Timeouts ([69][70]) — a stoppage began (byYou = this viewer called it) with the updated counts,
   // or the stoppage elapsed and play resumes. Counts are viewer-relative (own = this player's team).
   timeout_started:    (data: { byYou: boolean; seconds: number; timeouts: { own: number; opp: number } }) => void
+  // [chew clock] Sent to the offense alone, so its own clock can show that it is running fast.
+  chew_clock_started: (data: { speed: number; stopAt: number }) => void
   timeout_ended:      () => void
 
   // Live play
@@ -194,6 +196,10 @@ export interface ClientToServerEvents {
 
   // Pre-snap — either team ([70]) — spend a timeout (stops the clock, brief frozen pause)
   call_timeout:       () => void
+
+  // [chew clock] The offense asks for the pre-snap seconds to be fast-forwarded. Server decides
+  // whether it is allowed (offense only, solo only, not under eight seconds on the play clock).
+  chew_clock:         () => void
 
   // In-play — Offense
   snap_ball:          () => void

@@ -184,6 +184,12 @@ export function callTimeout(): void {
   if (socket.connected) socket.emit('call_timeout')
 }
 
+// [chew clock] The offense burning pre-snap time on purpose, fast-forwarded. Every rule about when
+// this is allowed lives on the server (chewClock.js); the button just asks.
+export function chewClock(): void {
+  if (socket.connected) socket.emit('chew_clock')
+}
+
 // [Special Teams][2][3] The offense's 4th-down menu choice (server validates + is authoritative).
 export function sendDecision(option: import('../types/game.ts').DecisionOption): void {
   if (socket.connected) socket.emit('special_teams_choice', { option })

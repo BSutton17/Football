@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { GameState } from '../types/game.ts'
-import { socket } from '../socket/index.ts'
+import { socket, chewClock } from '../socket/index.ts'
 import { teamById } from '../data/nflTeams.ts'
 import { accentColor } from '../data/teamColors.ts'
 import { teamLogo } from '../data/teamLogos.ts'
@@ -32,6 +32,12 @@ const DOWN_SUFFIX = ['', 'st', 'nd', 'rd', 'th'] as const
 
 const PLAY_CLOCK_SECONDS = 25
 
+// [chew clock] How close together two taps on the game clock have to be to count as a double-tap, and
+// how long the button then stays offered. `onDoubleClick` is not used because it does not fire
+// reliably on touch, and this HUD is played on a phone as often as not — pointer events cover both.
+const DOUBLE_TAP_MS = 400
+const CHEW_OFFER_MS = 6000
+
 export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
   const [playClock, setPlayClock] = useState(PLAY_CLOCK_SECONDS)
 
@@ -58,9 +64,58 @@ export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
     }
   }, [])
 
+  // [chew clock] The button is deliberately hidden behind a double-tap on the game clock. Burning the
+  // play clock down to three seconds is a real commitment — it should not be one stray thumb away on
+  // a HUD this small, and it is wanted on a minority of snaps.
+  const [chewOffered, setChewOffered] = useState(false)
+  const [chewing, setChewing] = useState(false)
+  const [chewStopAt, setChewStopAt] = useState(3)
+  const lastClockTap = useRef(0)
+
+  // ⚠️ WHETHER A CHEW IS RUNNING IS TRACKED HERE, NOT READ OFF gameState. `game_state` arrives once
+  // per play; the rest of pre-snap is clock ticks only, so a serialized `chewing` field would never
+  // flip. The server's confirmation starts it and the play clock reaching the stop point ends it —
+  // which is also exactly when the server disarms, because both are driven by the same clock.
+  useEffect(() => {
+    function onChewStarted({ stopAt }: { speed: number; stopAt: number }) {
+      setChewStopAt(stopAt)
+      setChewing(true)
+    }
+    socket.on('chew_clock_started', onChewStarted)
+    return () => { socket.off('chew_clock_started', onChewStarted) }
+  }, [])
+  useEffect(() => { if (playClock <= chewStopAt) setChewing(false) }, [playClock, chewStopAt])
+
+  // The server sends only the conditions that hold still for the whole pre-snap; the play-clock
+  // threshold moves every tick, so it is applied here against the clock already on screen. The
+  // handler re-checks everything, so being a moment out of date costs a refusal, not a wrong chew.
+  const chewMin = gameState?.chewMinPlayClock ?? 8
+  const canChew = !!gameState?.canChew && !chewing && playClock >= chewMin
+
+  // Withdraw the offer on its own, and the moment it stops being available. Otherwise the button sits
+  // there promising something the handler would refuse.
+  useEffect(() => {
+    if (!chewOffered) return
+    if (!canChew) { setChewOffered(false); return }
+    const t = setTimeout(() => setChewOffered(false), CHEW_OFFER_MS)
+    return () => clearTimeout(t)
+  }, [chewOffered, canChew])
+
+  // One play's decision: a new snap should not inherit the last one's open button or chew.
+  const phase = gameState?.phase
+  const playSerial = gameState?.playSerial
+  useEffect(() => { setChewOffered(false); setChewing(false) }, [phase, playSerial])
+
+  function onClockTap() {
+    const now = Date.now()
+    const isDouble = now - lastClockTap.current < DOUBLE_TAP_MS
+    lastClockTap.current = now
+    if (isDouble && canChew) setChewOffered(v => !v)
+  }
+
   if (!gameState) return null
 
-  const { score, quarter, clock, down, distance, yardLine, role, phase } = gameState
+  const { score, quarter, clock, down, distance, yardLine, role } = gameState
   const onOffense = role === 'offense'
   // [70] Timeouts remaining per team (viewer-relative). Render as small pips under each score.
   const timeouts = gameState.timeouts ?? { own: 3, opp: 3 }
@@ -94,11 +149,22 @@ export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
         </div>
 
         <div className="hud-center">
-          <span className="hud-clock">Q{quarter} · {formatClock(clock)}</span>
+          <span
+            className={`hud-clock${chewing ? ' hud-clock--chewing' : ''}${canChew ? ' hud-clock--tappable' : ''}`}
+            onPointerDown={onClockTap}
+            title={canChew ? 'Double-tap to chew the clock' : undefined}
+          >
+            Q{quarter} · {formatClock(clock)}
+          </span>
           {showPlayClock && (
             <span className="hud-playclock" style={playClockColor ? { color: playClockColor } : undefined}>
               :{playClock.toString().padStart(2, '0')}
             </span>
+          )}
+          {chewOffered && canChew && (
+            <button className="hud-chew-btn" onPointerDown={() => { chewClock(); setChewOffered(false) }}>
+              Chew Clock
+            </button>
           )}
         </div>
 

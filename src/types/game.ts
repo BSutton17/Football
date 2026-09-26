@@ -87,6 +87,12 @@ export interface GameState {
   difficulty?: Difficulty
   // [offline] The other seat is a computer. Server-authoritative, so it survives a refresh.
   solo?: boolean
+  // [chew clock] Whether this viewer may chew the clock on this snap — the conditions that hold still
+  // for the whole pre-snap (offense, solo, no kick or menu). The play-clock threshold moves every
+  // tick, so the client applies `chewMinPlayClock` against the clock it is displaying, and whether a
+  // chew is RUNNING is tracked from the chew_clock_started event. See Server/src/game/chewClock.js.
+  canChew?: boolean
+  chewMinPlayClock?: number
   // [rpo] The offense's own play call, for its own renderer only — it is NEVER sent to the other
   // client (the defense must not see the play call), so it is null on a defender's screen.
   playType?: PlayType | null
