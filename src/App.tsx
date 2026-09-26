@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
 import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, transitionContinue, SESSION_KEY } from './socket/index.ts'
 import PlayPicker from './components/PlayPicker.tsx'
@@ -8,6 +8,7 @@ import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './t
 import { fillSlots } from './game/loadPlay.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
 import { opposingLine } from './game/opposingLine.ts'
+import { canRemoveAutoPlayer, isAutoPlayer, withoutRemoved } from './game/devRemove.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
 import type { HalftimeStats, StatLeader, DevReveal } from './types/game.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
@@ -150,6 +151,16 @@ export default function App() {
   )
 
   const [placedPlayers, setPlacedPlayers] = useState<PositionUpdate[]>([])
+  // [dev flags] Down linemen a dev build has taken off the field. A ref, not state: it is read while
+  // rebuilding the row and must never be the thing that triggers the rebuild.
+  const devRemovedDl = useRef<Set<string>>(new Set())
+  // The DL row as it should currently be — the generated four, minus anything removed. Every place
+  // that rebuilds the row goes through this, so a removal survives the play boundary.
+  const freshDl = useCallback(
+    (yardLine: number, centerX?: number) =>
+      withoutRemoved(getDLPlayers(yardLine, centerX), devRemovedDl.current),
+    [],
+  )
   const [dlPositions, setDlPositions] = useState<PositionUpdate[]>(() => getDLPlayers(YARD_LINE))
   // The real line of scrimmage (offense-relative), synced from the server. Formation, camera, and
   // pointer math all key off this so the scrimmage sits at the actual ball spot, not a fixed mock
@@ -650,7 +661,7 @@ export default function App() {
         })
       }
       if (turnoverPendingRef.current) {
-        setDlPositions(getDLPlayers(gs.yardLine, newBallX))   // the new defense lines up on the new LOS + hash
+        setDlPositions(freshDl(gs.yardLine, newBallX))   // the new defense lines up on the new LOS + hash
         turnoverPendingRef.current = false
       }
       prevLosRef.current = gs.yardLine
@@ -672,7 +683,7 @@ export default function App() {
         setGameOver(null)
         setPlacedPlayers([])
         setOpponentPositions([])
-        setDlPositions(getDLPlayers(YARD_LINE))
+        setDlPositions(freshDl(YARD_LINE))
         prevBallXRef.current = FIELD_MID   // [hash] new game spots at center
         setBallX(FIELD_MID)
         setPlayerRoutes({})
@@ -812,7 +823,7 @@ export default function App() {
     setBallX(FIELD_MID)
     setPlacedPlayers([])
     setOpponentPositions([])
-    setDlPositions(getDLPlayers(YARD_LINE))
+    setDlPositions(freshDl(YARD_LINE))
     setPlayerRoutes({})
     setDrawnRoutes({})
     setRouteDepths({})
@@ -839,7 +850,7 @@ export default function App() {
     if (prevRoleRef.current && r && prevRoleRef.current !== r) {
       setPlacedPlayers([])
       setOpponentPositions([])
-      setDlPositions(getDLPlayers(YARD_LINE))
+      setDlPositions(freshDl(YARD_LINE))
       setPlayerRoutes({})
       setDrawnRoutes({})
       setRouteDepths({})
@@ -901,7 +912,7 @@ export default function App() {
     if (saved.role && saved.role !== room.role) {
       sessionStorage.removeItem('ef2_placed_players')
       sessionStorage.removeItem('ef2_coverage')
-      setDlPositions(getDLPlayers(YARD_LINE))
+      setDlPositions(freshDl(YARD_LINE))
       turnoverPendingRef.current = true   // next game_state lines up fresh on the mirrored LOS
       return
     }
@@ -1281,7 +1292,9 @@ export default function App() {
   const availableDefense = teamRoster.defense.filter(p => !placedIds.has(p.id))
 
   // 11-player limit — auto-placed count differs by role
-  const autoCount    = role === 'offense' ? getOLQBPlayers(YARD_LINE).length : getDLPlayers(YARD_LINE).length
+  // ⚠️ THE LIVE DL ROW, NOT A FRESH FOUR. Recomputing it from getDLPlayers ignores a lineman a dev
+  // build has removed, so the eleven-man limit and `requiredPlacements` would both be one out.
+  const autoCount    = role === 'offense' ? getOLQBPlayers(YARD_LINE).length : dlPositions.length
   const fieldCount   = autoCount + placedPlayers.length
   const limitReached = fieldCount >= 11
 
@@ -1303,10 +1316,12 @@ export default function App() {
   // defense is on offense, so their own are empty.
   const aiCoverage = import.meta.env.DEV ? revealCoverage(devReveal) : null
 
-  // Only show the remove button for own non-auto placed players
+  // Only show the remove button for own non-auto placed players — except that a DEV build may also
+  // take an auto-placed down lineman off, for checking a three-man front or clearing the ends out of
+  // the way of the coverage behind them. See game/devRemove.ts.
   const myTeam = role === 'offense' ? 'o' : 'd'
   const canRemoveSelected = selectedId != null
-    && !selectedId.startsWith('auto_')
+    && (!isAutoPlayer(selectedId) || canRemoveAutoPlayer(selectedId))
     && allPositions.find(p => p.id === selectedId)?.team === myTeam
     && (myTeam !== 'o' || isPreSnap)
     && phase !== 'live'
@@ -1331,6 +1346,18 @@ export default function App() {
     .map(([id]) => id)
 
   function handleRemove(playerId: string) {
+    // [dev flags] An auto-placed lineman does not live in `placedPlayers` — he is generated, and an
+    // effect re-registers the whole DL row with the server on every pre-snap. So he has to come out of
+    // `dlPositions`, or he would be put straight back. Removing him also drops `autoCount` by one,
+    // which is what keeps the eleven-man limit and the formation validator honest.
+    if (canRemoveAutoPlayer(playerId)) {
+      devRemovedDl.current.add(playerId)   // …and stays off through the next play, and the next
+      setDlPositions(prev => prev.filter(p => p.id !== playerId))
+      setPlayerCoverage(prev => { const n = { ...prev }; delete n[playerId]; return n })
+      setSelectedId(null)
+      removePlayer(playerId)
+      return
+    }
     setPlacedPlayers(prev => prev.filter(p => p.id !== playerId))
     setPlayerRoutes(prev => { const n = { ...prev }; delete n[playerId]; return n })
     setRouteDepths(prev => { const n = { ...prev }; delete n[playerId]; return n })
