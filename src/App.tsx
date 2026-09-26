@@ -32,6 +32,9 @@ import { FIELD } from './constants/simulation.ts'
 import type { GameState, PlayPhase, PositionUpdate, CarrierVision, Score, GameOver, PlayResult, SpecialTeamsState, PlayDecision, GameMode, Difficulty, PlayType } from './types/game.ts'
 
 const YARD_LINE = 25   // mock ball position
+// How far either side of the ball a handoff still works. Shared by the drag clamp and the
+// run-button correction so the two cannot disagree about what "legal" means.
+const RUNNER_X_SLACK = 2
 
 const MOCK_STATE: GameState = {
   phase: 'pre_snap', quarter: 1, clock: 300,
@@ -1140,8 +1143,8 @@ export default function App() {
   // Runner must stay within 2 yards of QB horizontally and behind or level with QB (the own end zone
   // is fair game when backed up, matching getPositionYBounds).
   const runnerBounds = {
-    minX: QB_X - 2,
-    maxX: QB_X + 2,
+    minX: QB_X - RUNNER_X_SLACK,
+    maxX: QB_X + RUNNER_X_SLACK,
     minY: Math.max(-9.5, losYardLine - 10),
     maxY: QB_Y,
   }
@@ -1470,10 +1473,18 @@ export default function App() {
     const rbs = placedPlayers.filter(p => p.label === 'RB')
     if (rbs.length === 0) return
     const runner = [...rbs].sort((a, b) => (rosterOvr.get(b.id) ?? 0) - (rosterOvr.get(a.id) ?? 0))[0]
-    const inX = Math.abs(runner.x - ballX) <= 2
+    const inX = Math.abs(runner.x - ballX) <= RUNNER_X_SLACK
     const inY = runner.y >= losYardLine - 10 && runner.y <= losYardLine - 6
     if (inX && inY) return   // already legal — leave the user's placement
-    const next     = placedPlayers.map(p => p.id === runner.id ? { ...p, x: clampX(ballX), y: losYardLine - 8 } : p)
+    // ⚠️ THE NEAREST LEGAL SPOT, NOT A FIXED ONE. This used to drop him at exactly `ballX` and
+    // `losY - 8` — directly behind the quarterback — however close to legal he already was. A back
+    // a yard outside the box got yanked across the formation, which reads as the run button
+    // teleporting him rather than correcting him. Clamping each axis into the legal box moves him
+    // the shortest distance that makes the placement legal, so a back just outside it shifts a
+    // yard and one split out wide still ends up behind the line where he has to be.
+    const legalX = clampX(Math.max(ballX - RUNNER_X_SLACK, Math.min(ballX + RUNNER_X_SLACK, runner.x)))
+    const legalY = Math.max(losYardLine - 10, Math.min(losYardLine - 6, runner.y))
+    const next     = placedPlayers.map(p => p.id === runner.id ? { ...p, x: legalX, y: legalY } : p)
     const enforced = enforceOffensiveFormation(next, losYardLine)
     setPlacedPlayers(enforced)
     // Broadcast the adjusted formation so the SERVER and the DEFENSE see the RB in its new backfield
