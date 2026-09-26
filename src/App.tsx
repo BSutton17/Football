@@ -981,6 +981,53 @@ export default function App() {
   // defense has no such path, so without this its DBs/LBs would vanish on the next play.)
   // Deliberately not keyed on placedPlayers — that would re-blast the whole formation on every
   // drag; the snapshot captured at pre_snap entry is the correct carried-over set.
+  // Switching modes never destroys work; it only changes how the next route is assigned.
+  //
+  // ⚠️ THESE LIVE ABOVE THE EARLY RETURNS, AND THAT IS NOT A STYLE CHOICE. This component
+  // returns early for the lobby, team select and the VS screen, so a hook placed after those
+  // returns runs on some renders and not others. React counted a different number of hooks
+  // before and after the room went ready and threw error #310, which took single player down
+  // at kickoff. Every hook belongs above the first `return`, no exceptions.
+  //
+  // `role` is derived here rather than reused from below for the same reason: it is declared
+  // after the returns, so reaching for it would drag this back down with it.
+  const pickerRole = room.role ?? 'offense'
+  // ── [authored] The coordinator's shortlist ────────────────────────────────
+  //
+  // The situation this advice was given for. When it changes the shortlist is stale, so it is
+  // dropped rather than shown against a down it was not computed for.
+  const situationKey = `${down}|${distance}|${Math.round(losYardLine)}|${pickerRole}`
+
+  useEffect(() => {
+    function onPlaysOffered(payload: PlaysOffered) {
+      setOfferedPlays(payload.plays)
+      offeredFor.current = situationKey
+    }
+    function onShellsOffered(payload: ShellsOffered) {
+      setOfferedShells(payload.shells)
+      offeredFor.current = situationKey
+    }
+    socket.on('plays_offered', onPlaysOffered)
+    socket.on('shells_offered', onShellsOffered)
+    return () => {
+      socket.off('plays_offered', onPlaysOffered)
+      socket.off('shells_offered', onShellsOffered)
+    }
+  }, [situationKey])
+
+  // A new down is a new question. The panel also closes: leaving it open across a snap would put a
+  // full-screen menu over a live play.
+  useEffect(() => {
+    if (offeredFor.current !== null && offeredFor.current !== situationKey) {
+      setOfferedPlays(null)
+      setOfferedShells(null)
+      offeredFor.current = null
+      setPickerOpen(false)
+    }
+  }, [situationKey])
+
+  useEffect(() => { if (phase === 'live') setPickerOpen(false) }, [phase])
+
   useEffect(() => {
     if (room.status !== 'ready' || phase !== 'pre_snap') return
     const team: 'o' | 'd' = room.role === 'defense' ? 'd' : 'o'
@@ -1514,43 +1561,6 @@ export default function App() {
     setPlayerRoutes({})
     setRouteDepths({})
   }
-
-  // Switching modes never destroys work; it only changes how the next route is assigned.
-  // ── [authored] The coordinator's shortlist ────────────────────────────────
-  //
-  // The situation this advice was given for. When it changes the shortlist is stale, so it is
-  // dropped rather than shown against a down it was not computed for.
-  const situationKey = `${down}|${distance}|${Math.round(losYardLine)}|${role}`
-
-  useEffect(() => {
-    function onPlaysOffered(payload: PlaysOffered) {
-      setOfferedPlays(payload.plays)
-      offeredFor.current = situationKey
-    }
-    function onShellsOffered(payload: ShellsOffered) {
-      setOfferedShells(payload.shells)
-      offeredFor.current = situationKey
-    }
-    socket.on('plays_offered', onPlaysOffered)
-    socket.on('shells_offered', onShellsOffered)
-    return () => {
-      socket.off('plays_offered', onPlaysOffered)
-      socket.off('shells_offered', onShellsOffered)
-    }
-  }, [situationKey])
-
-  // A new down is a new question. The panel also closes: leaving it open across a snap would put a
-  // full-screen menu over a live play.
-  useEffect(() => {
-    if (offeredFor.current !== null && offeredFor.current !== situationKey) {
-      setOfferedPlays(null)
-      setOfferedShells(null)
-      offeredFor.current = null
-      setPickerOpen(false)
-    }
-  }, [situationKey])
-
-  useEffect(() => { if (phase === 'live') setPickerOpen(false) }, [phase])
 
   function handleOpenPicker() {
     setPickerOpen(true)
