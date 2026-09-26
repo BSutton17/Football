@@ -1594,13 +1594,20 @@ export default function App() {
     // receivers standing around and the formation is over eleven.
     for (const p of placedPlayers) if (!taken.has(p.id)) removePlayer(p.id)
 
+    // ⚠️ A LOADED PLAY GOES THROUGH THE SAME ENFORCEMENT A DRAGGED ONE DOES. Every manual
+    // placement is passed through `enforceOffensiveFormation`, which is what keeps seven men on the
+    // line and at most four in the backfield; loading placed the eleven directly and skipped it, so
+    // some authored formations landed on the field already flagged illegal and the snap was gated
+    // on an error the player had no way to fix — they had not placed anybody.
+    const enforced = enforceOffensiveFormation(next, losYardLine)
+
     setLockedFormation(null)
-    setPlacedPlayers(next)
+    setPlacedPlayers(enforced)
     setDrawnRoutes(routes)
     setPlayerRoutes({})        // a loaded play owns every assignment, so no stale named route survives
     setPlayType(play.playType === 'run' ? 'run' : 'pass')
     setRouteMode('draw')       // …so the next tap edits the loaded routes rather than replacing them
-    for (const p of next) {
+    for (const p of enforced) {
       placePlayer({ id: p.id, x: p.x, y: p.y, label: p.label ?? '', team: 'o', ratings: teamRoster.ratingsById[p.id], xFactor: teamRoster.xFactorById[p.id] })
     }
     setPickerOpen(false)

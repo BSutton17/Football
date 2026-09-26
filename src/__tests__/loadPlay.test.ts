@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { fillSlots } from '../game/loadPlay'
 import type { RosterPlayer } from '../types/player'
+import { enforceOffensiveFormation, validateOffensiveFormation } from '../game/formation'
 
 // [authored] Filling a recommended play's slots from this team's bench — which is where personnel
 // substitution actually happens, because the server has no roster to do it with.
@@ -68,5 +69,46 @@ describe('filling an authored play from the bench', () => {
     const order = BENCH.map(x => x.id)
     fillSlots([spot('WR'), spot('TE')], BENCH)
     expect(BENCH.map(x => x.id)).toEqual(order)
+  })
+})
+
+describe('⚠️ A LOADED PLAY MUST BE LEGAL ON ARRIVAL', () => {
+  // Loading placed the eleven straight onto the field and skipped `enforceOffensiveFormation`,
+  // which every manual drag goes through. Some authored formations therefore appeared already
+  // flagged illegal — and the player could not fix it, because they had not placed anybody.
+  const LOS = 40
+
+  it('passes the same validator a dragged formation has to pass', () => {
+    // Everyone off the line, which is what trips the "2 more on the line of scrimmage" error.
+    const offLine = [
+      spot('WR', 4, LOS - 3), spot('WR', 48, LOS - 3), spot('WR', 34, LOS - 4),
+      spot('TE', 20, LOS - 3), spot('RB', 26, LOS - 6),
+    ]
+    const { filled } = fillSlots(offLine, BENCH)
+    const raw = filled.map(f => ({
+      id: f.player.id, x: f.spot.x, y: f.spot.y, team: 'o' as const, label: f.player.position,
+    }))
+
+    // Unenforced, this is the state the bug shipped.
+    expect(validateOffensiveFormation(raw, raw.length, LOS).length).toBeGreaterThan(0)
+
+    // Enforced, the way a dragged formation arrives.
+    const enforced = enforceOffensiveFormation(raw, LOS)
+    expect(validateOffensiveFormation(enforced, enforced.length, LOS)).toEqual([])
+  })
+
+  it('leaves an already-legal formation alone', () => {
+    const legal = [
+      spot('WR', 4, LOS), spot('WR', 48, LOS), spot('WR', 34, LOS),
+      spot('TE', 20, LOS), spot('RB', 26, LOS - 6),
+    ]
+    const { filled } = fillSlots(legal, BENCH)
+    const raw = filled.map(f => ({
+      id: f.player.id, x: f.spot.x, y: f.spot.y, team: 'o' as const, label: f.player.position,
+    }))
+    const enforced = enforceOffensiveFormation(raw, LOS)
+    expect(validateOffensiveFormation(enforced, enforced.length, LOS)).toEqual([])
+    // and the receivers stay where the play drew them
+    expect(enforced.find(p => p.id === raw[0].id)!.x).toBeCloseTo(raw[0].x, 5)
   })
 })
