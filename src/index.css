@@ -1091,10 +1091,13 @@ body {
 .run-angle-controls {
   display: flex;
   align-items: center;
-  position: relative;
-  left: 0%;
-  transform: translateX(100%);
+  /* ⚠️ NOT SHIFTED. This carried `transform: translateX(100%)`, which pushed the row right by its
+     own full width inside a column that is already centred — so on a portrait phone it ran off the
+     right edge and the ◄ button ended up somewhere you could not tap. Nothing sits where it was
+     dodging: the Set Formation and HIKE buttons are 60px above it, not beside it. */
   gap: 10px;
+  max-width: calc(100vw - 24px);   /* and it can never be wider than the screen */
+  flex-wrap: nowrap;
   background: rgba(0, 0, 0, 0.62);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
