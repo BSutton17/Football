@@ -2722,14 +2722,17 @@ body {
   padding: 24px 16px;
 }
 
+/* ⚠️ THE PICTURE GETS THE CARD, in every orientation. It first sat in a 34% column beside the
+   text, which on a portrait phone left it about 90px wide — too small to read a route off, which
+   defeats the point of drawing it. The art takes the full width and all the height the row has
+   left; the text is one compact strip beneath it. */
 .play-card {
   display: grid;
-  grid-template-columns: minmax(84px, 34%) 1fr auto;
-  align-items: center;
-  gap: 12px;
+  grid-template-rows: 1fr auto;
+  gap: 6px;
   min-height: 0;
   min-width: 0;
-  padding: 8px 12px;
+  padding: 6px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.045);
@@ -2742,15 +2745,14 @@ body {
 
 .play-card:active { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.5); }
 
-/* The picture takes whatever height the row has left. */
+/* The picture takes whatever height the row has left. The turf is painted inside the SVG, which
+   is what lets the yard lines land on real yardage instead of being a decorative gradient. */
 .play-card-art {
   height: 100%;
   min-height: 0;
   min-width: 0;
   border-radius: 8px;
-  background:
-    repeating-linear-gradient(to top, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 25%),
-    rgba(9, 34, 18, 0.85);
+  background: #2e7d32;      /* matches the grass, so a letterboxed edge is invisible */
   overflow: hidden;
 }
 
@@ -2774,7 +2776,18 @@ body {
   paint-order: stroke;
 }
 
-.play-card-text { min-width: 0; }
+.play-card-text {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+}
+
+/* Name and formation share the left of the strip; the badge sits at the right. */
+.play-card-text > .play-card-name,
+.play-card-text > .play-card-formation { grid-column: 1; }
+.play-card-text > .play-card-tag { grid-column: 2; grid-row: 1 / span 2; }
 
 .play-card-name {
   font-size: 0.92rem;
@@ -2796,8 +2809,9 @@ body {
 }
 
 .play-card-why {
-  margin-top: 2px;
-  font-size: 0.7rem;
+  grid-column: 1 / -1;
+  margin-top: 1px;
+  font-size: 0.68rem;
   color: rgba(255, 255, 255, 0.72);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2832,15 +2846,10 @@ body {
     gap: 6px;
   }
   .play-card {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto auto;
-    align-items: stretch;
-    gap: 5px;
-    padding: 6px 8px;
+    gap: 4px;
+    padding: 5px;
   }
-  .play-card-art    { min-height: 0; }
-  .play-card-tag    { justify-self: start; }
-  .play-card-name   { font-size: 0.8rem; }
+  .play-card-name   { font-size: 0.78rem; }
   .play-card-why    { font-size: 0.62rem; }
   .play-picker-bar  { padding: 0 2px 5px; }
   .play-picker-title { font-size: 0.85rem; }

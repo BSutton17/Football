@@ -2230,6 +2230,7 @@ export default function App() {
           kind="plays"
           situation={`${down} & ${distance}`}
           losY={losYardLine}
+          distance={distance}
           items={offeredPlays ?? []}
           onPick={handleLoadPlay}
           onClose={() => setPickerOpen(false)}
@@ -2240,6 +2241,7 @@ export default function App() {
           kind="shells"
           situation={`${down} & ${distance}`}
           losY={losYardLine}
+          distance={distance}
           items={offeredShells ?? []}
           onPick={handleLoadShell}
           onClose={() => setPickerOpen(false)}

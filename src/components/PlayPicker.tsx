@@ -19,6 +19,7 @@ interface PlaysProps {
   kind: 'plays'
   situation: string
   losY: number
+  distance: number
   items: OfferedPlay[]
   onPick: (play: OfferedPlay) => void
   onClose: () => void
@@ -28,6 +29,7 @@ interface ShellsProps {
   kind: 'shells'
   situation: string
   losY: number
+  distance: number
   items: OfferedShell[]
   onPick: (shell: OfferedShell) => void
   onClose: () => void
@@ -44,7 +46,7 @@ const KIND_CLASS: Record<string, string> = {
 }
 
 export default function PlayPicker(props: Props) {
-  const { kind, situation, losY, onClose } = props
+  const { kind, situation, losY, distance, onClose } = props
   const title = kind === 'plays' ? 'PLAYS' : 'SHELLS'
 
   return (
@@ -67,28 +69,28 @@ export default function PlayPicker(props: Props) {
         {props.kind === 'plays' && props.items.map(p => (
           <button key={p.id} className="play-card" onPointerDown={() => props.onPick(p)}>
             <div className="play-card-art">
-              <PlayDiagram losY={losY} offense={p.layout.spots} />
+              <PlayDiagram losY={losY} distance={distance} offense={p.layout.spots} />
             </div>
             <div className="play-card-text">
               <div className="play-card-name">{p.name}</div>
               <div className="play-card-formation">{p.formationName}</div>
+              <div className="play-card-tag">{Math.round(p.depth)} yds</div>
               <div className="play-card-why">{p.why}</div>
             </div>
-            <div className="play-card-tag">{Math.round(p.depth)} yds</div>
           </button>
         ))}
 
         {props.kind === 'shells' && props.items.map(s => (
           <button key={s.id} className="play-card" onPointerDown={() => props.onPick(s)}>
             <div className="play-card-art">
-              <PlayDiagram losY={losY} defense={s.layout.spots} />
+              <PlayDiagram losY={losY} distance={distance} defense={s.layout.spots} />
             </div>
             <div className="play-card-text">
               <div className="play-card-name">{s.name}</div>
               <div className="play-card-formation">{s.formationName}</div>
+              <div className={`play-card-tag ${KIND_CLASS[s.kind] ?? ''}`}>{s.kind}</div>
               <div className="play-card-why">{s.why}</div>
             </div>
-            <div className={`play-card-tag ${KIND_CLASS[s.kind] ?? ''}`}>{s.kind}</div>
           </button>
         ))}
       </div>
