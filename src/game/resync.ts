@@ -20,16 +20,35 @@ export function shouldClearHikeGate(incomingPhase: PlayPhase): boolean {
   return incomingPhase !== 'countdown'
 }
 
-// ⚠️ A RESYNC MID-PLAY IS NOT A NEW PLAY. `game_state` wipes the opponent's formation, and that is
-// right at a whistle: the server clears both player maps, so anything still on screen is a ghost.
+// ⚠️ A RESYNC IS NOT A NEW PLAY, AND THE PHASE CANNOT TELL YOU WHICH IT IS.
 //
-// It is wrong while a play is running. A resync arrives on reconnect and whenever the server
-// resends state — the pause repair does exactly that — and mid-play nothing re-places the other
-// team, so they simply vanish and stay vanished for the rest of the down. "After pausing and
-// unpausing the game the opponent's players are sometimes invisible."
+// `game_state` wipes the opponent's formation, and that is right at a whistle: the server clears
+// both player maps, so anything still on screen is a ghost. A computer opponent also picks a FRESH
+// formation every play with different ids, so without the wipe the other team grows by a receiver a
+// play — twelve men, then thirteen.
 //
-// A new play always begins in PRE_SNAP, and during pre-snap both sides re-send their formations
-// anyway, so wiping there is both correct and self-healing.
-export function shouldClearOpponentFormation(incomingPhase: PlayPhase): boolean {
-  return incomingPhase !== 'countdown' && incomingPhase !== 'live'
+// It is wrong on a RESEND. The pause repair re-broadcasts state, and so does a reconnect. Nothing
+// re-places the other team afterwards: a human opponent has already placed their eleven and will not
+// touch them again, and the computer only realigns when the picture CHANGES. So the other team
+// simply vanishes and stays vanished — "pausing and unpausing makes the other team's players
+// invisible but still there".
+//
+// This used to be decided from the phase alone, which cannot work: a resend during pre-snap looks
+// exactly like the start of a play. `playSerial` is what actually distinguishes them — the server
+// bumps it once per play, and the AI already reads it the same way (`k.newPlay = serial !== last`).
+// Same serial means the same pre-snap situation, so whatever is on screen still belongs there.
+export function shouldClearOpponentFormation(
+  incomingPhase: PlayPhase,
+  incomingSerial?: number | null,
+  lastSerial?: number | null,
+): boolean {
+  // Mid-play is never the start of a play, whatever the serials say.
+  if (incomingPhase === 'countdown' || incomingPhase === 'live') return false
+
+  // No serial to compare (an older server, or the very first state of the game) — fall back to the
+  // phase rule. Clearing when there is nothing there yet is harmless; NOT clearing when a serial is
+  // missing would bring back the thirteen-man formation.
+  if (incomingSerial == null || lastSerial == null) return true
+
+  return incomingSerial !== lastSerial
 }

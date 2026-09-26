@@ -373,6 +373,9 @@ export default function App() {
   // [166] once a throw is committed this play, ignore further receiver taps. Reset each play.
   const thrownRef = useRef(false)
   // [168] the receiver the pass is going to — drives the dashed QB→receiver line. Reset each play.
+  // [resync] The last pre-snap situation this client was told about. A `game_state` carrying the
+  // SAME serial is a resend, not a new play — see shouldClearOpponentFormation.
+  const lastPlaySerialRef = useRef<number | null>(null)
   const [targetReceiverId, setTargetReceiverId] = useState<string | null>(null)
   // [184] true once the QB has committed to a scramble this play — hides the scramble button and
   // locks throwing ([185]). Reset each play.
@@ -571,7 +574,10 @@ export default function App() {
       // players, then thirteen, a receiver per play.
       // [resync] Only when this really is a new play — see shouldClearOpponentFormation. Wiping
       // mid-play made the other team invisible for the rest of the down.
-      if (shouldClearOpponentFormation(gs.phase)) setOpponentPositions([])
+      if (shouldClearOpponentFormation(gs.phase, gs.playSerial, lastPlaySerialRef.current)) {
+        setOpponentPositions([])
+      }
+      lastPlaySerialRef.current = gs.playSerial ?? null
       setCarrierVision(null)
       thrownRef.current = false   // [166] new play — the throw decision is open again
       setTargetReceiverId(null)   // [168] clear the pass line for the new play
