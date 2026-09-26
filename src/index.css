@@ -2875,3 +2875,29 @@ body {
   .play-card-formation,
   .play-card-why { display: none; }
 }
+
+/* ─── Halftime leaders, one column per team ([stats]) ─────────────────────────
+   Each side gets its own three. A single ranked list is usually three players from whichever team
+   had the better half, which leaves the other side's best game unmentioned. */
+.stat-leaders-teams {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: min(720px, calc(100vw - 24px));
+}
+
+.stat-leaders-teams > .stat-leaders { flex: 1 1 240px; min-width: 0; }
+
+.stat-leader-none {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 4px 0;
+}
+
+/* Side by side is the point, so a landscape phone keeps both columns and tightens instead. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .stat-leaders-teams { gap: 10px; }
+  .stat-leaders-teams > .stat-leaders { flex: 1 1 200px; }
+}

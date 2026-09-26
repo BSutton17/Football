@@ -6,7 +6,7 @@ import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './t
 import { fillSlots } from './game/loadPlay.ts'
 import { shouldClearHikeGate } from './game/hikeGate.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
-import type { StatLeader } from './types/game.ts'
+import type { HalftimeStats } from './types/game.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
 import type { RouteOffset } from './game/routeDraw.ts'
 import RoomScreen from './components/RoomScreen.tsx'
@@ -256,7 +256,7 @@ export default function App() {
   const [periodTransition, setPeriodTransition] = useState<{
     kind: 'quarter' | 'halftime'
     endedQuarter: number
-    stats?: { top: StatLeader[] }
+    stats?: HalftimeStats
     // ⚠️ No adjustments field, deliberately. What the AI read off the first half is its own
     // thinking; showing a player "they are stacking the box" hands them the counter for free.
   } | null>(null)
@@ -476,8 +476,15 @@ export default function App() {
     // [transition screens] A period ended — show the full-screen interstitial for its duration, then
     // auto-return. Its own timer clears it (game_state-proof), so the next play lining up behind it
     // doesn't dismiss it early. Halftime's field reset is handled server-side (unchanged).
-    function onPeriodTransition({ kind, endedQuarter, seconds }: { kind: 'quarter' | 'halftime'; endedQuarter: number; seconds: number }) {
-      setPeriodTransition({ kind, endedQuarter })
+    function onPeriodTransition(
+      { kind, endedQuarter, seconds, stats }:
+      { kind: 'quarter' | 'halftime'; endedQuarter: number; seconds: number; stats?: HalftimeStats },
+    ) {
+      // ⚠️ `stats` WAS BEING DROPPED ON THE FLOOR. The server has always sent the box score with
+      // the halftime transition, and this handler destructured everything except it, then stored a
+      // state object without it — so the render's `periodTransition.stats?.top?.length` was
+      // permanently undefined and the leaders never appeared. Nothing was broken about the data.
+      setPeriodTransition({ kind, endedQuarter, stats })
       window.setTimeout(() => setPeriodTransition(null), (seconds ?? 5) * 1000)
     }
     // [70] A timeout was called — sync the counts and freeze play (banner + snap blocked). The server
@@ -1004,6 +1011,22 @@ export default function App() {
   //
   // The situation this advice was given for. When it changes the shortlist is stale, so it is
   // dropped rather than shown against a down it was not computed for.
+  // [stats] Each team's own three at halftime, labelled from this viewer's side of the ball so
+  // "You" is always the reader. Falls back to the outright leaders for an older server that only
+  // sends `top`.
+  const halftimeSides = (() => {
+    const st = periodTransition?.stats
+    if (!st) return []
+    if (st.byTeam && room.slot != null) {
+      const mine = room.slot === 0 ? 0 : 1
+      return [
+        { title: 'You', players: st.byTeam[mine] ?? [] },
+        { title: 'Opponent', players: st.byTeam[1 - mine] ?? [] },
+      ]
+    }
+    return st.top?.length ? [{ title: 'Top Performers', players: st.top }] : []
+  })()
+
   const situationKey = `${down}|${distance}|${Math.round(losYardLine)}|${pickerRole}`
 
   useEffect(() => {
@@ -1928,16 +1951,21 @@ export default function App() {
           </div>
           {/* [stats] Halftime carries the box score; an ordinary quarter break does not — it is a
               five-second breather, not a report. */}
-          {periodTransition.kind === 'halftime' && !!periodTransition.stats?.top?.length && (
-            <div className="stat-leaders">
-              <div className="stat-leaders-title">Top Performers</div>
-              {periodTransition.stats.top.map((p, i) => (
-                <div key={p.id} className="stat-leader">
-                  <div className="stat-leader-rank">{i + 1}</div>
-                  <div className="stat-leader-who">
-                    <div className="stat-leader-name">{p.name}</div>
-                    <div className="stat-leader-line">{p.label} · {p.summary}</div>
-                  </div>
+          {periodTransition.kind === 'halftime' && halftimeSides.length > 0 && (
+            <div className="stat-leaders-teams">
+              {halftimeSides.map(side => (
+                <div key={side.title} className="stat-leaders">
+                  <div className="stat-leaders-title">{side.title}</div>
+                  {side.players.map((p, i) => (
+                    <div key={p.id} className="stat-leader">
+                      <div className="stat-leader-rank">{i + 1}</div>
+                      <div className="stat-leader-who">
+                        <div className="stat-leader-name">{p.name}</div>
+                        <div className="stat-leader-line">{p.label} · {p.summary}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {!side.players.length && <div className="stat-leader-none">No stats yet</div>}
                 </div>
               ))}
             </div>

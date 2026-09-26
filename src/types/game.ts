@@ -205,3 +205,20 @@ export interface GameOver {
   // players their opponent's yards under their own heading.
   teams?: { yours: TeamTotals; theirs: TeamTotals }
 }
+
+// [stats] The box score that rides along with the halftime transition.
+//
+// `byTeam` is each side's own top three: a single ranked list is usually three players from
+// whichever team had the better half, which leaves the other side's best game unmentioned.
+export interface TeamTotals {
+  passYards: number
+  rushYards: number
+  totalOffense: number
+  takeaways: number
+}
+
+export interface HalftimeStats {
+  top: StatLeader[]
+  byTeam?: [StatLeader[], StatLeader[]]
+  teams?: [TeamTotals, TeamTotals]
+}
