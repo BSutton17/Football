@@ -2595,18 +2595,12 @@ body {
 }
 
 
-/* ─── The coordinator's shortlist ([authored]) ────────────────────────────────
-   Two buttons and one full-screen panel.
-
-   ⚠️ FULL SCREEN IS THE FIX, NOT A STYLE CHOICE. Every other pre-snap control is a rail or a
-   sidebar competing for the same edges, and the standing complaint about this UI is that buttons
-   end up underneath one another. A panel that owns the screen cannot be covered by anything and
-   needs no space reserved for it in either orientation. */
+/* ─── The coordinator's shortlist ([authored]) ───────────────────────────────
+   Two buttons and one full-screen panel of pictures. */
 
 .plays-btn {
   padding: 7px 14px;
   border: none;
-  border-radius: 999px 0 0 999px;
   background: linear-gradient(135deg, #f59e0b, #d97706);
   color: #1a1207;
   font-size: 0.6rem;
@@ -2616,20 +2610,42 @@ body {
   touch-action: manipulation;
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
   white-space: nowrap;
+  border-radius: 999px 0 0 999px;
 }
 
-/* The defense has no route rail to live in, so its button gets the same anchor the rail uses. */
-.shells-rail {
+/* ⚠️ THE DEFENSE'S BUTTON HANGS OFF THE LEFT EDGE, NOT THE RIGHT. The right edge belongs to the
+   roster sidebar on defense, and the first version cleared it with a fixed `margin-right: 72px`.
+   That was wrong twice over: the sidebar is 62px on mobile, and it SLIDES CLOSED — so the offset
+   was measured against something that is not always there, and on a portrait phone it left the
+   button floating in the middle of the field. An edge the button can actually sit on is the fix;
+   no offset to keep in sync with anything. */
+.defense-rail {
   position: absolute;
-  right: 0;
+  left: 0;
   top: 50%;
   transform: translateY(-50%);
   z-index: 15;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  /* Clear of the roster sidebar, which is on this side for the defense. */
-  margin-right: 72px;
+  align-items: flex-start;
+  gap: 6px;
+  max-height: calc(100svh - 108px);
+  min-height: 0;
+  pointer-events: none;
+}
+
+.defense-rail > * { pointer-events: auto; }
+
+/* Mirrored, since this rail is on the other side. */
+.defense-rail .plays-btn { border-radius: 0 999px 999px 0; }
+
+/* The coverage menu shares the rail rather than being positioned on its own, so the button and the
+   menu can never land on top of each other however tall the menu gets. */
+.defense-rail .coverage-menu {
+  position: static;
+  transform: none;
+  flex: 0 1 auto;
+  min-height: 0;
 }
 
 .play-picker {
@@ -2641,10 +2657,9 @@ body {
   background: rgba(8, 11, 18, 0.97);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  padding-top:    max(10px, env(safe-area-inset-top));
-  padding-bottom: max(10px, env(safe-area-inset-bottom));
-  padding-left:   max(12px, env(safe-area-inset-left));
-  padding-right:  max(12px, env(safe-area-inset-right));
+  padding: max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+           max(8px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  overflow: hidden;       /* the grid fits; nothing here scrolls */
 }
 
 .play-picker-bar {
@@ -2652,8 +2667,8 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 4px 4px 10px;
-  flex-shrink: 0;
+  padding: 2px 2px 8px;
+  flex: 0 0 auto;
 }
 
 .play-picker-titles { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
@@ -2674,7 +2689,7 @@ body {
 }
 
 .play-picker-close {
-  flex-shrink: 0;
+  flex: 0 0 auto;
   width: 38px;
   height: 38px;
   border: none;
@@ -2686,30 +2701,35 @@ body {
   touch-action: manipulation;
 }
 
-/* The list scrolls; the bar and the footer do not. On a short landscape screen three cards plus a
-   header do not fit, and a panel you cannot scroll is a panel with an unreachable third option. */
-.play-picker-list {
+/* ⚠️ A GRID SIZED TO THE VIEWPORT, NEVER A SCROLLING LIST. A third option below the fold is worse
+   than two options, because nothing on screen says it is there. Portrait stacks the cards; the
+   landscape rule below turns the same grid on its side. `min-height: 0` on both the grid and its
+   rows is what actually lets the cards shrink instead of overflowing. */
+.play-picker-grid {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-auto-rows: 1fr;
   gap: 8px;
 }
 
 .play-picker-empty {
-  padding: 28px 16px;
+  align-self: center;
   text-align: center;
   color: rgba(255, 255, 255, 0.55);
   font-size: 0.85rem;
+  padding: 24px 16px;
 }
 
 .play-card {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(84px, 34%) 1fr auto;
   align-items: center;
   gap: 12px;
-  width: 100%;
-  padding: 12px 14px;
+  min-height: 0;
+  min-width: 0;
+  padding: 8px 12px;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.045);
@@ -2717,28 +2737,47 @@ body {
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
+  overflow: hidden;
 }
 
 .play-card:active { background: rgba(245, 158, 11, 0.16); border-color: rgba(245, 158, 11, 0.5); }
 
-.play-card-rank {
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(245, 158, 11, 0.18);
-  color: #f59e0b;
-  font-size: 0.78rem;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* The picture takes whatever height the row has left. */
+.play-card-art {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  border-radius: 8px;
+  background:
+    repeating-linear-gradient(to top, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 25%),
+    rgba(9, 34, 18, 0.85);
+  overflow: hidden;
 }
 
-.play-card-body { flex: 1 1 auto; min-width: 0; }
+.play-diagram { width: 100%; height: 100%; display: block; }
+
+.pd-los   { stroke: rgba(255, 255, 255, 0.55); stroke-width: 0.8; stroke-dasharray: 3 2; }
+.pd-route { fill: none; stroke: #fbbf24; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+.pd-off   { fill: #fbbf24; }
+.pd-rush  { stroke: #f87171; stroke-width: 1.4; }
+.pd-zone  { fill: rgba(56, 189, 248, 0.16); stroke: rgba(56, 189, 248, 0.5); stroke-width: 0.6; }
+.pd-def   { fill: #38bdf8; }
+.pd-def--man  { fill: #a78bfa; }
+.pd-def--rush { fill: #f87171; }
+.pd-def--spy  { fill: #94a3b8; }
+
+.pd-label {
+  fill: #0b1020;
+  font-size: 4px;
+  font-weight: 800;
+  text-anchor: middle;
+  paint-order: stroke;
+}
+
+.play-card-text { min-width: 0; }
 
 .play-card-name {
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
@@ -2747,7 +2786,7 @@ body {
 }
 
 .play-card-formation {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.45);
   letter-spacing: 0.08em;
@@ -2757,58 +2796,64 @@ body {
 }
 
 .play-card-why {
-  margin-top: 3px;
-  font-size: 0.72rem;
+  margin-top: 2px;
+  font-size: 0.7rem;
   color: rgba(255, 255, 255, 0.72);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.play-card-depth {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1;
-}
-
-.play-card-depth-num { font-size: 1.15rem; font-weight: 800; color: #f59e0b; }
-.play-card-depth-unit { font-size: 0.55rem; color: rgba(255, 255, 255, 0.4); letter-spacing: 0.1em; }
-
-.play-card-kind {
-  flex-shrink: 0;
+.play-card-tag {
+  flex: 0 0 auto;
   padding: 4px 9px;
   border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  color: #f59e0b;
   font-size: 0.58rem;
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .pick-kind--zone  { background: rgba(56, 189, 248, 0.18); color: #38bdf8; }
 .pick-kind--man   { background: rgba(167, 139, 250, 0.18); color: #a78bfa; }
 .pick-kind--blitz { background: rgba(248, 113, 113, 0.20); color: #f87171; }
 
-.play-picker-foot {
-  flex-shrink: 0;
-  padding: 10px 4px 2px;
-  font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.4);
-  text-align: center;
+/* ⚠️ LANDSCAPE TURNS THE GRID ON ITS SIDE rather than shrinking the rows. Three stacked cards on
+   a 500px-tall phone leaves each about 130px once the header is paid for, and the third still ends
+   up under the fold — which is exactly the cut-off option. Side by side, each card gets a full
+   column of height and the pictures get taller, not shorter. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .play-picker-grid {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .play-card {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto auto;
+    align-items: stretch;
+    gap: 5px;
+    padding: 6px 8px;
+  }
+  .play-card-art    { min-height: 0; }
+  .play-card-tag    { justify-self: start; }
+  .play-card-name   { font-size: 0.8rem; }
+  .play-card-why    { font-size: 0.62rem; }
+  .play-picker-bar  { padding: 0 2px 5px; }
+  .play-picker-title { font-size: 0.85rem; }
+  .play-picker-close { width: 30px; height: 30px; font-size: 0.85rem; }
+  .plays-btn        { padding: 5px 11px; font-size: 0.55rem; }
+  .route-rail       { max-height: calc(100svh - 76px); gap: 3px; }
+  .defense-rail     { max-height: calc(100svh - 76px); gap: 3px; }
+  .route-menu       { max-height: calc(100svh - 150px); }
 }
 
-/* Landscape phones: the panel is the same, only tighter. Cards lose the second line of breathing
-   room rather than the third card losing its place on screen. */
-@media (orientation: landscape) and (max-height: 500px) {
-  .play-picker-bar     { padding: 2px 4px 6px; }
-  .play-picker-title   { font-size: 0.9rem; }
-  .play-card           { padding: 8px 12px; gap: 10px; }
-  .play-card-name      { font-size: 0.85rem; }
-  .play-card-why       { margin-top: 1px; font-size: 0.66rem; }
-  .play-picker-foot    { padding: 6px 4px 0; font-size: 0.62rem; }
-  .play-picker-list    { gap: 6px; }
-  .plays-btn           { padding: 5px 11px; font-size: 0.55rem; }
-  .shells-rail         { margin-right: 90px; }   /* the landscape sidebar is wider, tab included */
-  /* A 500px-tall screen minus both HUD bars leaves very little; the list takes the hit so the
-     mode switch, CLEAR ROUTES and PLAYS all stay on screen and tappable. */
-  .route-rail          { max-height: calc(100svh - 76px); gap: 3px; }
-  .route-menu          { max-height: calc(100svh - 150px); }
+/* A very short landscape window cannot afford the supporting text at all; the picture and the name
+   are what the choice is actually made on. */
+@media (orientation: landscape) and (max-height: 430px) {
+  .play-card-formation,
+  .play-card-why { display: none; }
 }

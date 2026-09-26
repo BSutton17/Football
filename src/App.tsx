@@ -2194,9 +2194,34 @@ export default function App() {
       {/* [authored] The defensive shortlist, offered once there is a full offense to read. Before
           eleven are out there the formation is still changing, and a recommendation against half a
           formation is advice about something that is not going to be on the field. */}
-      {role === 'defense' && isPreSnap && !kickInProgress && opponentPositions.length >= 5 && (
-        <div className="shells-rail">
-          <button className="plays-btn" onPointerDown={handleOpenPicker}>SHELLS</button>
+      {/* [authored] The defensive shortlist, and the coverage menu, in ONE stack.
+          ⚠️ THE RAIL IS ON THE LEFT because the right edge belongs to the roster sidebar on defense
+          — and they share it for the same reason the route rail exists: anything positioned on its
+          own eventually lands on top of something else. The first version cleared the sidebar with
+          a fixed margin, which was measured against a width that changes with the breakpoint and a
+          panel that slides closed, and on a portrait phone it left the button mid-field. */}
+      {role === 'defense' && !kickInProgress && (
+        <div className="defense-rail">
+          {isPreSnap && opponentPositions.length >= 5 && (
+            <button className="plays-btn" onPointerDown={handleOpenPicker}>SHELLS</button>
+          )}
+          {showCoverageMenu && selectedPlayer && (
+            <CoverageMenu
+              playerId={selectedPlayer.id}
+              position={selectedPlayer.label!}
+              currentCoverage={playerCoverage[selectedPlayer.id]}
+              currentZoneType={zoneTypes[selectedPlayer.id]}
+              onSelect={handleCoverageSelect}
+              currentManCommit={manCommits[selectedPlayer.id]}
+              onManCommit={handleManCommit}
+              isDroppingDL={droppingDL === selectedPlayer.id}
+              onToggleDLDrop={handleToggleDLDrop}
+              onClear={handleClearAssignment}
+              onZoneAll={handleZoneAll}
+              zoneAllLabel={SHELL_LABEL[SHELL_ORDER[zoneAllIndex]]}
+              zoneAllDisabled={!limitReached}
+            />
+          )}
         </div>
       )}
 
@@ -2204,6 +2229,7 @@ export default function App() {
         <PlayPicker
           kind="plays"
           situation={`${down} & ${distance}`}
+          losY={losYardLine}
           items={offeredPlays ?? []}
           onPick={handleLoadPlay}
           onClose={() => setPickerOpen(false)}
@@ -2213,29 +2239,13 @@ export default function App() {
         <PlayPicker
           kind="shells"
           situation={`${down} & ${distance}`}
+          losY={losYardLine}
           items={offeredShells ?? []}
           onPick={handleLoadShell}
           onClose={() => setPickerOpen(false)}
         />
       )}
 
-      {showCoverageMenu && selectedPlayer && (
-        <CoverageMenu
-          playerId={selectedPlayer.id}
-          position={selectedPlayer.label!}
-          currentCoverage={playerCoverage[selectedPlayer.id]}
-          currentZoneType={zoneTypes[selectedPlayer.id]}
-          onSelect={handleCoverageSelect}
-          currentManCommit={manCommits[selectedPlayer.id]}
-          onManCommit={handleManCommit}
-          isDroppingDL={droppingDL === selectedPlayer.id}
-          onToggleDLDrop={handleToggleDLDrop}
-          onClear={handleClearAssignment}
-          onZoneAll={handleZoneAll}
-          zoneAllLabel={SHELL_LABEL[SHELL_ORDER[zoneAllIndex]]}
-          zoneAllDisabled={!limitReached}
-        />
-      )}
       {canRemoveSelected && (
         <button className={`remove-player-btn ${role === "offense" ? "remove-offense" : "remove-defense"}`} onPointerDown={() => handleRemove(selectedId!)}>
           ✕ Remove
