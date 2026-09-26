@@ -4,6 +4,7 @@ import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCov
 import PlayPicker from './components/PlayPicker.tsx'
 import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './types/playbook.ts'
 import { fillSlots } from './game/loadPlay.ts'
+import { shouldClearHikeGate } from './game/hikeGate.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
 import type { StatLeader } from './types/game.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
@@ -529,8 +530,12 @@ export default function App() {
     }
     function onGameState(gs: GameState) {
       setPhase(gs.phase)
-      setHikeCount(null)
-      setHikeReady(false)
+      // [pause soft-lock] See shouldClearHikeGate: the snap is unlocked by a ONE-SHOT tick, so
+      // clearing it during a countdown that is still running strands the play with no way to snap.
+      if (shouldClearHikeGate(gs.phase)) {
+        setHikeCount(null)
+        setHikeReady(false)
+      }
       setLivePositions({})
       // ⚠️ THE OPPONENT'S FORMATION MUST BE WIPED EVERY PLAY. The server clears both player maps at
       // the whistle, so anything still here is a ghost. It only ever LOOKED correct against a human
