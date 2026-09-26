@@ -2,12 +2,13 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
 import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, transitionContinue, SESSION_KEY } from './socket/index.ts'
 import PlayPicker from './components/PlayPicker.tsx'
+import DevPlayReveal from './components/DevPlayReveal.tsx'
 import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './types/playbook.ts'
 import { fillSlots } from './game/loadPlay.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
 import { opposingLine } from './game/opposingLine.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
-import type { HalftimeStats, StatLeader } from './types/game.ts'
+import type { HalftimeStats, StatLeader, DevReveal } from './types/game.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
 import type { RouteOffset } from './game/routeDraw.ts'
 import RoomScreen from './components/RoomScreen.tsx'
@@ -199,6 +200,9 @@ export default function App() {
   //
   // ⚠️ IT IS NEVER OPENED FOR YOU. `pickerOpen` is set by a button press and by nothing else, so a
   // player who ignores the feature plays exactly the game they had before.
+  // [dev reveal] The computer's call, when the server is running with ENABLE_DEV_REVEAL=1 in a solo
+  // room. Always null in a shipped build: the server never sends it and the overlay never renders.
+  const [devReveal, setDevReveal] = useState<DevReveal | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [offeredPlays, setOfferedPlays] = useState<OfferedPlay[] | null>(null)
   const [offeredShells, setOfferedShells] = useState<OfferedShell[] | null>(null)
@@ -548,6 +552,7 @@ export default function App() {
     }
     function onGameState(gs: GameState) {
       setPhase(gs.phase)
+      setDevReveal((gs as { devReveal?: DevReveal | null }).devReveal ?? null)
       // [pause soft-lock] See shouldClearHikeGate: the snap is unlocked by a ONE-SHOT tick, so
       // clearing it during a countdown that is still running strands the play with no way to snap.
       if (shouldClearHikeGate(gs.phase)) {
@@ -2322,6 +2327,23 @@ export default function App() {
             />
           )}
         </div>
+      )}
+
+      {/* [dev reveal] Dev builds only, and only when the server opted in. See DevPlayReveal. */}
+      {import.meta.env.DEV && devReveal && isPreSnap && !kickInProgress && (
+        <DevPlayReveal
+          reveal={devReveal}
+          project={(x, y) => {
+            const canvas = document.querySelector('canvas') as HTMLCanvasElement | null
+            if (!canvas) return { left: 50, top: 50 }
+            const rect = canvas.getBoundingClientRect()
+            const cam = computeCamera(rect.width, rect.height, losYardLine)
+            return {
+              left: ((cam.offsetX + x * cam.yardPx) / rect.width) * 100,
+              top: (((cam.topRelY - y) * cam.yardPx) / rect.height) * 100,
+            }
+          }}
+        />
       )}
 
       {pickerOpen && role === 'offense' && (

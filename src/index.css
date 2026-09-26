@@ -2931,3 +2931,69 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .period-transition-tap { animation: none; opacity: 0.7; }
 }
+
+/* ─── The computer's call, drawn over the field ([dev reveal]) ────────────────
+   Dev builds only. Favours being READABLE over pretty: the point is to screenshot what the AI lined
+   up in next to what it should have been, so every man is labelled and nothing hides behind a
+   hover. */
+.dev-reveal {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;   /* it must never intercept a drag */
+  font-variant-numeric: tabular-nums;
+}
+
+.dev-reveal-head {
+  position: absolute;
+  top: max(64px, calc(env(safe-area-inset-top) + 52px));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.78);
+  white-space: nowrap;
+}
+
+.dev-reveal-tag {
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #f472b6;
+}
+
+.dev-reveal-name { font-size: 0.72rem; font-weight: 700; color: #fff; }
+.dev-reveal-kind { font-size: 0.6rem; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; }
+
+.dev-reveal-pin {
+  position: absolute;
+  transform: translate(-50%, -160%);
+  white-space: nowrap;
+}
+
+.dev-reveal-chip {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.52rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #0b1020;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* A zone's landmark, so a shell's shape is visible rather than inferred from where bodies happen to
+   be standing before the snap. */
+.dev-reveal-zone {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border-radius: 50%;
+  border: 1px dashed rgba(56, 189, 248, 0.75);
+  background: rgba(56, 189, 248, 0.10);
+}

@@ -222,3 +222,26 @@ export interface HalftimeStats {
   byTeam?: [StatLeader[], StatLeader[]]
   teams?: [TeamTotals, TeamTotals]
 }
+
+// [dev reveal] The computer's own play call, attached by the server only outside production, only
+// with ENABLE_DEV_REVEAL=1, and only in a solo room. Null in every ordinary case.
+export interface DevRevealPlayer {
+  id: string
+  label: string | null
+  x: number
+  y: number
+  route?: { dx: number; dd: number }[] | null
+  blocking?: boolean
+  job?: string
+  covers?: string | null
+  zone?: string | null
+  zoneCenterX?: number | null
+  zoneCenterY?: number | null
+  shade?: string | null
+}
+
+export interface DevReveal {
+  aiRole: 'offense' | 'defense'
+  play: { playType: string | null; runAngle: number | null; name: string | null; players: DevRevealPlayer[] } | null
+  shell: { name: string | null; players: DevRevealPlayer[] } | null
+}
