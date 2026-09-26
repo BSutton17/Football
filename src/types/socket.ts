@@ -106,6 +106,9 @@ export interface ServerToClientEvents {
   coverage_assigned:  (data: AssignCoveragePayload) => void
   coverage_cleared:   (data: { playerId: string }) => void
   offense_set:        (data: { playClockRemaining: number }) => void
+  // [dev reveal] Dev builds + ENABLE_DEV_REVEAL + a solo room only. Pushed each time the computer
+  // realigns, because the copy on game_state predates its alignment and so is never the real picture.
+  dev_reveal:         (data: import('./game.ts').DevReveal) => void
   hike_countdown:     (data: { count: number }) => void   // 5→0 after offense sets; 0 = hike enabled
   ball_snapped:       (data?: { manual?: boolean }) => void   // play is live; manual = GO drives it
 

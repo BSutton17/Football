@@ -552,6 +552,8 @@ export default function App() {
     }
     function onGameState(gs: GameState) {
       setPhase(gs.phase)
+      // [dev reveal] The snapshot on game_state only ever arrives BEFORE the computer has lined up, so
+      // it is used to clear the overlay between plays; the picture itself arrives on `dev_reveal`.
       setDevReveal((gs as { devReveal?: DevReveal | null }).devReveal ?? null)
       // [pause soft-lock] See shouldClearHikeGate: the snap is unlocked by a ONE-SHOT tick, so
       // clearing it during a countdown that is still running strands the play with no way to snap.
@@ -677,6 +679,9 @@ export default function App() {
         setZoneCenters({})
       }
     }
+    // [dev reveal] Pushed whenever the computer (re)aligns, which is the only moment its picture is
+    // real — the copy on game_state always arrives before it has lined up. See Server/devReveal.js.
+    socket.on('dev_reveal', setDevReveal)
     socket.on('player_placed', onPlayerPlaced)
     socket.on('player_removed', onPlayerRemoved)
     socket.on('coverage_assigned', onCoverageAssigned)
@@ -710,6 +715,7 @@ export default function App() {
     socket.on('special_teams_update', onSpecialTeamsUpdate)
     socket.on('play_clock_expired', onPlayClockExpired)
     return () => {
+      socket.off('dev_reveal', setDevReveal)
       socket.off('player_placed', onPlayerPlaced)
       socket.off('player_removed', onPlayerRemoved)
       socket.off('coverage_assigned', onCoverageAssigned)
