@@ -1,82 +1,36 @@
 import type { DevReveal } from '../types/game.ts'
 
-// [dev reveal] What the computer called this play, drawn over the field.
+// [dev reveal] What the computer called this play — the NAME of it, and nothing else.
 //
-// ⚠️ DEV BUILDS ONLY, AND THE SERVER MUST OPT IN TOO. The server attaches `devReveal` only outside
+// ⚠️ DEV BUILDS ONLY, AND THE SERVER MUST OPT IN TOO. The server attaches the reveal only outside
 // production, only with ENABLE_DEV_REVEAL=1, and only in a solo room; this component additionally
-// renders nothing unless `import.meta.env.DEV`, so the whole path is dead in a shipped build and
-// the "defense never sees the play call" rule is untouched.
+// renders nothing unless `import.meta.env.DEV`, so the whole path is dead in a shipped build and the
+// "defense never sees the play call" rule is untouched.
 //
-// It exists for one job: screenshot what the AI lined up in, next to what it should have been.
-// So it favours being READABLE over being pretty — every man labelled with his job and his target,
-// the call named at the top, nothing hidden behind a hover.
-
-interface Props {
-  reveal: DevReveal
-  /** Field yards → screen percent, so the overlay sits on the real field. */
-  project: (x: number, y: number) => { left: number; top: number }
-}
-
-const JOB_COLOR: Record<string, string> = {
-  man: '#a78bfa',
-  zone: '#38bdf8',
-  rush: '#f87171',
-  spy: '#94a3b8',
-}
-
-export default function DevPlayReveal({ reveal, project }: Props) {
+// ⚠️ IT USED TO DRAW THE PLAYERS TOO, AND THAT WAS THE MISTAKE. It laid its own art over the field —
+// a chip per man, a hollow ring per zone — on top of a canvas that already knows how to draw cloud
+// flats, deep zones, dashed man lines and blitz arrows. The result looked nothing like the game,
+// which made it hard to read and impossible to compare against a real defensive call. (The SHELLS
+// panel had the same fault, for the same reason: inventing a picture instead of reusing the one that
+// exists.)
+//
+// The computer's assignments now go through `revealCoverage` into the SAME props the defense's own
+// coverage uses, so `drawFrame` renders them with the real art. Nothing is drawn here any more. If
+// something about the computer's call needs showing that the field art genuinely cannot say, it
+// belongs in this banner as words — not as a second set of shapes over the top of the first.
+export default function DevPlayReveal({ reveal }: { reveal: DevReveal }) {
   if (!import.meta.env.DEV) return null
 
   const side = reveal.aiRole === 'offense' ? reveal.play : reveal.shell
   if (!side) return null
 
   return (
-    <div className="dev-reveal" aria-hidden="true">
-      <div className="dev-reveal-head">
-        <span className="dev-reveal-tag">AI {reveal.aiRole}</span>
-        <span className="dev-reveal-name">{side.name ?? '(unnamed)'}</span>
-        {reveal.play?.playType && <span className="dev-reveal-kind">{reveal.play.playType}</span>}
-      </div>
-
-      {reveal.aiRole === 'offense' && reveal.play?.players.map(p => {
-        const at = project(p.x, p.y)
-        return (
-          <div key={p.id} className="dev-reveal-pin" style={{ left: `${at.left}%`, top: `${at.top}%` }}>
-            <span className="dev-reveal-chip" style={{ background: p.blocking ? '#64748b' : '#fbbf24' }}>
-              {p.label}{p.blocking ? ' BLK' : p.route?.length ? ` ${Math.round(Math.max(...p.route.map(r => r.dd)))}y` : ''}
-            </span>
-          </div>
-        )
-      })}
-
-      {reveal.aiRole === 'defense' && reveal.shell?.players.map(p => {
-        const at = project(p.x, p.y)
-        // The one thing worth reading at a glance: what is he doing, and to whom.
-        const kind = p.job ?? 'rush'
-        const job = kind === 'man' ? `M:${p.covers ?? '?'}` : kind === 'zone' ? `Z:${p.zone ?? '?'}` : kind.toUpperCase()
-        return (
-          <div key={p.id} className="dev-reveal-pin" style={{ left: `${at.left}%`, top: `${at.top}%` }}>
-            <span className="dev-reveal-chip" style={{ background: JOB_COLOR[kind] ?? '#94a3b8' }}>
-              {p.label} {job}{p.shade ? ` ${p.shade}` : ''}
-            </span>
-          </div>
-        )
-      })}
-
-      {/* Zone landmarks, so a shell's shape is visible and not inferred from where bodies happen to
-          be standing before the snap. */}
-      {reveal.aiRole === 'defense' && reveal.shell?.players
-        .filter(p => p.job === 'zone' && p.zoneCenterX != null && p.zoneCenterY != null)
-        .map(p => {
-          const at = project(p.zoneCenterX as number, p.zoneCenterY as number)
-          return (
-            <div
-              key={`z${p.id}`}
-              className="dev-reveal-zone"
-              style={{ left: `${at.left}%`, top: `${at.top}%` }}
-            />
-          )
-        })}
+    <div className="dev-reveal-head" aria-hidden="true">
+      <span className="dev-reveal-tag">AI {reveal.aiRole}</span>
+      <span className="dev-reveal-name">{side.name ?? '(unnamed)'}</span>
+      {reveal.aiRole === 'offense' && reveal.play?.playType && (
+        <span className="dev-reveal-kind">{reveal.play.playType}</span>
+      )}
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { useRoom } from './hooks/useRoom.ts'
 import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, transitionContinue, SESSION_KEY } from './socket/index.ts'
 import PlayPicker from './components/PlayPicker.tsx'
 import DevPlayReveal from './components/DevPlayReveal.tsx'
+import { revealCoverage } from './game/revealCoverage.ts'
 import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './types/playbook.ts'
 import { fillSlots } from './game/loadPlay.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
@@ -1290,6 +1291,12 @@ export default function App() {
     .filter(([, type]) => type === 'blitz')
     .map(([id]) => id)
 
+  // [dev reveal] The computer's coverage, mapped onto the very same props above so the canvas draws
+  // it with the real cloud flats, deep zones and man lines. Null in every ordinary game. Merging is
+  // safe because these maps hold the VIEWER's own coverage, and a viewer watching the computer's
+  // defense is on offense, so their own are empty.
+  const aiCoverage = import.meta.env.DEV ? revealCoverage(devReveal) : null
+
   // Only show the remove button for own non-auto placed players
   const myTeam = role === 'offense' ? 'o' : 'd'
   const canRemoveSelected = selectedId != null
@@ -1955,12 +1962,12 @@ export default function App() {
         runAngle={role === 'offense' && handsOff ? runAngle : null}
         runnerId={runnerId}
         runnerBounds={runnerId ? runnerBounds : null}
-        manTargets={manTargets}
-        zoneTypes={zoneTypes}
-        zoneCenters={zoneCenters}
+        manTargets={aiCoverage ? { ...manTargets, ...aiCoverage.manTargets } : manTargets}
+        zoneTypes={aiCoverage ? { ...zoneTypes, ...aiCoverage.zoneTypes } : zoneTypes}
+        zoneCenters={aiCoverage ? { ...zoneCenters, ...aiCoverage.zoneCenters } : zoneCenters}
         onZoneCenterMove={handleZoneCenterMove}
-        blitzIds={blitzIds}
-        spyIds={spyIds}
+        blitzIds={aiCoverage ? [...blitzIds, ...aiCoverage.blitzIds] : blitzIds}
+        spyIds={aiCoverage ? [...spyIds, ...aiCoverage.spyIds] : spyIds}
         snapLocked={false}
         carrierVision={carrierVision}
         showFatigue={fatigueVisible}
@@ -2335,21 +2342,11 @@ export default function App() {
         </div>
       )}
 
-      {/* [dev reveal] Dev builds only, and only when the server opted in. See DevPlayReveal. */}
+      {/* [dev reveal] Dev builds only, and only when the server opted in. Just the call's NAME — the
+          computer's coverage itself is drawn by the canvas, through the same props a human defense
+          uses (see revealCoverage), so it appears in the real game art. */}
       {import.meta.env.DEV && devReveal && isPreSnap && !kickInProgress && (
-        <DevPlayReveal
-          reveal={devReveal}
-          project={(x, y) => {
-            const canvas = document.querySelector('canvas') as HTMLCanvasElement | null
-            if (!canvas) return { left: 50, top: 50 }
-            const rect = canvas.getBoundingClientRect()
-            const cam = computeCamera(rect.width, rect.height, losYardLine)
-            return {
-              left: ((cam.offsetX + x * cam.yardPx) / rect.width) * 100,
-              top: (((cam.topRelY - y) * cam.yardPx) / rect.height) * 100,
-            }
-          }}
-        />
+        <DevPlayReveal reveal={devReveal} />
       )}
 
       {pickerOpen && role === 'offense' && (
