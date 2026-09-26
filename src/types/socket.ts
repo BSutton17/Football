@@ -157,6 +157,8 @@ export interface ClientToServerEvents {
   // the defense never sees it. The server enforces that; this only describes the wire.
   request_plays: () => void
   request_shells: () => void
+  // [transition screens] Solo half-time waits for the player rather than a five-second timer.
+  transition_continue: () => void
   // Room
   // [manual] The creator fixes the room's mode (and, for manual, its difficulty); a joiner sends the
   // mode it picked in the lobby so a mismatch can be refused rather than silently switched.

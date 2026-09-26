@@ -12,6 +12,14 @@ export interface SlotRequest {
   label: string       // 'WR' | 'TE' | 'RB' on offense; 'CB' | 'S' | 'LB' on defense
   x: number
   y: number
+  // ⚠️ WHO SHOULD ACTUALLY FILL THIS SPOT, best first, when the drawn position is not the right
+  // body. A man assignment needs someone who can run with its target — a corner on a receiver —
+  // and the shell cannot know the offense would come out in four wides. The server works this out
+  // (it knows the assignment and the target) and sends it; this side has the roster.
+  //
+  // Without it a loaded Cover 1 put a linebacker on a slot receiver while the corners stood on
+  // tight ends, and the computer running the SAME shell did it correctly.
+  prefer?: string[]
 }
 
 export interface FilledSlot<T extends SlotRequest> {
@@ -42,7 +50,12 @@ export function fillSlots<T extends SlotRequest>(spots: T[], bench: RosterPlayer
   const unfilled: T[] = []
 
   for (const spot of spots) {
-    const player = ranked.find(p => p.position === spot.label && !usedIds.has(p.id))
+    // The server's preference first, then the drawn position as the last resort.
+    let player: RosterPlayer | undefined
+    for (const want of [...(spot.prefer ?? []), spot.label]) {
+      player = ranked.find(p => p.position === want && !usedIds.has(p.id))
+      if (player) break
+    }
     if (!player) { unfilled.push(spot); continue }
     usedIds.add(player.id)
     filled.push({ spot, player })

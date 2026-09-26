@@ -112,3 +112,40 @@ describe('⚠️ A LOADED PLAY MUST BE LEGAL ON ARRIVAL', () => {
     expect(enforced.find(p => p.id === raw[0].id)!.x).toBeCloseTo(raw[0].x, 5)
   })
 })
+
+describe('⚠️ MAN COVERAGE GETS THE RIGHT BODY', () => {
+  // The shell says which SPOT covers a receiver; it cannot know the offense would come out in four
+  // wides. Filling strictly by the drawn label put a linebacker on a slot receiver in Cover 1 while
+  // the corners stood on tight ends — and the computer running the same shell did it correctly.
+  const DEF: RosterPlayer[] = [
+    p('cb1', 'CB', 88), p('cb2', 'CB', 84), p('cb3', 'CB', 79),
+    p('s1', 'S', 86), p('s2', 'S', 80),
+    p('lb1', 'LB', 85), p('lb2', 'LB', 81),
+  ]
+
+  it('puts a corner on a spot the server says needs one, even when drawn as a linebacker', () => {
+    const { filled } = fillSlots([{ label: 'LB', x: 20, y: 44, prefer: ['CB', 'S', 'LB'] }], DEF)
+    expect(filled[0].player.position).toBe('CB')
+  })
+
+  it('falls back to the drawn position when the preferred ones are gone', () => {
+    const noCorners = DEF.filter(x => x.position !== 'CB' && x.position !== 'S')
+    const { filled } = fillSlots([{ label: 'LB', x: 20, y: 44, prefer: ['CB', 'S', 'LB'] }], noCorners)
+    expect(filled[0].player.position).toBe('LB')
+  })
+
+  it('leaves a spot with no preference filling by its drawn position', () => {
+    const { filled } = fillSlots([{ label: 'LB', x: 20, y: 44 }], DEF)
+    expect(filled[0].player.position).toBe('LB')
+  })
+
+  it('still never double-books a player across spots', () => {
+    const { filled, usedIds } = fillSlots([
+      { label: 'LB', x: 10, y: 44, prefer: ['CB'] },
+      { label: 'LB', x: 20, y: 44, prefer: ['CB'] },
+      { label: 'CB', x: 30, y: 44 },
+    ], DEF)
+    expect(usedIds.size).toBe(3)
+    expect(new Set(filled.map(f => f.player.id)).size).toBe(3)
+  })
+})

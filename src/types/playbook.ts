@@ -53,6 +53,8 @@ export interface ShellSpot {
   zoneCenterY: number | null
   covers: string | null   // the receiver's real id, so the client can assign man coverage directly
   shade: string
+  // Who should fill this spot, best first — see SlotRequest.prefer in game/loadPlay.ts.
+  prefer?: string[]
 }
 
 export interface ShellLayout {

@@ -118,6 +118,12 @@ export function requestPlays(): void {
   if (socket.connected) socket.emit('request_plays')
 }
 
+// [transition screens] The player dismissed the half-time box score. Solo only — the server holds
+// the next play until this arrives, so nothing is ticking while they read.
+export function transitionContinue(): void {
+  if (socket.connected) socket.emit('transition_continue')
+}
+
 export function requestShells(): void {
   if (socket.connected) socket.emit('request_shells')
 }

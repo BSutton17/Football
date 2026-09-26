@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
-import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, SESSION_KEY } from './socket/index.ts'
+import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, transitionContinue, SESSION_KEY } from './socket/index.ts'
 import PlayPicker from './components/PlayPicker.tsx'
 import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './types/playbook.ts'
 import { fillSlots } from './game/loadPlay.ts'
-import { shouldClearHikeGate } from './game/hikeGate.ts'
+import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
+import { opposingLine } from './game/opposingLine.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
-import type { HalftimeStats } from './types/game.ts'
+import type { HalftimeStats, StatLeader } from './types/game.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
 import type { RouteOffset } from './game/routeDraw.ts'
 import RoomScreen from './components/RoomScreen.tsx'
@@ -219,6 +220,10 @@ export default function App() {
   // [offline] Whether this is a solo game, taken from the SERVER (game_state.solo) rather than from
   // what the lobby remembers — a refresh loses the lobby's copy, and with it the Set Defense button.
   const [soloGame, setSoloGame] = useState(false)
+  // The socket handlers are registered once; a ref keeps them reading the current value without
+  // re-subscribing every time it changes.
+  const soloRef = useRef(false)
+  useEffect(() => { soloRef.current = soloGame }, [soloGame])
 
   // [rpo] Whether a throw is still on the table. A pass play always; an RPO only until the read
   // window closes and the server tells us it handed off (rpo_handoff). Every throw-shaped control
@@ -485,6 +490,12 @@ export default function App() {
       // state object without it — so the render's `periodTransition.stats?.top?.length` was
       // permanently undefined and the leaders never appeared. Nothing was broken about the data.
       setPeriodTransition({ kind, endedQuarter, stats })
+
+      // ⚠️ HALF-TIME IN A SOLO GAME WAITS FOR A TAP. Five seconds is not long enough to read a
+      // box score, and there is nobody else being held up. The server holds too — it deliberately
+      // does not book the next play, so no clock runs behind this — and the tap tells it to go on.
+      // See advanceQuarter and the `transition_continue` handler.
+      if (kind === 'halftime' && soloRef.current) return
       window.setTimeout(() => setPeriodTransition(null), (seconds ?? 5) * 1000)
     }
     // [70] A timeout was called — sync the counts and freeze play (banner + snap blocked). The server
@@ -550,7 +561,9 @@ export default function App() {
       // replace-by-id below kept the count at five. A computer opponent picks a fresh formation
       // each play, the ids differ, and the old ones were never removed: the offense grew to twelve
       // players, then thirteen, a receiver per play.
-      setOpponentPositions([])
+      // [resync] Only when this really is a new play — see shouldClearOpponentFormation. Wiping
+      // mid-play made the other team invisible for the rest of the down.
+      if (shouldClearOpponentFormation(gs.phase)) setOpponentPositions([])
       setCarrierVision(null)
       thrownRef.current = false   // [166] new play — the throw decision is open again
       setTargetReceiverId(null)   // [168] clear the pass line for the new play
@@ -1014,17 +1027,34 @@ export default function App() {
   // [stats] Each team's own three at halftime, labelled from this viewer's side of the ball so
   // "You" is always the reader. Falls back to the outright leaders for an older server that only
   // sends `top`.
+  // Solo half-time holds until the player dismisses it; every other interstitial self-clears.
+  const awaitingTap = !!periodTransition && periodTransition.kind === 'halftime' && soloGame
+  function dismissTransition() {
+    setPeriodTransition(null)
+    transitionContinue()
+  }
+
   const halftimeSides = (() => {
     const st = periodTransition?.stats
     if (!st) return []
+    // ⚠️ THE SERVER ONLY KNOWS IDS. Rosters live on this side (see ai/roster.js), so `place_player`
+    // never carries a name and the box score falls back to `name ?? id` — which is why the
+    // halftime screen was listing things like "pit_wr2". The names are here; the stats are there.
+    const named = (list: StatLeader[]) => list.map(pl => ({
+      ...pl,
+      name: rosterName.get(pl.id) ?? oppNameById.get(pl.id) ?? pl.name,
+    }))
     if (st.byTeam && room.slot != null) {
       const mine = room.slot === 0 ? 0 : 1
+      // A team's own primary, so the two columns read as the two teams at a glance.
       return [
-        { title: 'You', players: st.byTeam[mine] ?? [] },
-        { title: 'Opponent', players: st.byTeam[1 - mine] ?? [] },
+        { title: 'You', players: named(st.byTeam[mine] ?? []), color: teamColors(myTeamId ?? '').primary },
+        { title: 'Opponent', players: named(st.byTeam[1 - mine] ?? []), color: teamColors(oppTeamId ?? '').primary },
       ]
     }
-    return st.top?.length ? [{ title: 'Top Performers', players: st.top }] : []
+    return st.top?.length
+      ? [{ title: 'Top Performers', players: named(st.top), color: teamColors(myTeamId ?? '').primary }]
+      : []
   })()
 
   const situationKey = `${down}|${distance}|${Math.round(losYardLine)}|${pickerRole}`
@@ -1202,10 +1232,23 @@ export default function App() {
   const allPositions = [
     // Label our own QB by name (offense view only — the defender doesn't know the opponent's name).
     ...getOLQBPlayers(losYardLine, ballX).map(p => applyLivePos(role === 'offense' ? { ...p, name: rosterName.get(p.id) } : p)),
-    ...dlPositions.map(p => applyLivePos(opponentMap.get(p.id) ?? p)),
-    // Attach the roster name so the field can show the player's last name (renderer uses position for
-    // OL/DL). [names toggle] withhold names when the defender has switched to positions view.
-    ...placedPlayers.map(p => applyLivePos({ ...p, route: playerRoutes[p.id], name: showNames ? rosterName.get(p.id) : undefined })),
+    // [frozen DL] The opponent's set when it has one, our local placeholder until then — see
+    // opposingLine. Drawing our local four against a three-man front left a motionless lineman.
+    ...opposingLine(dlPositions, opponentPositions).map(p => applyLivePos(opponentMap.get(p.id) ?? p)),
+    // Attach the roster name so the field can show the player's last name (renderer uses position
+    // for OL/DL).
+    //
+    // ⚠️ THE NAMES TOGGLE IS THE DEFENDER'S, AND IT LEAKED. It lives on the defense sidebar and is
+    // there so a defender can switch the OPPONENT's skill players to positions — but it was applied
+    // to `placedPlayers`, which is YOUR OWN side in either role. React state survives the change of
+    // possession, so turning positions on while defending followed you across the turnover and hid
+    // your own receivers' names on offense, with no control anywhere on that screen to put them
+    // back. On offense you always see your own players.
+    ...placedPlayers.map(p => applyLivePos({
+      ...p,
+      route: playerRoutes[p.id],
+      name: (role === 'offense' || showNames) ? rosterName.get(p.id) : undefined,
+    })),
     // On defense, reveal the offense's RB/WR/TE names (only those positions, only for the defender) —
     // unless the names view is toggled off ([names toggle]).
     ...opponentPositions.filter(p => !p.id.startsWith('auto_dl')).map(p => {
@@ -1943,7 +1986,11 @@ export default function App() {
         <div className="play-notice" aria-live="polite">{playNotice}</div>
       )}
       {periodTransition && !gameOver && (
-        <div className="period-transition-overlay">
+        <div
+          className={`period-transition-overlay${awaitingTap ? ' period-transition-overlay--tappable' : ''}`}
+          onPointerDown={awaitingTap ? dismissTransition : undefined}
+          role={awaitingTap ? 'button' : undefined}
+        >
           <div className="period-transition-text">
             {periodTransition.kind === 'halftime'
               ? 'HALFTIME'
@@ -1960,7 +2007,7 @@ export default function App() {
                     <div key={p.id} className="stat-leader">
                       <div className="stat-leader-rank">{i + 1}</div>
                       <div className="stat-leader-who">
-                        <div className="stat-leader-name">{p.name}</div>
+                        <div className="stat-leader-name" style={{ color: side.color }}>{p.name}</div>
                         <div className="stat-leader-line">{p.label} · {p.summary}</div>
                       </div>
                     </div>
@@ -1970,6 +2017,7 @@ export default function App() {
               ))}
             </div>
           )}
+          {awaitingTap && <div className="period-transition-tap">Tap to continue</div>}
         </div>
       )}
       {gameOver && (

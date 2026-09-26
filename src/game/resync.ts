@@ -19,3 +19,17 @@ import type { PlayPhase } from '../types/game.ts'
 export function shouldClearHikeGate(incomingPhase: PlayPhase): boolean {
   return incomingPhase !== 'countdown'
 }
+
+// ⚠️ A RESYNC MID-PLAY IS NOT A NEW PLAY. `game_state` wipes the opponent's formation, and that is
+// right at a whistle: the server clears both player maps, so anything still on screen is a ghost.
+//
+// It is wrong while a play is running. A resync arrives on reconnect and whenever the server
+// resends state — the pause repair does exactly that — and mid-play nothing re-places the other
+// team, so they simply vanish and stay vanished for the rest of the down. "After pausing and
+// unpausing the game the opponent's players are sometimes invisible."
+//
+// A new play always begins in PRE_SNAP, and during pre-snap both sides re-send their formations
+// anyway, so wiping there is both correct and self-healing.
+export function shouldClearOpponentFormation(incomingPhase: PlayPhase): boolean {
+  return incomingPhase !== 'countdown' && incomingPhase !== 'live'
+}
