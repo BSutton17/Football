@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { GameState } from '../types/game.ts'
 import { socket, chewClock } from '../socket/index.ts'
 import { teamById } from '../data/nflTeams.ts'
@@ -32,10 +32,7 @@ const DOWN_SUFFIX = ['', 'st', 'nd', 'rd', 'th'] as const
 
 const PLAY_CLOCK_SECONDS = 25
 
-// [chew clock] How close together two taps on the game clock have to be to count as a double-tap, and
-// how long the button then stays offered. `onDoubleClick` is not used because it does not fire
-// reliably on touch, and this HUD is played on a phone as often as not — pointer events cover both.
-const DOUBLE_TAP_MS = 400
+// [chew clock] How long the button stays offered after the clock is tapped, before it withdraws.
 const CHEW_OFFER_MS = 6000
 
 export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
@@ -64,13 +61,16 @@ export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
     }
   }, [])
 
-  // [chew clock] The button is deliberately hidden behind a double-tap on the game clock. Burning the
-  // play clock down to three seconds is a real commitment — it should not be one stray thumb away on
-  // a HUD this small, and it is wanted on a minority of snaps.
+  // [chew clock] Tap the game clock and the button appears; tap the button and the clock runs down.
+  //
+  // ⚠️ IT WAS A DOUBLE-TAP AND IT NEVER WORKED. Two reasons, and the second made the first moot:
+  // `.hud-top` is `pointer-events: none` so the clock could not receive a tap at all, and a
+  // double-tap on a small piece of type in a phone HUD is a poor target even when it can. One tap
+  // now, which is still two taps to actually burn the clock — the button is the commitment, and
+  // hiding the button behind a gesture nobody can perform is not caution, it is a dead feature.
   const [chewOffered, setChewOffered] = useState(false)
   const [chewing, setChewing] = useState(false)
   const [chewStopAt, setChewStopAt] = useState(3)
-  const lastClockTap = useRef(0)
 
   // ⚠️ WHETHER A CHEW IS RUNNING IS TRACKED HERE, NOT READ OFF gameState. `game_state` arrives once
   // per play; the rest of pre-snap is clock ticks only, so a serialized `chewing` field would never
@@ -107,10 +107,7 @@ export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
   useEffect(() => { setChewOffered(false); setChewing(false) }, [phase, playSerial])
 
   function onClockTap() {
-    const now = Date.now()
-    const isDouble = now - lastClockTap.current < DOUBLE_TAP_MS
-    lastClockTap.current = now
-    if (isDouble && canChew) setChewOffered(v => !v)
+    if (canChew) setChewOffered(v => !v)
   }
 
   if (!gameState) return null
@@ -152,7 +149,7 @@ export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
           <span
             className={`hud-clock${chewing ? ' hud-clock--chewing' : ''}${canChew ? ' hud-clock--tappable' : ''}`}
             onPointerDown={onClockTap}
-            title={canChew ? 'Double-tap to chew the clock' : undefined}
+            title={canChew ? 'Tap to chew the clock' : undefined}
           >
             Q{quarter} · {formatClock(clock)}
           </span>

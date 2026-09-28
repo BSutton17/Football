@@ -1735,10 +1735,20 @@ body {
 
 /* [chew clock] The game clock is a double-tap target for the offense. A faint dotted underline is the
    only hint it gives — enough to be discoverable, quiet enough not to look like a button. */
+/* ⚠️ `.hud-top` IS `pointer-events: none`, SO THIS HAS TO TURN THEM BACK ON. The whole top bar is
+   click-through on purpose — it sits over the field and must not eat a drag. The chew-clock tap
+   handler was therefore dead code from the day it was written: the clock could not receive a
+   pointer event at all, and "clicking the game clock does nothing" was the entirely correct report.
+   Only the clock and the button it opens take input; the rest of the bar stays transparent. */
 .hud-clock--tappable {
   cursor: pointer;
   border-bottom: 1px dotted rgba(255,255,255,0.35);
   -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+  /* A bigger target than the glyphs: this is a phone HUD and the clock is small type. */
+  padding: 6px 14px;
+  margin: -6px -14px;
+  touch-action: manipulation;
 }
 
 /* While the fast-forward runs, the clock says so — otherwise a clock spinning down at 8x looks like
@@ -1754,6 +1764,7 @@ body {
 }
 
 .hud-chew-btn {
+  pointer-events: auto;   /* see .hud-clock--tappable — the bar itself is click-through */
   margin-top: 2px;
   padding: 3px 9px;
   font-size: 0.62rem;
