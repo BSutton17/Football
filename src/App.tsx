@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
-import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, transitionContinue, SESSION_KEY } from './socket/index.ts'
+import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, transitionContinue, adjustRunAngle, SESSION_KEY } from './socket/index.ts'
 import PlayPicker from './components/PlayPicker.tsx'
 import DevPlayReveal from './components/DevPlayReveal.tsx'
 import { revealCoverage } from './game/revealCoverage.ts'
@@ -247,6 +247,8 @@ export default function App() {
   // here, with the state it derives from, because effects further down depend on it.
   const canPass = playType === 'pass' || (playType === 'rpo' && !rpoCommitted)
   const [runAngle, setRunAngle] = useState<number>(0)  // degrees, -60 to +60
+  // [run adjust] Whether this play's one post-set change has been spent. Cleared with the play.
+  const [runAdjustUsed, setRunAdjustUsed] = useState(false)
   const [phase, setPhase] = useState<PlayPhase>('pre_snap')
   const [hikeCount, setHikeCount] = useState<number | null>(null)
   const [hikeReady, setHikeReady] = useState(false)
@@ -384,6 +386,17 @@ export default function App() {
   // [166] once a throw is committed this play, ignore further receiver taps. Reset each play.
   const thrownRef = useRef(false)
   // [168] the receiver the pass is going to — drives the dashed QB→receiver line. Reset each play.
+  // ⚠️ FIELDS THE SERVER SENDS THAT NOTHING ELSE ON THIS CLIENT TRACKS.
+  //
+  // `gameState` below is REBUILT from a fixed list of fields rather than being the server's payload,
+  // because most of it is derived locally (role, phase, the clock, the formation). Anything the
+  // server sends that is not in that list is silently dropped — which is what happened to the chew
+  // clock: the server said `canChew: true` on every pre-snap and the HUD never saw it, so the
+  // button could not appear however the clock was tapped. Reported twice before it was found.
+  //
+  // Anything new that the server alone knows belongs HERE, or it will vanish the same way.
+  const [serverOnly, setServerOnly] = useState<Pick<GameState, 'canChew' | 'chewMinPlayClock' | 'solo' | 'playClock' | 'playSerial'>>({})
+
   // [resync] The last pre-snap situation this client was told about. A `game_state` carrying the
   // SAME serial is a resend, not a new play — see shouldClearOpponentFormation.
   const lastPlaySerialRef = useRef<number | null>(null)
@@ -595,7 +608,18 @@ export default function App() {
       setScrambling(false)        // [184] new play — scramble available again
       setRpoCommitted(false)      // [rpo] new play — the read window is open again
       setDefenseSetFlag(false)    // [offline] new play — the defense may declare ready again
+      setRunAdjustUsed(false)     // [run adjust] a new play, a new look at the front
       setSoloGame(!!gs.solo)      // [offline] authoritative, so a refresh keeps the Set Defense button
+      // …and everything else only the server knows — see the note by `serverOnly`.
+      setServerOnly({
+        canChew: gs.canChew,
+        chewMinPlayClock: gs.chewMinPlayClock,
+        solo: gs.solo,
+        playClock: gs.playClock,
+        // …found by the guard test, not by anyone noticing: the HUD keys its per-play reset on this
+        // and it was being dropped too, so the chew offer never cleared between snaps.
+        playSerial: gs.playSerial,
+      })
       setThrowawayPos(null)       // [187] new play — hide the throwaway button
       setLiveCarrierId(null)      // [193] new play — clear the ball carrier
       setLockedFormation(null)    // each play starts unset — the offense must toggle Set Formation again
@@ -1208,7 +1232,7 @@ export default function App() {
   // [rpo] playType is the offense's OWN call, carried here purely so the renderer can tell run art
   // from pass art. It is null for a defender — the defense never sees the play call, and this
   // object is built locally on each client rather than sent over the wire.
-  const gameState: GameState = { ...MOCK_STATE, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX, timeouts, mode: gameMode, difficulty, playType: role === 'offense' ? playType : null }
+  const gameState: GameState = { ...MOCK_STATE, ...serverOnly, role, phase, clock: gameClock, quarter: gameQuarter, score, down, distance, yardLine: losYardLine, specialTeams, ballX, timeouts, mode: gameMode, difficulty, playType: role === 'offense' ? playType : null }
   const isPreSnap = phase === 'pre_snap'
 
   // The QB lines up at the ball's hash (ballX), 6 yards behind the LOS — so the backfield (and the
@@ -1618,7 +1642,18 @@ export default function App() {
   }
 
   function handleRunAngle(delta: number) {
-    setRunAngle(prev => Math.max(-60, Math.min(60, prev + delta)))
+    const next = Math.max(-60, Math.min(60, runAngle + delta))
+    setRunAngle(next)
+
+    // [run adjust] After the offense has SET, this is the one adjustment it gets — the lane the
+    // front left it. It is sent on its own rather than by re-locking the formation, because the
+    // formation is already set and re-sending it would restart the defense's look at it.
+    if (phase === 'countdown') {
+      if (runAdjustUsed) return
+      setRunAdjustUsed(true)
+      adjustRunAngle(next)
+      return
+    }
     setLockedFormation(null)
   }
 
@@ -2131,6 +2166,20 @@ export default function App() {
           {formationErrors.map((msg, i) => (
             <div key={i} className="formation-error">{msg}</div>
           ))}
+        </div>
+      )}
+      {/* [run adjust] The run-angle dial survives the SET on a run play: once the defense has lined
+          up, the offense gets one change of lane. Everything else in this panel is pre-snap only. */}
+      {role === 'offense' && phase === 'countdown' && !kickInProgress && handsOff && !runAdjustUsed && (
+        <div className="play-design-controls play-design-controls--adjust">
+          <div className="run-angle-controls">
+            <button className="run-angle-btn" onPointerDown={() => handleRunAngle(-10)} disabled={runAngle <= -60}>◄</button>
+            <span className="run-angle-label">
+              {runAngle === 0 ? 'FWD' : runAngle < 0 ? `L ${Math.abs(runAngle)}°` : `R ${runAngle}°`}
+            </span>
+            <button className="run-angle-btn" onPointerDown={() => handleRunAngle(10)} disabled={runAngle >= 60}>►</button>
+          </div>
+          <div className="run-adjust-hint">One adjustment</div>
         </div>
       )}
       {role === 'offense' && isPreSnap && !kickInProgress && (

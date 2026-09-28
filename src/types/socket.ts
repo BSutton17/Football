@@ -132,6 +132,8 @@ export interface ServerToClientEvents {
   timeout_started:    (data: { byYou: boolean; seconds: number; timeouts: { own: number; opp: number } }) => void
   // [chew clock] Sent to the offense alone, so its own clock can show that it is running fast.
   chew_clock_started: (data: { speed: number; stopAt: number }) => void
+  // [run adjust] Confirmation, to the offense alone — the defense never learns the lane.
+  run_angle_adjusted: (data: { runAngle: number }) => void
   timeout_ended:      () => void
 
   // Live play
@@ -203,6 +205,10 @@ export interface ClientToServerEvents {
   // [chew clock] The offense asks for the pre-snap seconds to be fast-forwarded. Server decides
   // whether it is allowed (offense only, solo only, not under eight seconds on the play clock).
   chew_clock:         () => void
+
+  // [run adjust] The offense's one look at the front on a run, after it has set. Server-validated:
+  // run plays only, during the countdown, once.
+  adjust_run_angle:   (data: { runAngle: number }) => void
 
   // In-play — Offense
   snap_ball:          () => void

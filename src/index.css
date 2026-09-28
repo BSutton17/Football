@@ -3013,3 +3013,19 @@ body {
 
 .dev-reveal-name { font-size: 0.72rem; font-weight: 700; color: #fff; }
 .dev-reveal-kind { font-size: 0.6rem; color: rgba(255, 255, 255, 0.5); text-transform: uppercase; }
+
+/* [run adjust] The one post-set change of lane. Sits where the play-design panel does, but only
+   during the countdown and only until it is spent. */
+.play-design-controls--adjust {
+  pointer-events: auto;
+}
+
+.run-adjust-hint {
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  margin-top: 2px;
+}

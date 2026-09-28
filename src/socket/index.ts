@@ -184,6 +184,12 @@ export function callTimeout(): void {
   if (socket.connected) socket.emit('call_timeout')
 }
 
+// [run adjust] Change the run lane once the defense has lined up. The server refuses anything but a
+// run, after the offense has set, once per play.
+export function adjustRunAngle(runAngle: number): void {
+  if (socket.connected) socket.emit('adjust_run_angle', { runAngle })
+}
+
 // [chew clock] The offense burning pre-snap time on purpose, fast-forwarded. Every rule about when
 // this is allowed lives on the server (chewClock.js); the button just asks.
 export function chewClock(): void {
