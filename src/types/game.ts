@@ -190,6 +190,11 @@ export type GameResult = 'win' | 'loss' | 'tie'
 // what he actually did, so a corner shows tackles rather than a row of empty yardage.
 export interface StatLeader {
   id: string
+  // Which team he plays for. The server has always sent it; it was missing here, so the screens
+  // resolved names by trying one roster and then the other -- and ids are NOT unique across the
+  // two (the auto-generated line and quarterback are `auto_qb` on both sides), which put one
+  // team's names on the other team's players.
+  slot?: number
   name: string
   label: string
   score: number

@@ -2971,8 +2971,18 @@ body {
 
 /* A name in its own team's primary needs to stay readable on the dark overlay, so it gets a soft
    dark edge rather than being lightened — the colour is the point. */
+/* A team colour on a dark overlay is not guaranteed to be readable: several brands are navy or
+   near-black and disappeared into the backdrop (the Patriots being the reported case). Two things
+   hold it up now -- accentColor() picks the brighter of the team's two brand colours, and this is
+   a real OUTLINE rather than a soft drop shadow, so even the darkest choice keeps an edge.
+   A blurred shadow was already here and was not enough on its own. */
 .stat-leader-name {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85), 0 0 1px rgba(0, 0, 0, 0.9);
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.9),
+     1px -1px 0 rgba(0, 0, 0, 0.9),
+    -1px  1px 0 rgba(0, 0, 0, 0.9),
+     1px  1px 0 rgba(0, 0, 0, 0.9),
+     0    0   4px rgba(0, 0, 0, 0.75);
 }
 
 @media (prefers-reduced-motion: reduce) {

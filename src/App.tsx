@@ -29,7 +29,7 @@ import RouteMenu from './components/RouteMenu.tsx'
 import CoverageMenu from './components/CoverageMenu.tsx'
 import type { RouteType, CoverageType, ZoneType, ManCommit } from './types/routes.ts'
 import { loadTeamRoster } from './game/teamRoster.ts'
-import { teamColors, textColorOn } from './data/teamColors.ts'
+import { teamColors, textColorOn, accentColor} from './data/teamColors.ts'
 import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveFormation, validateOffensiveFormation, validateDefensiveFormation } from './game/formation.ts'
 import { computeCamera } from './game/renderer.ts'
 import { computeZoneShell, SHELL_ORDER, SHELL_LABEL } from './game/zoneShells.ts'
@@ -1087,26 +1087,39 @@ export default function App() {
     transitionContinue()
   }
 
+  // ⚠️ THE SERVER ONLY KNOWS IDS. Rosters live on this side (see ai/roster.js), so the box score
+  // falls back to `name ?? id` — which is why the screens listed things like "pit_wr2". The names
+  // are here; the stats are there.
+  //
+  // ⚠️ AND THE ROSTER IS CHOSEN BY THE PLAYER'S TEAM, NOT BY TRYING MINE FIRST. Ids are not
+  // guaranteed unique across the two rosters — "same teamId -> same ids on both clients", and the
+  // auto-generated line and quarterback are literally `auto_qb` on both sides — so searching my
+  // roster first put MY player's name on the OPPONENT'S line. Each leader carries its `slot`, so
+  // there is no need to guess.
+  const namedLeaders = (list: StatLeader[]) => list.map(pl => {
+    const mine = room.slot != null && pl.slot === room.slot
+    const from = mine ? rosterName : oppNameById
+    const other = mine ? oppNameById : rosterName
+    return { ...pl, name: from.get(pl.id) ?? (pl.slot == null ? other.get(pl.id) : undefined) ?? pl.name }
+  })
+
   const halftimeSides = (() => {
     const st = periodTransition?.stats
     if (!st) return []
     // ⚠️ THE SERVER ONLY KNOWS IDS. Rosters live on this side (see ai/roster.js), so `place_player`
     // never carries a name and the box score falls back to `name ?? id` — which is why the
     // halftime screen was listing things like "pit_wr2". The names are here; the stats are there.
-    const named = (list: StatLeader[]) => list.map(pl => ({
-      ...pl,
-      name: rosterName.get(pl.id) ?? oppNameById.get(pl.id) ?? pl.name,
-    }))
+    const named = namedLeaders
     if (st.byTeam && room.slot != null) {
       const mine = room.slot === 0 ? 0 : 1
       // A team's own primary, so the two columns read as the two teams at a glance.
       return [
-        { title: 'You', players: named(st.byTeam[mine] ?? []), color: teamColors(myTeamId ?? '').primary },
-        { title: 'Opponent', players: named(st.byTeam[1 - mine] ?? []), color: teamColors(oppTeamId ?? '').primary },
+        { title: 'You', players: named(st.byTeam[mine] ?? []), color: accentColor(myTeamId ?? '') },
+        { title: 'Opponent', players: named(st.byTeam[1 - mine] ?? []), color: accentColor(oppTeamId ?? '') },
       ]
     }
     return st.top?.length
-      ? [{ title: 'Top Performers', players: named(st.top), color: teamColors(myTeamId ?? '').primary }]
+      ? [{ title: 'Top Performers', players: named(st.top), color: accentColor(myTeamId ?? '') }]
       : []
   })()
 
@@ -2090,7 +2103,7 @@ export default function App() {
                 <div key={side.title} className="stat-leaders">
                   <div className="stat-leaders-title">{side.title}</div>
                   {side.players.map((p, i) => (
-                    <div key={p.id} className="stat-leader">
+                    <div key={`${p.slot}:${p.id}`} className="stat-leader">
                       <div className="stat-leader-rank">{i + 1}</div>
                       <div className="stat-leader-who">
                         <div className="stat-leader-name" style={{ color: side.color }}>{p.name}</div>
@@ -2126,8 +2139,8 @@ export default function App() {
           {!!gameOver.top?.length && (
             <div className="stat-leaders stat-leaders--final">
               <div className="stat-leaders-title">Top Performers</div>
-              {gameOver.top.map((p, i) => (
-                <div key={p.id} className="stat-leader">
+              {namedLeaders(gameOver.top).map((p, i) => (
+                <div key={`${p.slot}:${p.id}`} className="stat-leader">
                   <div className="stat-leader-rank">{i + 1}</div>
                   <div className="stat-leader-who">
                     <div className="stat-leader-name">{p.name}</div>
