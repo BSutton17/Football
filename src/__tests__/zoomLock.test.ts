@@ -45,11 +45,13 @@ describe('the page cannot be zoomed on a phone', () => {
   // ⚠️ THE BLOCK MUST NOT APPLY WHILE ALREADY ZOOMED. The first version refused every
   // multi-finger touch, which also refused the pinch-OUT -- it removed the only way back and the
   // player was trapped a second time. Gestures are only stopped at 1x now.
-  it('never blocks a gesture that could be zooming back OUT', () => {
-    expect(lock).toContain('stopIfUnzoomed')
-    // the guard is conditional on the CURRENT scale, not unconditional
-    expect(lock).toMatch(/scale \?\? 1\) <= ZOOMED/)
-    // and no blanket multi-touch refusal
+  // ⚠️ THE RULE IS THE GESTURE'S DIRECTION, NOT THE PAGE SCALE. Earlier versions gated on how
+  // zoomed the page already was, which is a different question and let a pinch-OUT be swallowed.
+  // `gesturechange.scale` is relative to the start of the gesture: above 1 the fingers are
+  // spreading (zoom in, refused), below 1 they are closing (zoom out, always allowed).
+  it('refuses a spreading gesture and never a closing one', () => {
+    expect(lock).toMatch(/g\.scale > 1/)
+    // no blanket multi-touch refusal, which removed the escape once before
     expect(lock).not.toMatch(/touches\.length > 1/)
   })
 
@@ -64,8 +66,13 @@ describe('the page cannot be zoomed on a phone', () => {
     expect(lock).toContain("getElementById('root')")
   })
 
-  it('and still offers the button, without depending on it', () => {
+  // ⚠️ A RELOAD DOES NOT CLEAR THE ZOOM ON iOS — Safari restores it per page, so "reset view"
+  // put the player straight back into the zoomed view. A different URL is a different page for that
+  // purpose, and sessionStorage carries the game across the navigation.
+  it('escapes by navigating to a fresh URL, not by reloading', () => {
     expect(lock).toContain('Reset view')
-    expect(lock).toContain('location.reload')
+    expect(lock).toContain('location.replace')
+    expect(lock).toMatch(/searchParams\.set\('v'/)
+    expect(lock).not.toContain('location.reload')
   })
 })
