@@ -3,6 +3,12 @@ import { lazy, Suspense } from 'react'
 import './index.css'
 import './screens.css'   // Team Select + VS/loading screens — vmin-scaled (scoped PostCSS), loaded after index.css
 import App from './App.tsx'
+import { lockZoom } from './utils/lockZoom.ts'
+
+// [mobile] Before React renders: a two-finger tap was zooming players in with no way back out, and
+// the only escape was quitting the game. See lockZoom for why the CSS and the viewport tag were not
+// enough on their own.
+lockZoom()
 
 // [authored] The play sandbox lives at ?sandbox=1 and is DEV-ONLY.
 //
