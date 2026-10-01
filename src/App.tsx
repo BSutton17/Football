@@ -404,9 +404,16 @@ export default function App() {
   // [184] true once the QB has committed to a scramble this play — hides the scramble button and
   // locks throwing ([185]). Reset each play.
   const [scrambling, setScrambling] = useState(false)
-  // [187] random screen position (percent) for the throwaway button, set 2s after the snap.
-  // Null = not shown (before the 2s hold, or once the ball is gone). Reset each play.
-  const [throwawayPos, setThrowawayPos] = useState<{ top: number; left: number } | null>(null)
+  // Who can legally be thrown to, for keeping the throwaway button off them.
+  const CATCHABLE = useMemo(() => new Set(['WR', 'TE', 'RB']), [])
+
+  // Clears the offer outright: a new play, a thrown ball, a scramble.
+  const clearThrowaway = useCallback(() => { setThrowawayArmed(false); setThrowawayAt(null) }, [])
+
+  // [187] The throwaway offer. `armed` is the server saying the hold has elapsed; `throwawayAt` is
+  // where it is drawn, in client pixels, recomputed to stay off every eligible receiver.
+  const [throwawayArmed, setThrowawayArmed] = useState(false)
+  const [throwawayAt, setThrowawayAt] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     const myTeam: 'o' | 'd' = room.role === 'defense' ? 'd' : 'o'
@@ -457,7 +464,7 @@ export default function App() {
     }
     function onBallSnapped(data?: { manual?: boolean }) {
       setHikeCount(null); setHikeReady(false); setPhase('live'); setScrambling(false)
-      setThrowawayPos(null); setLiveCarrierId(null); setTouchdownBanner(null)
+      clearThrowaway(); setLiveCarrierId(null); setTouchdownBanner(null)
       // [manual] The server tells us whether THIS play is GO-driven — only manual pass plays are.
       setManualLive(!!data?.manual)
       setManualFrozen(false)
@@ -471,12 +478,21 @@ export default function App() {
     function onGamePaused({ byYou }: { byYou: boolean }) { setGamePause({ byYou }) }
     function onGameResumed() { setGamePause(null) }
 
-    // [187] The play has run long enough in GAME time. It pops up at a RANDOM spot on the OFFENSIVE
-    // side of the field — the backfield band below the LOS — so it rewards a quick reaction without
-    // ever covering the downfield coverage the QB is reading.
+    // [187] The play has run long enough in GAME time. The button appears in the backfield, behind
+    // the line and clear of everybody eligible to catch it.
+    //
+    // ⚠️ IT USED TO BE A RANDOM SCREEN PERCENTAGE, WHICH COULD NOT KNOW THAT. `top: 70-86%` was
+    // meant to be "the band below the LOS", but a percentage of the viewport has no idea where the
+    // line of scrimmage or the players are — the camera moves. A back running a FLAT route lives in
+    // exactly that band, the button landed on top of him, and because the button takes the tap he
+    // could not be thrown to at all. Reported as "the throw away button should never cover a rb
+    // while on a route".
+    //
+    // It is positioned from the field now, the same way the kick aim anchor is, and `throwawayAt`
+    // keeps it clear as the play develops.
     function onThrowawayReady() {
       if (thrownRef.current) return
-      setThrowawayPos({ top: 70 + Math.random() * 16, left: 15 + Math.random() * 65 })
+      setThrowawayArmed(true)
     }
 
     function onManualFrozen() { setManualFrozen(true) }
@@ -620,7 +636,7 @@ export default function App() {
         // and it was being dropped too, so the chew offer never cleared between snaps.
         playSerial: gs.playSerial,
       })
-      setThrowawayPos(null)       // [187] new play — hide the throwaway button
+      clearThrowaway()       // [187] new play — hide the throwaway button
       setLiveCarrierId(null)      // [193] new play — clear the ball carrier
       setLockedFormation(null)    // each play starts unset — the offense must toggle Set Formation again
       // [route draw] Drawn routes deliberately SURVIVE the play boundary, the same way routes picked
@@ -823,6 +839,75 @@ export default function App() {
     return () => window.removeEventListener('resize', place)
   }, [fgKicking, ballX, losYardLine])
 
+  // [187] Where the throwaway button sits, in client pixels, kept clear of everybody eligible to
+  // catch the ball.
+  //
+  // ⚠️ IN FIELD YARDS, NOT SCREEN PERCENT. The old version picked a random `top: 70-86%` and called
+  // it "the band below the LOS" — but a viewport percentage cannot know where the line is, and the
+  // camera moves. A back on a FLAT route sits in that band, the button covered him, and the button
+  // swallows the tap, so he could not be thrown to at all.
+  //
+  // ⚠️ AND IT IS RE-CHECKED WHILE THE PLAY RUNS. Receivers move after the button appears, so a spot
+  // that was clear at two seconds is not clear at three. It only MOVES when it is actually
+  // threatened — a button that slides around under the thumb is its own bug.
+  useEffect(() => {
+    if (!throwawayArmed) return
+    const BEHIND_MIN = 9       // yd behind the line: past the QB's drop, where no route goes
+    const BEHIND_MAX = 13
+    const CLEAR_YARDS = 5      // how far from any eligible receiver it has to be
+
+    function eligible(): Array<{ x: number; y: number }> {
+      const out: Array<{ x: number; y: number }> = []
+      for (const pl of placedPlayers) {
+        if (!CATCHABLE.has(pl.label ?? '')) continue   // ROUTE_POSITIONS is declared further down
+        const lp = livePositions[pl.id]
+        out.push({ x: lp?.x ?? pl.x, y: lp?.y ?? pl.y })
+      }
+      return out
+    }
+
+    function pick() {
+      const canvas = document.querySelector('canvas') as HTMLCanvasElement | null
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const cam = computeCamera(rect.width, rect.height, losYardLine)
+      const men = eligible()
+      // The camera is always drawn from this viewer's side, so "behind the line" is one direction.
+      const dir = 1
+
+      let best: { x: number; y: number; clear: number } | null = null
+      for (let fx = 6; fx <= FIELD.WIDTH - 6; fx += 4) {
+        for (let back = BEHIND_MIN; back <= BEHIND_MAX; back += 2) {
+          const fy = losYardLine - dir * back
+          let clear = Infinity
+          for (const m of men) clear = Math.min(clear, Math.hypot(m.x - fx, m.y - fy))
+          if (!best || clear > best.clear) best = { x: fx, y: fy, clear }
+        }
+      }
+      if (!best) return
+
+      const px = rect.left + cam.offsetX + best.x * cam.yardPx
+      const py = rect.top + (cam.topRelY - best.y) * cam.yardPx
+      setThrowawayAt(prev => {
+        // Only move if there is nowhere safe where it already is: stability beats optimality.
+        if (prev) {
+          const stillClear = men.every(m => {
+            const mx = rect.left + cam.offsetX + m.x * cam.yardPx
+            const my = rect.top + (cam.topRelY - m.y) * cam.yardPx
+            return Math.hypot(mx - prev.x, my - prev.y) > CLEAR_YARDS * cam.yardPx
+          })
+          if (stillClear) return prev
+        }
+        return { x: px, y: py }
+      })
+    }
+
+    pick()
+    const id = window.setInterval(pick, 200)
+    window.addEventListener('resize', pick)
+    return () => { window.clearInterval(id); window.removeEventListener('resize', pick) }
+  }, [throwawayArmed, livePositions, placedPlayers, losYardLine])
+
   // [187] Throwaway availability: the QB must hold the ball a beat on a live pass play before the
   // option appears. WHEN that beat has passed is the server's call (throwaway_ready), because it is
   // measured in GAME time — in manual mode the play only advances while GO is held, and a wall-clock
@@ -831,7 +916,7 @@ export default function App() {
   useEffect(() => {
     const isOffense = (room.role ?? 'offense') === 'offense'
     if (!isOffense || phase !== 'live' || !canPass || scrambling || thrownRef.current) {
-      setThrowawayPos(null)
+      clearThrowaway()
     }
   }, [room.role, phase, canPass, scrambling])
 
@@ -1969,7 +2054,7 @@ export default function App() {
     // receiver is simply inert rather than bouncing off the server as a rejected action.
     if (manualLive && !manualFrozen) return
     thrownRef.current = true
-    setThrowawayPos(null)             // [187] the ball is gone — no more throwaway
+    clearThrowaway()             // [187] the ball is gone — no more throwaway
     setTargetReceiverId(receiverId)   // [168] draw the dashed line to the targeted receiver
     throwToReceiver(receiverId)
   }
@@ -1981,7 +2066,7 @@ export default function App() {
     if (thrownRef.current || scrambling) return
     if (manualLive && !manualFrozen) return   // [manual] only while frozen
     thrownRef.current = true
-    setThrowawayPos(null)
+    clearThrowaway()
     setTargetReceiverId(defenderId)   // brief line to the defender before the pick
     throwAtDefender(defenderId)
   }
@@ -1994,7 +2079,7 @@ export default function App() {
     if (thrownRef.current || scrambling) return
     setScrambling(true)
     thrownRef.current = true
-    setThrowawayPos(null)
+    clearThrowaway()
     scramble()
   }
 
@@ -2011,7 +2096,7 @@ export default function App() {
     if (role !== 'offense' || !canPass || phase !== 'live') return
     if (thrownRef.current || scrambling) return
     thrownRef.current = true
-    setThrowawayPos(null)
+    clearThrowaway()
     setTargetReceiverId(null)
     throwAway()
   }
@@ -2340,10 +2425,10 @@ export default function App() {
           this is presentation only, which is why the delay can never change what happens. */}
       {passPending && <div className="manual-suspense-banner">It is…</div>}
       {passReveal && <div className="manual-reveal-banner">{passReveal}</div>}
-      {role === 'offense' && phase === 'live' && canPass && !scrambling && !thrownRef.current && throwawayPos && (
+      {role === 'offense' && phase === 'live' && canPass && !scrambling && !thrownRef.current && throwawayAt && (
         <button
           className="throwaway-btn"
-          style={{ top: `${throwawayPos.top}%`, left: `${throwawayPos.left}%` }}
+          style={{ top: `${throwawayAt.y}px`, left: `${throwawayAt.x}px` }}
           onPointerDown={handleThrowaway}
         >
           Throw Away

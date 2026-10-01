@@ -1482,7 +1482,10 @@ body {
 
 /* Throwaway button — offense, live pass play. Pops up at a random spot 2s after the snap ([187]). */
 .throwaway-btn {
-  position: absolute;
+  /* [187] FIXED, not absolute: the position is computed from getBoundingClientRect, which is
+     viewport-relative, the same coordinates .kick-arrow-anchor uses. With `absolute` those numbers
+     are measured from whichever ancestor happens to be positioned, which is not the viewport. */
+  position: fixed;
   transform: translate(-50%, -50%);
   z-index: 19;
   padding: 10px 22px;
