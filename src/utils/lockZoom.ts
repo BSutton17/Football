@@ -1,49 +1,60 @@
-// ── Getting back to 1× on a phone ([mobile]) ────────────────────────────────
+// ── Surviving a zoom on a phone ([mobile]) ──────────────────────────────────
 //
-// Reported twice: "on mobile when I two finger tap it zooms me in and I can't zoom out so I'm
-// forced to quit the game." The first attempt at this tried to PREVENT the zoom. It did not work,
-// and worse, two things about it actively made the trap harder to escape:
+// Reported three times, and the first two fixes were wrong in instructive ways:
 //
-//   ⚠️ BLOCKING MULTI-TOUCH BLOCKED THE WAY OUT. Refusing every two-finger touch also refuses the
-//     pinch-OUT that would have taken the player back to 1x. The guard removed the escape.
+//   1. PREVENT IT. `touch-action: none` and `maximum-scale` were already set and iOS Safari ignores
+//      both — it drives pinch through its own `gesture*` events, above that layer.
+//   2. BLOCK MULTI-TOUCH AND REWRITE THE VIEWPORT TO RECOVER. Blocking two fingers also blocked the
+//      pinch-OUT, removing the escape; and rewriting the viewport meta does not undo a user zoom on
+//      iOS, so the recovery never fired.
+//   3. RELOAD TO RESET. "Reset view works for a second then it forces me back into the zoomed in
+//      view" — iOS RESTORES the previous zoom on reload, so the reset is undone a moment later.
 //
-//   ⚠️ REWRITING THE VIEWPORT META DOES NOT UNDO A USER ZOOM ON iOS. It works on some Android
-//     browsers, which is why the trick is widely repeated, and Safari ignores it once a person has
-//     pinched. The "recovery" could never have fired.
+// The pattern is that the browser wins every fight over page scale. So this stops fighting: the app
+// FOLLOWS the visual viewport instead. When the page is zoomed, the root element is sized and offset
+// to the rectangle actually on screen, so the whole UI re-lays-out into the visible area and the
+// game stays playable at any scale. A zoom becomes a nuisance rather than a trap.
 //
-// So this stops trying to win that fight. It assumes the player WILL get zoomed and makes sure
-// there is always a way back:
-//
-//   1. gestures are only blocked while the page is AT 1x, so zooming in is discouraged and zooming
-//      back out is never prevented
-//   2. a RESET VIEW button appears whenever the page is zoomed, positioned inside the visible
-//      rectangle so it cannot be off-screen, and reloading is what actually clears the scale
-//
-// ⚠️ RELOADING DOES NOT LOSE THE GAME. The session token lives in sessionStorage and survives a
-// reload in the same tab, so the client rejoins the game in progress and restores its formation.
-// That is the only reason this is an acceptable escape hatch rather than a forfeit.
+// The pinch-out still works (nothing blocks it), and the Reset view button is kept as a convenience
+// — but nothing depends on it succeeding any more.
 
-const ZOOMED = 1.05          // above this, treat the page as zoomed and offer the way out
-const AT_ONE_X = 1.01        // at or below this, the page is effectively unzoomed
+const ZOOMED = 1.02
 
 let escapeEl: HTMLButtonElement | null = null
 
-function scale(): number {
-  return window.visualViewport?.scale ?? 1
+function vv(): VisualViewport | null {
+  return window.visualViewport ?? null
 }
 
-// The button has to sit in the VISIBLE rectangle, not the layout one: while iOS is zoomed,
-// `position: fixed` is relative to the layout viewport, so a corner-pinned element is frequently
-// scrolled off the part of the screen the player can actually see.
+// ⚠️ THE ROOT FOLLOWS THE VISIBLE RECTANGLE. While iOS is zoomed, CSS `100%` still means the LAYOUT
+// viewport, which is bigger than what the player can see — so the HUD and the field run off the
+// edges and the controls become unreachable. Pinning #root to visualViewport's rect puts everything
+// back on screen at whatever scale the browser has chosen.
+function follow(): void {
+  const v = vv()
+  const root = document.getElementById('root')
+  if (!v || !root) return
+  if (v.scale <= ZOOMED) {
+    root.style.removeProperty('position')
+    root.style.removeProperty('width')
+    root.style.removeProperty('height')
+    root.style.removeProperty('left')
+    root.style.removeProperty('top')
+    return
+  }
+  root.style.position = 'fixed'
+  root.style.left = `${v.offsetLeft}px`
+  root.style.top = `${v.offsetTop}px`
+  root.style.width = `${v.width}px`
+  root.style.height = `${v.height}px`
+}
+
 function placeEscape(el: HTMLButtonElement): void {
-  const vv = window.visualViewport
-  if (!vv) return
-  const pad = 10
-  el.style.left = `${vv.offsetLeft + pad}px`
-  el.style.top = `${vv.offsetTop + pad}px`
-  // Scale the control up as the page zooms in, so it stays a comfortable size on screen rather
-  // than growing with the zoom.
-  el.style.transform = `scale(${1 / Math.max(1, vv.scale)})`
+  const v = vv()
+  if (!v) return
+  el.style.left = `${v.offsetLeft + 10}px`
+  el.style.top = `${v.offsetTop + 10}px`
+  el.style.transform = `scale(${1 / Math.max(1, v.scale)})`
   el.style.transformOrigin = 'top left'
 }
 
@@ -52,14 +63,16 @@ function ensureEscape(): HTMLButtonElement {
   const el = document.createElement('button')
   el.type = 'button'
   el.textContent = 'Reset view'
-  el.setAttribute('aria-label', 'Reset the zoom and rejoin the game')
+  el.setAttribute('aria-label', 'Reset the zoom')
   Object.assign(el.style, {
     position: 'fixed', zIndex: '2147483647', display: 'none',
     padding: '10px 16px', borderRadius: '8px', border: '2px solid #fff',
     background: '#c8102e', color: '#fff', font: '700 15px system-ui, sans-serif',
     boxShadow: '0 2px 10px rgba(0,0,0,0.5)', touchAction: 'manipulation',
   } as Partial<CSSStyleDeclaration>)
-  // Reloading is what clears the scale; sessionStorage carries the game across it.
+  // A reload DOES clear the scale on Android, and on iOS the zoom is usually restored — which is
+  // why the layout above is what actually saves the session. sessionStorage carries the game across
+  // it either way, so the game is never lost by pressing this.
   el.addEventListener('click', () => window.location.reload())
   document.body.appendChild(el)
   escapeEl = el
@@ -67,38 +80,37 @@ function ensureEscape(): HTMLButtonElement {
 }
 
 export function lockZoom(): () => void {
-  // The viewport tag is left discouraging zoom, but nothing depends on it being obeyed.
-  const tag = document.querySelector('meta[name="viewport"]')
-  const previous = tag?.getAttribute('content') ?? null
-
-  // ⚠️ ONLY WHILE AT 1x. Blocking a gesture that is trying to zoom OUT is what trapped the player.
-  const stopIfUnzoomed = (e: Event) => { if (scale() <= AT_ONE_X) e.preventDefault() }
+  // ⚠️ GESTURES ARE ONLY BLOCKED AT 1x. Blocking one that is trying to zoom OUT is what trapped the
+  // player the second time.
+  const stopIfUnzoomed = (e: Event) => { if ((vv()?.scale ?? 1) <= ZOOMED) e.preventDefault() }
   const opts: AddEventListenerOptions = { passive: false }
   document.addEventListener('gesturestart', stopIfUnzoomed, opts)
   document.addEventListener('gesturechange', stopIfUnzoomed, opts)
 
   const sync = () => {
-    const zoomed = scale() > ZOOMED
+    follow()
+    const zoomed = (vv()?.scale ?? 1) > ZOOMED
     const el = zoomed ? ensureEscape() : escapeEl
     if (!el) return
     el.style.display = zoomed ? 'block' : 'none'
     if (zoomed) placeEscape(el)
   }
 
-  const vv = window.visualViewport
-  vv?.addEventListener('resize', sync)
-  vv?.addEventListener('scroll', sync)     // panning while zoomed moves the visible rectangle
+  const v = vv()
+  v?.addEventListener('resize', sync)
+  v?.addEventListener('scroll', sync)
   window.addEventListener('orientationchange', sync)
   sync()
 
   return () => {
     document.removeEventListener('gesturestart', stopIfUnzoomed, opts)
     document.removeEventListener('gesturechange', stopIfUnzoomed, opts)
-    vv?.removeEventListener('resize', sync)
-    vv?.removeEventListener('scroll', sync)
+    v?.removeEventListener('resize', sync)
+    v?.removeEventListener('scroll', sync)
     window.removeEventListener('orientationchange', sync)
     escapeEl?.remove()
     escapeEl = null
-    if (previous != null) tag?.setAttribute('content', previous)
+    const root = document.getElementById('root')
+    if (root) { root.style.cssText = '' }
   }
 }

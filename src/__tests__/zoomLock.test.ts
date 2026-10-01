@@ -47,19 +47,25 @@ describe('the page cannot be zoomed on a phone', () => {
   // player was trapped a second time. Gestures are only stopped at 1x now.
   it('never blocks a gesture that could be zooming back OUT', () => {
     expect(lock).toContain('stopIfUnzoomed')
-    expect(lock).toMatch(/scale\(\) <= AT_ONE_X/)
+    // the guard is conditional on the CURRENT scale, not unconditional
+    expect(lock).toMatch(/scale \?\? 1\) <= ZOOMED/)
     // and no blanket multi-touch refusal
     expect(lock).not.toMatch(/touches\.length > 1/)
   })
 
-  // ⚠️ AND THERE IS AN ESCAPE THAT DOES NOT DEPEND ON WINNING. Rewriting the viewport meta does
-  // NOT undo a user zoom on iOS, so the first version's "recovery" could never have fired. A reload
-  // does clear it, and sessionStorage carries the game across one.
-  it('offers a way out when the page is zoomed anyway', () => {
+  // ⚠️ AND THE APP SURVIVES A ZOOM RATHER THAN FIGHTING IT. Three attempts failed because the
+  // browser wins every fight over page scale: iOS ignores the viewport tag, ignores a meta rewrite,
+  // and RESTORES the zoom across the reload that was supposed to clear it ("works for a second then
+  // it forces me back into the zoomed in view"). So the root element follows the visible rectangle
+  // instead, and the game stays playable at any scale.
+  it('re-lays-out into the visible rectangle when zoomed', () => {
+    expect(lock).toContain('function follow')
+    for (const f of ['offsetLeft', 'offsetTop', 'v.width', 'v.height']) expect(lock).toContain(f)
+    expect(lock).toContain("getElementById('root')")
+  })
+
+  it('and still offers the button, without depending on it', () => {
     expect(lock).toContain('Reset view')
     expect(lock).toContain('location.reload')
-    // positioned inside the VISIBLE rectangle: a fixed element can be off-screen while zoomed
-    expect(lock).toContain('offsetLeft')
-    expect(lock).toContain('visualViewport')
   })
 })
