@@ -1,72 +1,104 @@
-// ── Keeping the page at 1× on a phone ([mobile]) ────────────────────────────
+// ── Getting back to 1× on a phone ([mobile]) ────────────────────────────────
 //
-// Reported: "on mobile when I two finger tap it zooms me in and I can't zoom out so I'm forced to
-// quit the game." Being trapped zoomed-in mid-game is worse than almost any gameplay bug — the
-// field is unreadable and there is no way back, so the only exit is abandoning the match.
+// Reported twice: "on mobile when I two finger tap it zooms me in and I can't zoom out so I'm
+// forced to quit the game." The first attempt at this tried to PREVENT the zoom. It did not work,
+// and worse, two things about it actively made the trap harder to escape:
 //
-// ⚠️ `touch-action: none` AND `maximum-scale` ARE NOT ENOUGH, AND BOTH WERE ALREADY SET. iOS
-// Safari has ignored `maximum-scale` and `user-scalable=no` since iOS 10, and it drives pinch and
-// two-finger zoom through its own `gesture*` events, above the level `touch-action` operates at.
-// The CSS stops the page SCROLLING; it does not stop Safari SCALING.
+//   ⚠️ BLOCKING MULTI-TOUCH BLOCKED THE WAY OUT. Refusing every two-finger touch also refuses the
+//     pinch-OUT that would have taken the player back to 1x. The guard removed the escape.
 //
-// So this does three things, in order of how much they are needed:
-//   1. blocks the iOS gesture events, which is what actually prevents the zoom
-//   2. blocks a multi-finger touch from starting one at all
-//   3. ⚠️ and RECOVERS if the page is zoomed anyway, because prevention that leaks still traps
-//      somebody. Rewriting the viewport meta forces the browser back to 1× — the one lever that
-//      works from script once a scale has been applied.
+//   ⚠️ REWRITING THE VIEWPORT META DOES NOT UNDO A USER ZOOM ON iOS. It works on some Android
+//     browsers, which is why the trick is widely repeated, and Safari ignores it once a person has
+//     pinched. The "recovery" could never have fired.
+//
+// So this stops trying to win that fight. It assumes the player WILL get zoomed and makes sure
+// there is always a way back:
+//
+//   1. gestures are only blocked while the page is AT 1x, so zooming in is discouraged and zooming
+//      back out is never prevented
+//   2. a RESET VIEW button appears whenever the page is zoomed, positioned inside the visible
+//      rectangle so it cannot be off-screen, and reloading is what actually clears the scale
+//
+// ⚠️ RELOADING DOES NOT LOSE THE GAME. The session token lives in sessionStorage and survives a
+// reload in the same tab, so the client rejoins the game in progress and restores its formation.
+// That is the only reason this is an acceptable escape hatch rather than a forfeit.
 
-const VIEWPORT_LOCKED = 'width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover'
+const ZOOMED = 1.05          // above this, treat the page as zoomed and offer the way out
+const AT_ONE_X = 1.01        // at or below this, the page is effectively unzoomed
 
-function viewportTag(): HTMLMetaElement | null {
-  return document.querySelector('meta[name="viewport"]')
+let escapeEl: HTMLButtonElement | null = null
+
+function scale(): number {
+  return window.visualViewport?.scale ?? 1
 }
 
-// Force the browser back to 1×. Toggling the content is what makes it re-read the tag; setting the
-// same string it already has does nothing, so it goes via a throwaway value first.
-function resetScale(): void {
-  const tag = viewportTag()
-  if (!tag) return
-  tag.setAttribute('content', VIEWPORT_LOCKED + ', shrink-to-fit=yes')
-  // A frame later, back to the real one. Same-tick changes are coalesced and ignored.
-  requestAnimationFrame(() => tag.setAttribute('content', VIEWPORT_LOCKED))
+// The button has to sit in the VISIBLE rectangle, not the layout one: while iOS is zoomed,
+// `position: fixed` is relative to the layout viewport, so a corner-pinned element is frequently
+// scrolled off the part of the screen the player can actually see.
+function placeEscape(el: HTMLButtonElement): void {
+  const vv = window.visualViewport
+  if (!vv) return
+  const pad = 10
+  el.style.left = `${vv.offsetLeft + pad}px`
+  el.style.top = `${vv.offsetTop + pad}px`
+  // Scale the control up as the page zooms in, so it stays a comfortable size on screen rather
+  // than growing with the zoom.
+  el.style.transform = `scale(${1 / Math.max(1, vv.scale)})`
+  el.style.transformOrigin = 'top left'
+}
+
+function ensureEscape(): HTMLButtonElement {
+  if (escapeEl) return escapeEl
+  const el = document.createElement('button')
+  el.type = 'button'
+  el.textContent = 'Reset view'
+  el.setAttribute('aria-label', 'Reset the zoom and rejoin the game')
+  Object.assign(el.style, {
+    position: 'fixed', zIndex: '2147483647', display: 'none',
+    padding: '10px 16px', borderRadius: '8px', border: '2px solid #fff',
+    background: '#c8102e', color: '#fff', font: '700 15px system-ui, sans-serif',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.5)', touchAction: 'manipulation',
+  } as Partial<CSSStyleDeclaration>)
+  // Reloading is what clears the scale; sessionStorage carries the game across it.
+  el.addEventListener('click', () => window.location.reload())
+  document.body.appendChild(el)
+  escapeEl = el
+  return el
 }
 
 export function lockZoom(): () => void {
-  const tag = viewportTag()
+  // The viewport tag is left discouraging zoom, but nothing depends on it being obeyed.
+  const tag = document.querySelector('meta[name="viewport"]')
   const previous = tag?.getAttribute('content') ?? null
-  tag?.setAttribute('content', VIEWPORT_LOCKED)
 
-  const stop = (e: Event) => e.preventDefault()
-
-  // 1. iOS Safari's own pinch/two-finger gestures. Non-passive or preventDefault is ignored.
+  // ⚠️ ONLY WHILE AT 1x. Blocking a gesture that is trying to zoom OUT is what trapped the player.
+  const stopIfUnzoomed = (e: Event) => { if (scale() <= AT_ONE_X) e.preventDefault() }
   const opts: AddEventListenerOptions = { passive: false }
-  document.addEventListener('gesturestart', stop, opts)
-  document.addEventListener('gesturechange', stop, opts)
-  document.addEventListener('gestureend', stop, opts)
+  document.addEventListener('gesturestart', stopIfUnzoomed, opts)
+  document.addEventListener('gesturechange', stopIfUnzoomed, opts)
 
-  // 2. A second finger landing is never a game input — the whole UI is single-touch.
-  const onTouch = (e: TouchEvent) => { if (e.touches.length > 1) e.preventDefault() }
-  document.addEventListener('touchstart', onTouch, opts)
-  document.addEventListener('touchmove', onTouch, opts)
+  const sync = () => {
+    const zoomed = scale() > ZOOMED
+    const el = zoomed ? ensureEscape() : escapeEl
+    if (!el) return
+    el.style.display = zoomed ? 'block' : 'none'
+    if (zoomed) placeEscape(el)
+  }
 
-  // 3. The safety net. If a scale got through anyway — a browser that honours none of the above,
-  // or a gesture that began before this ran — put it back rather than leaving somebody stuck.
   const vv = window.visualViewport
-  const onScale = () => { if (vv && vv.scale > 1.01) resetScale() }
-  vv?.addEventListener('resize', onScale)
-  // Rotating the device re-lays-out at whatever scale is current, which is the other way a zoom
-  // becomes permanent.
-  window.addEventListener('orientationchange', onScale)
+  vv?.addEventListener('resize', sync)
+  vv?.addEventListener('scroll', sync)     // panning while zoomed moves the visible rectangle
+  window.addEventListener('orientationchange', sync)
+  sync()
 
   return () => {
-    document.removeEventListener('gesturestart', stop, opts)
-    document.removeEventListener('gesturechange', stop, opts)
-    document.removeEventListener('gestureend', stop, opts)
-    document.removeEventListener('touchstart', onTouch, opts)
-    document.removeEventListener('touchmove', onTouch, opts)
-    vv?.removeEventListener('resize', onScale)
-    window.removeEventListener('orientationchange', onScale)
+    document.removeEventListener('gesturestart', stopIfUnzoomed, opts)
+    document.removeEventListener('gesturechange', stopIfUnzoomed, opts)
+    vv?.removeEventListener('resize', sync)
+    vv?.removeEventListener('scroll', sync)
+    window.removeEventListener('orientationchange', sync)
+    escapeEl?.remove()
+    escapeEl = null
     if (previous != null) tag?.setAttribute('content', previous)
   }
 }

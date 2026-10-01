@@ -35,18 +35,31 @@ describe('the page cannot be zoomed on a phone', () => {
 
   const lock = read('src/utils/lockZoom.ts')
 
-  it("blocks iOS Safari's own gestures, which the viewport tag does not", () => {
+  it("discourages iOS Safari's gestures, which the viewport tag does not", () => {
     // iOS has ignored user-scalable and maximum-scale since iOS 10; these events are the real lever.
-    for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) {
-      expect(lock).toContain(ev)
-    }
+    expect(lock).toContain('gesturestart')
     // preventDefault on a passive listener is ignored, so it has to opt out.
     expect(lock).toContain('passive: false')
   })
 
-  it('and can put the scale back if one gets through', () => {
-    // Prevention that leaks still traps somebody, so there is a recovery path.
+  // ⚠️ THE BLOCK MUST NOT APPLY WHILE ALREADY ZOOMED. The first version refused every
+  // multi-finger touch, which also refused the pinch-OUT -- it removed the only way back and the
+  // player was trapped a second time. Gestures are only stopped at 1x now.
+  it('never blocks a gesture that could be zooming back OUT', () => {
+    expect(lock).toContain('stopIfUnzoomed')
+    expect(lock).toMatch(/scale\(\) <= AT_ONE_X/)
+    // and no blanket multi-touch refusal
+    expect(lock).not.toMatch(/touches\.length > 1/)
+  })
+
+  // ⚠️ AND THERE IS AN ESCAPE THAT DOES NOT DEPEND ON WINNING. Rewriting the viewport meta does
+  // NOT undo a user zoom on iOS, so the first version's "recovery" could never have fired. A reload
+  // does clear it, and sessionStorage carries the game across one.
+  it('offers a way out when the page is zoomed anyway', () => {
+    expect(lock).toContain('Reset view')
+    expect(lock).toContain('location.reload')
+    // positioned inside the VISIBLE rectangle: a fixed element can be off-screen while zoomed
+    expect(lock).toContain('offsetLeft')
     expect(lock).toContain('visualViewport')
-    expect(lock).toContain('resetScale')
   })
 })
