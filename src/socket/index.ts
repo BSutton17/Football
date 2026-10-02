@@ -1,7 +1,7 @@
 import { io, type Socket } from 'socket.io-client'
 import type { ServerToClientEvents, ClientToServerEvents, SetOffensePayload, PlacePlayerPayload } from '../types/socket.ts'
 import type { GameMode, Difficulty } from '../types/game.ts'
-import { teamById } from '../data/nflTeams.ts'
+import { teamById, NFL_TEAMS } from '../data/nflTeams.ts'
 import type { NflTeam } from '../data/nflTeams.ts'
 
 export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
@@ -61,15 +61,40 @@ export function createSoloRoom(
   difficulty: Difficulty = 'easy',
   aiTeamId: string | null = null,
 ): void {
-  const team = aiTeamId ? teamById(aiTeamId) : undefined
-  const aiRoster = team ? soloRoster(team) : []
-  emitWhenConnected(() => socket.emit('create_solo_room', { roomId, mode, difficulty, aiTeamId, aiRoster }))
+  // ⚠️ "SURPRISE ME" USED TO COST THE COMPUTER ITS ENTIRE ROSTER, SILENTLY.
+  //
+  // `aiTeamId: null` means "pick for me", and this sent `aiRoster: []` with it. The server then had
+  // nothing to field a team from and fell back to `syntheticRoster` — ids and positions, no ratings and
+  // NO X-FACTORS. The computer played a whole game on generic position baselines while the player used
+  // their real roster, and nothing said so: the synthetic ids are `sea_wr1`, `sea_cb1`, exactly like the
+  // real ones, so the opponent still showed as Seattle with Seattle's logo.
+  //
+  // Reported as "the CBs were getting burned deep and the offense just could not do much". Seattle's
+  // actual corner is 95 speed / 97 acceleration / 97 awareness with the Intimidator X-Factor, and the
+  // second is Riq Woolen at 97 speed whose X-Factor is DEEP PASS DEMON — the very thing that was
+  // happening. The computer had none of it, and ran at the CB baseline of 90 speed / 85 awareness.
+  //
+  // So the random pick is made HERE, where the rosters live, and a concrete team always travels with
+  // its players. The server still validates the id; it simply no longer has to invent a team.
+  const team = (aiTeamId ? teamById(aiTeamId) : null) ?? randomSoloTeam()
+  emitWhenConnected(() => socket.emit('create_solo_room', {
+    roomId, mode, difficulty, aiTeamId: team.id, aiRoster: soloRoster(team),
+  }))
+}
+
+// A team the computer can actually field. The roster test matches the server's own
+// (`normalizeRoster`): five pass catchers and seven in coverage, or it would fall back to synthetic
+// anyway — which is the whole failure this is here to prevent.
+export function randomSoloTeam(): NflTeam {
+  const usable = NFL_TEAMS.filter(t => (t.offense?.length ?? 0) + (t.defense?.length ?? 0) >= 12)
+  const pool = usable.length > 0 ? usable : NFL_TEAMS
+  return pool[Math.floor(Math.random() * pool.length)]
 }
 
 // The players the computer picks its eleven from: the skill pool and the coverage pool. The line,
 // the quarterback and the down linemen are generated on both sides from the same table, so they are
 // not sent. Trimmed to what the AI reads — id, position, overall, name, ratings, X-Factor.
-function soloRoster(team: NflTeam) {
+export function soloRoster(team: NflTeam) {
   return [...(team.offense ?? []), ...(team.defense ?? [])].map(p => ({
     id: p.id, position: p.position, ovr: p.ovr, name: p.name,
     ratings: p.ratings, xFactor: p.xFactor,
