@@ -87,6 +87,10 @@ export interface GameState {
   difficulty?: Difficulty
   // [offline] The other seat is a computer. Server-authoritative, so it survives a refresh.
   solo?: boolean
+  // [transition screens] The server is holding the half-time box score and waiting for this client to
+  // dismiss it. ⚠️ Sent because the overlay lives in React state, so a REFRESH destroyed the only
+  // affordance that could restart the game — a softlock that refreshing made worse.
+  awaitingTransitionTap?: boolean
   // [chew clock] Whether this viewer may chew the clock on this snap — the conditions that hold still
   // for the whole pre-snap (offense, solo, no kick or menu). The play-clock threshold moves every
   // tick, so the client applies `chewMinPlayClock` against the clock it is displaying, and whether a

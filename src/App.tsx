@@ -626,6 +626,14 @@ export default function App() {
       setDefenseSetFlag(false)    // [offline] new play — the defense may declare ready again
       setRunAdjustUsed(false)     // [run adjust] a new play, a new look at the front
       setSoloGame(!!gs.solo)      // [offline] authoritative, so a refresh keeps the Set Defense button
+      // [transition screens] ⚠️ PUT THE HALF-TIME OVERLAY BACK AFTER A REFRESH. It lives in React state,
+      // so reloading mid-half-time threw away the "Tap to continue" the server was waiting for — and the
+      // server had booked no next play, so nothing else could ever restart the game. Every button is
+      // phase-gated and returns silently in DEAD, which is why it read as a freeze rather than an error.
+      // The server has a long fallback now as well; this is what makes the recovery immediate.
+      if (gs.awaitingTransitionTap) {
+        setPeriodTransition(prev => prev ?? { kind: 'halftime', endedQuarter: Math.max(1, (gs.quarter ?? 3) - 1) })
+      }
       // …and everything else only the server knows — see the note by `serverOnly`.
       setServerOnly({
         canChew: gs.canChew,
