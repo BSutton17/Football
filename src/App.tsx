@@ -592,6 +592,7 @@ export default function App() {
     }
     // [offline] Server-confirmed: the defense is set and the short countdown is running.
     function onDefenseSet() {
+      setDefenseAcked.current = true   // the press was real; the deadline above must not undo it
       setDefenseSetFlag(true)
     }
     function onGameState(gs: GameState) {
@@ -1173,6 +1174,33 @@ export default function App() {
   // [stats] Each team's own three at halftime, labelled from this viewer's side of the ball so
   // "You" is always the reader. Falls back to the outright leaders for an older server that only
   // sends `top`.
+  // [offline] ⚠️ THE BUTTON USED TO STAY PRESSED FOR EVER IF THE SERVER REFUSED.
+  //
+  // It flips to "Defense Set" optimistically and is only put back by a `game_state` for a NEW PLAY. So
+  // any silent refusal -- and every refusal in `set_defense` is silent, there is no error path --
+  // left a dead button with no way to retry, on a field that was not moving. That is the whole of what
+  // a player can see of a softlock, and it is why it could only be reported as "the button looks like
+  // it's been pressed but the game freezes".
+  //
+  // Now the optimistic flip is given a deadline: if the server has not confirmed with `defense_set`
+  // shortly, it goes back to being pressable. A real confirmation lands in milliseconds, so this is
+  // invisible when things work and is the difference between "try again" and "quit the game" when they
+  // do not. The server has a watchdog of its own for the state behind it.
+  // ⚠️ THE DEADLINE NEEDS ITS OWN RECORD OF THE CONFIRMATION. Testing the flag is no good: the
+  // server's `defense_set` sets the SAME flag, so a timeout keyed on it would cheerfully un-press a
+  // successful set two seconds later and make the button flicker in ordinary play.
+  const setDefenseTimer = useRef<number | null>(null)
+  const setDefenseAcked = useRef(false)
+  function pressSetDefense() {
+    setDefenseAcked.current = false
+    setDefenseSetFlag(true)
+    setDefense()
+    if (setDefenseTimer.current) window.clearTimeout(setDefenseTimer.current)
+    setDefenseTimer.current = window.setTimeout(() => {
+      if (!setDefenseAcked.current) setDefenseSetFlag(false)
+    }, 2000)
+  }
+
   // Solo half-time holds until the player dismisses it; every other interstitial self-clears.
   const awaitingTap = !!periodTransition && periodTransition.kind === 'halftime' && soloGame
   function dismissTransition() {
@@ -2348,7 +2376,7 @@ export default function App() {
           : phase === 'countdown') && (
         <button
           className={`formation-ready-btn${defenseSet ? ' formation-ready-btn--set' : ''}`}
-          onPointerDown={defenseSet ? undefined : () => { setDefenseSetFlag(true); setDefense() }}
+          onPointerDown={defenseSet ? undefined : pressSetDefense}
         >
           {phase === 'countdown'
             ? (defenseSet ? 'Ready ✓' : 'Ready')
