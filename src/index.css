@@ -1151,6 +1151,18 @@ body {
   white-space: nowrap;
 }
 
+/* ⚠️ THE OFFENSE'S SET FORMATION DOES NOT SIT ON THE RUN-ANGLE ROW. On a run (or RPO) the play-design
+   panel stacks the ◄ FWD ► dial on top of RUN/PASS/RPO, and that dial reached exactly the height this
+   button sat at, centred — so it covered the arrows you need before you can set. Lifting it in place
+   only moved it onto the backfield (the QB and backs line up right above the panel), so it goes to the
+   bottom-right instead: the same spot the GO button takes over once the formation is set. The two
+   short-screen blocks below already put it in that corner and lift it off the bottom strip. */
+.formation-ready-btn--offense {
+  left: auto;
+  right: 24px;
+  transform: none;
+}
+
 .formation-ready-btn--set {
   background: rgba(22, 163, 74, 0.35);
   cursor: default;
@@ -1199,7 +1211,17 @@ body {
   -webkit-touch-callout: none;
 }
 
-.go-btn:active { background: #166534; }
+/* ⚠️ NOT CENTRED. The QB lines up on the ball, so with the ball spotted in the middle of the field a
+   centred GO / HOLD TO RESUME sat directly on top of him — and in manual you hold it for the whole
+   play, so the one player you most need to see (and to run with) was hidden under your own finger.
+   The bottom-right corner is backfield grass nobody lines up on; short screens already put it there. */
+.go-btn {
+  left: auto;
+  right: 24px;
+  transform: none;
+}
+
+.go-btn:active { background: #166534; transform: scale(0.97); }
 
 .go-btn--frozen {
   background: #b45309;
@@ -1289,6 +1311,7 @@ body {
     bottom: 8px;
   }
   .hike-btn:active { transform: scale(0.97); }   /* drop the centering translate from the active state */
+  .formation-ready-btn--offense { bottom: 44px; }   /* up off the bottom strip, clear of the play controls */
 }
 
 /* Scramble button — offense, live pass play. Lets the QB take off as a runner ([184]). */
@@ -2275,6 +2298,7 @@ body {
   /* ── Buttons along the bottom edge ──────────────────────────────────────── */
   .formation-ready-btn,
   .hike-btn { bottom: 6px; padding: 10px 26px; font-size: 0.95rem; }
+  .formation-ready-btn--offense { bottom: 44px; }
   .go-btn   { padding: 12px 34px; font-size: 1rem; }
 
   /* The frozen banner rides just above a shorter GO button now. */

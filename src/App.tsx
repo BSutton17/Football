@@ -2354,7 +2354,7 @@ export default function App() {
       )}
       {role === 'offense' && formationErrors.length === 0 && phase === 'pre_snap' && !timeoutPause && (
         <button
-          className={`formation-ready-btn${lockedFormation ? ' formation-ready-btn--set' : ''}`}
+          className={`formation-ready-btn formation-ready-btn--offense${lockedFormation ? ' formation-ready-btn--set' : ''}`}
           onPointerDown={lockedFormation ? undefined : handleLockFormation}
         >
           {lockedFormation ? 'Formation Set' : 'Set Formation'}
