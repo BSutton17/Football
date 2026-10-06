@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fillSlots } from '../game/loadPlay'
+import { fillSlots, assignmentsFor } from '../game/loadPlay'
 import type { RosterPlayer } from '../types/player'
 import { enforceOffensiveFormation, validateOffensiveFormation } from '../game/formation'
 
@@ -147,5 +147,29 @@ describe('⚠️ MAN COVERAGE GETS THE RIGHT BODY', () => {
     ], DEF)
     expect(usedIds.size).toBe(3)
     expect(new Set(filled.map(f => f.player.id)).size).toBe(3)
+  })
+})
+
+// ⚠️ Reported as "players set to block in the plays are not blocking in the game". The server sends
+// a blocker as `blocking: true` with no route, and the loader only ever read the route.
+describe('a loaded play puts its blockers in to block', () => {
+  const route = [{ dx: 0, dy: 5 }, { dx: 3, dy: 10 }]
+  const spots = [
+    { label: 'TE', x: 20, y: 30, route: null, blocking: true },
+    { label: 'WR', x: 5, y: 30, route, blocking: false },
+    { label: 'RB', x: 26, y: 25, route: null, blocking: true },
+  ]
+
+  it('marks every blocking slot as BLOCK and gives the rest their routes', () => {
+    const { filled } = fillSlots(spots, BENCH)
+    const { routes, blocks } = assignmentsFor(filled)
+    expect(blocks).toEqual({ te1: 'block', rb1: 'block' })
+    expect(routes).toEqual({ wr1: route })
+  })
+
+  it('never hands a blocker a route, even an empty one', () => {
+    const { filled } = fillSlots([{ label: 'TE', x: 20, y: 30, route: [], blocking: true }], BENCH)
+    const { routes } = assignmentsFor(filled)
+    expect(routes).toEqual({})
   })
 })

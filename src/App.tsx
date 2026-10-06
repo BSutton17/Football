@@ -5,7 +5,7 @@ import PlayPicker from './components/PlayPicker.tsx'
 import DevPlayReveal from './components/DevPlayReveal.tsx'
 import { revealCoverage } from './game/revealCoverage.ts'
 import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './types/playbook.ts'
-import { fillSlots } from './game/loadPlay.ts'
+import { fillSlots, assignmentsFor } from './game/loadPlay.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
 import { opposingLine } from './game/opposingLine.ts'
 import { canRemoveAutoPlayer, isAutoPlayer, withoutRemoved } from './game/devRemove.ts'
@@ -1882,13 +1882,11 @@ export default function App() {
   function handleLoadPlay(play: OfferedPlay) {
     const { filled, usedIds: taken } = fillSlots(play.layout.spots, teamRoster.offense)
     const next: PositionUpdate[] = []
-    const routes: Record<string, RouteOffset[]> = {}
+    // Routes for the receivers, and BLOCK for the authored blockers — exactly as a double-tap would.
+    const { routes, blocks } = assignmentsFor(filled)
 
     for (const { spot, player } of filled) {
       next.push({ id: player.id, x: spot.x, y: spot.y, team: 'o', label: player.position })
-      // A blocker carries NO route rather than an empty one — the engine reads "has a drawn route"
-      // as "is running it", so an empty array would send him nowhere at full speed.
-      if (spot.route && spot.route.length) routes[player.id] = spot.route
     }
     if (!next.length) return
 
@@ -1906,7 +1904,7 @@ export default function App() {
     setLockedFormation(null)
     setPlacedPlayers(enforced)
     setDrawnRoutes(routes)
-    setPlayerRoutes({})        // a loaded play owns every assignment, so no stale named route survives
+    setPlayerRoutes(blocks)    // a loaded play owns every assignment, so no stale named route survives
     setPlayType(play.playType === 'run' ? 'run' : 'pass')
     setRouteMode('draw')       // …so the next tap edits the loaded routes rather than replacing them
     for (const p of enforced) {

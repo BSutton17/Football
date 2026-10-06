@@ -7,6 +7,7 @@
 // a substitution occurred.
 
 import type { RosterPlayer } from '../types/player.ts'
+import type { RouteOffset } from './routeDraw.ts'
 
 export interface SlotRequest {
   label: string       // 'WR' | 'TE' | 'RB' on offense; 'CB' | 'S' | 'LB' on defense
@@ -62,4 +63,23 @@ export function fillSlots<T extends SlotRequest>(spots: T[], bench: RosterPlayer
   }
 
   return { filled, usedIds, unfilled }
+}
+
+// What each filled slot is told to do: a drawn route, or BLOCK.
+//
+// ⚠️ A BLOCKER IS PUT IN TO BLOCK — having no route is not the same thing. The server marks a
+// blocking spot `blocking` and sends no route for him; reading only the route left every authored
+// blocker standing in the game, unassigned, until the player double-tapped him by hand.
+export function assignmentsFor(
+  filled: FilledSlot<SlotRequest & { route?: RouteOffset[] | null; blocking?: boolean }>[],
+): { routes: Record<string, RouteOffset[]>; blocks: Record<string, 'block'> } {
+  const routes: Record<string, RouteOffset[]> = {}
+  const blocks: Record<string, 'block'> = {}
+  for (const { spot, player } of filled) {
+    if (spot.blocking) blocks[player.id] = 'block'
+    // A blocker carries NO route rather than an empty one — the engine reads "has a drawn route"
+    // as "is running it", so an empty array would send him nowhere at full speed.
+    else if (spot.route && spot.route.length) routes[player.id] = spot.route
+  }
+  return { routes, blocks }
 }
