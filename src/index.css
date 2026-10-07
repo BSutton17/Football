@@ -3205,6 +3205,16 @@ body {
   .stat-spotlight-name { font-size: 0.88rem; }
 }
 
+/* ⚠️ ANY TOUCH SCREEN HELD SIDEWAYS, NOT ONLY A SHORT ONE. The rule above keys off the compact phone
+   layout (≤500px tall), so a large phone, a tablet, or a phone in "desktop site" mode missed it and the
+   card stayed centred over the field — reported as "still in the middle of the screen". Here the wider
+   desktop roster panel (72px plus its tab) is on that edge, so the corner sits a little further in. */
+@media (orientation: landscape) and (pointer: coarse) and (min-height: 501px) {
+  .stat-spotlight--top { top: 52px; transform: none; animation-name: stat-spotlight-in-side; }
+  .stat-spotlight--top.stat-spotlight--left  { left: 110px; right: auto; }
+  .stat-spotlight--top.stat-spotlight--right { left: auto; right: 110px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .stat-spotlight { animation: none; transition: none; }
 }
