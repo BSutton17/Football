@@ -595,6 +595,7 @@ export interface RouteArt {
   routeDepths: Record<string, number>
   drawnRoutes: Record<string, { dx: number; dd: number }[]>
   ballX: number
+  colors?: Record<string, string>   // [route colours] red/blue markings, by player id
 }
 
 const ROUTE_ART_ALPHA = 0.4
@@ -649,7 +650,7 @@ function drawRouteArtLayer(
     }
     if (!path || path.length === 0) continue
 
-    drawRoutePath(ctx, cam, p, path, DRAWN_ROUTE_COLOR, 2)
+    drawRoutePath(ctx, cam, p, path, art.colors?.[p.id] ?? DRAWN_ROUTE_COLOR, 2)
     drawRouteStartGhost(ctx, cam, p, ownTeam)
   }
   ctx.restore()
@@ -1257,6 +1258,9 @@ export function drawDrawnRoutes(
   positions: PositionUpdate[],
   cameraY: number,
   drawnRoutes: Record<string, { dx: number; dd: number }[]>,
+  // [route colours] Per-route colour overrides (the sandbox's red/blue marking); anything not listed
+  // draws in the normal route yellow.
+  colors: Record<string, string> = {},
 ) {
   const cam = computeCamera(cssW, cssH, cameraY)
   for (const [id, offsets] of Object.entries(drawnRoutes)) {
@@ -1266,7 +1270,7 @@ export function drawDrawnRoutes(
     if (p.route === 'block') continue
 
     const path = offsets.map(o => ({ x: p.x + o.dx, y: p.y + o.dd }))
-    drawRoutePath(ctx, cam, p, path, DRAWN_ROUTE_COLOR, 2.5)
+    drawRoutePath(ctx, cam, p, path, colors[id] ?? DRAWN_ROUTE_COLOR, 2.5)
   }
 }
 

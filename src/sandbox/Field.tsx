@@ -40,6 +40,8 @@ interface Props {
   opponents?: FieldPlayer[]
   opponentSide?: 'offense' | 'defense'
   routes?: Record<string, RouteOffset[]>
+  // [route colours] Hex colour per slot for routes marked red or blue.
+  routeColors?: Record<string, string>
   blocks?: Set<string>
   carrier?: string | null
   selected?: string | null
@@ -73,7 +75,7 @@ function toPosition(p: FieldPlayer, side: 'offense' | 'defense'): PositionUpdate
 }
 
 export default function Field({
-  players, side, opponents = [], opponentSide, routes = {}, blocks = new Set(),
+  players, side, opponents = [], opponentSide, routes = {}, routeColors = {}, blocks = new Set(),
   carrier = null, selected = null, draggable = false, onMove, onSelect, onDrawRoute,
   manTargets = {}, zoneTypes = {}, zoneCenters = {}, blitzIds = [], spyIds = [], onMoveZone,
 }: Props) {
@@ -131,7 +133,7 @@ export default function Field({
       ctx, size.w, size.h, gs, all, LOS, selected ?? carrier,
       {}, null, manTargets, zoneTypes, zoneCenters, blitzIds, spyIds,
     )
-    drawDrawnRoutes(ctx, size.w, size.h, all, LOS, routeArt)
+    drawDrawnRoutes(ctx, size.w, size.h, all, LOS, routeArt, routeColors)
     if (stroke) drawActiveStroke(ctx, size.w, size.h, LOS, stroke.pts)
   })
 

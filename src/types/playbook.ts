@@ -16,6 +16,8 @@ export interface PlaySpot {
   // "is running it", so an empty array would send him nowhere at full speed.
   route: RouteOffset[] | null
   blocking: boolean
+  // [route colours] The authored red/blue marking, or null for the normal colour.
+  color?: import('../game/routeColors.ts').RouteColor | null
 }
 
 export interface PlayLayout {

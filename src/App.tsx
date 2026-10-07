@@ -7,6 +7,8 @@ import { revealCoverage } from './game/revealCoverage.ts'
 import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './types/playbook.ts'
 import { fillSlots, assignmentsFor } from './game/loadPlay.ts'
 import { pickSubstitute, moveKey } from './game/substitution.ts'
+import { colorAfterChange, routeColorHex } from './game/routeColors.ts'
+import type { RouteColor } from './game/routeColors.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
 import { opposingLine } from './game/opposingLine.ts'
 import { canRemoveAutoPlayer, isAutoPlayer, withoutRemoved } from './game/devRemove.ts'
@@ -208,6 +210,19 @@ export default function App() {
   // applied to a line of scrimmage that has since moved.
   const playSerialRef = useRef(0)
   const [playerRoutes, setPlayerRoutes] = useState<Record<string, RouteType>>({})
+  // [route colours] The authored red/blue marking on each receiver's route, from a loaded play. Kept
+  // apart from the routes themselves because it follows its own rule when a route changes (see
+  // routeColors.ts: blue stays, red goes back to yellow).
+  const [routeColors, setRouteColors] = useState<Record<string, RouteColor>>({})
+  // A route for this player changed: apply the colour rule.
+  const recolorOnChange = (playerId: string) =>
+    setRouteColors(prev => {
+      if (!(playerId in prev)) return prev
+      const next = colorAfterChange(prev[playerId])
+      const n = { ...prev }
+      if (next) n[playerId] = next; else delete n[playerId]
+      return n
+    })
   const [routeDepths, setRouteDepths] = useState<Record<string, number>>({})
   const [playerCoverage, setPlayerCoverage] = useState<Record<string, CoverageType>>({})
   const [manTargets, setManTargets] = useState<Record<string, string>>({})
@@ -775,6 +790,7 @@ export default function App() {
         setBallX(FIELD_MID)
         setPlayerRoutes({})
         setDrawnRoutes({})
+        setRouteColors({})
         setRouteDepths({})
         setPlayerCoverage({})
         setManCommits({})
@@ -984,6 +1000,7 @@ export default function App() {
     setDlPositions(freshDl(YARD_LINE))
     setPlayerRoutes({})
     setDrawnRoutes({})
+    setRouteColors({})
     setRouteDepths({})
     setPlayerCoverage({})
     setManCommits({})
@@ -1011,6 +1028,7 @@ export default function App() {
       setDlPositions(freshDl(YARD_LINE))
       setPlayerRoutes({})
       setDrawnRoutes({})
+      setRouteColors({})
       setRouteDepths({})
       setPlayerCoverage({})
       setManCommits({})
@@ -1431,7 +1449,7 @@ export default function App() {
     difficulty === 'medium' && role === 'offense' && phase === 'live' &&
     manualLive && manualFrozen && lockedFormation
   )
-    ? { positions: lockedFormation, routeDepths, drawnRoutes, ballX }
+    ? { positions: lockedFormation, routeDepths, drawnRoutes, ballX, colors: routeColorHex(routeColors) }
     : null
 
   // [rpo] playType is the offense's OWN call, carried here purely so the renderer can tell run art
@@ -1591,6 +1609,7 @@ export default function App() {
     restingRef.current.add(playerId)                   // [fatigue subs] taken off: PLAYS/SHELLS use him last
     setPlacedPlayers(prev => prev.filter(p => p.id !== playerId))
     setPlayerRoutes(prev => { const n = { ...prev }; delete n[playerId]; return n })
+    setRouteColors(prev => { if (!(playerId in prev)) return prev; const n = { ...prev }; delete n[playerId]; return n })
     setRouteDepths(prev => { const n = { ...prev }; delete n[playerId]; return n })
     // A removed defender takes their assignment with them — clear the man/zone line locally and
     // on the server so no orphaned coverage stays on the field.
@@ -1632,6 +1651,7 @@ export default function App() {
       setPlayerRoutes(prev => moveKey(prev, out.id, sub.id))
       setRouteDepths(prev => moveKey(prev, out.id, sub.id))
       setDrawnRoutes(prev => moveKey(prev, out.id, sub.id))
+      setRouteColors(prev => moveKey(prev, out.id, sub.id))
       setLockedFormation(null)
     } else {
       // His coverage goes with the spot, on both screens.
@@ -1667,6 +1687,7 @@ export default function App() {
 
   function handleRouteSelect(playerId: string, route: RouteType) {
     setPlayerRoutes(prev => ({ ...prev, [playerId]: route }))
+    recolorOnChange(playerId)   // [route colours] a new route: blue stays, red goes back to yellow
     // [route draw] One receiver, one route. Picking from the list replaces anything he had drawn —
     // otherwise both would be sent with the formation and the server, which prefers the drawn one,
     // would quietly ignore the choice just made.
@@ -1977,6 +1998,7 @@ export default function App() {
     if (!route) return
 
     setDrawnRoutes(prev => ({ ...prev, [id]: route }))
+    recolorOnChange(id)         // [route colours] a new route: blue stays, red goes back to yellow
     // A drawn route replaces whatever the menu had assigned — one receiver, one route.
     setPlayerRoutes(prev => { const n = { ...prev }; delete n[id]; return n })
   }
@@ -1998,6 +2020,7 @@ export default function App() {
     setDrawingFor(null)
     setDrawnRoutes({})
     setPlayerRoutes({})
+    setRouteColors({})
     setRouteDepths({})
   }
 
@@ -2022,7 +2045,7 @@ export default function App() {
     })
     const next: PositionUpdate[] = []
     // Routes for the receivers, and BLOCK for the authored blockers — exactly as a double-tap would.
-    const { routes, blocks } = assignmentsFor(filled)
+    const { routes, blocks, colors } = assignmentsFor(filled)
 
     for (const { spot, player } of filled) {
       next.push({ id: player.id, x: spot.x, y: spot.y, team: 'o', label: player.position })
@@ -2043,6 +2066,7 @@ export default function App() {
     setLockedFormation(null)
     setPlacedPlayers(enforced)
     setDrawnRoutes(routes)
+    setRouteColors(colors)      // [route colours] the play's authored markings
     setPlayerRoutes(blocks)    // a loaded play owns every assignment, so no stale named route survives
     setPlayType(play.playType === 'run' ? 'run' : 'pass')
     setRouteMode('draw')       // …so the next tap edits the loaded routes rather than replacing them
@@ -2321,6 +2345,7 @@ export default function App() {
           : (phase === 'pre_snap' || phase === 'countdown') ? alertedFatigue(fatigueAlertsRef.current, fatigue, fatigueSerial)
           : {}}
         onSubRequest={handleSubRequest}
+        routeColors={routeColorHex(routeColors)}
         ownTeam={ownTeam}
         oppTeam={oppTeam}
         logoTeamId={ownIsHome ? myTeamId : oppTeamId}

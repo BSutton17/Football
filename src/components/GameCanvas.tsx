@@ -70,6 +70,8 @@ interface Props {
   // [fatigue subs] Swap this player for the next best available at his position. The App decides
   // whether that is allowed and who comes on; the canvas only reports the gesture.
   onSubRequest?: (playerId: string) => void
+  // [route colours] Hex colour per player for routes marked red or blue (from a loaded play).
+  routeColors?: Record<string, string>
   onDrawStroke?: (points: { x: number; y: number }[]) => void
   drawnRoutes?: Record<string, { dx: number; dd: number }[]>
   // [medium] Route art drawn UNDER the players while a manual play is frozen; null otherwise.
@@ -80,7 +82,7 @@ function isDLPlayer(id: string)  { return id.startsWith('auto_dl') }
 // QB and OL are fully locked; DL can slide horizontally
 function isLockedAuto(id: string) { return id.startsWith('auto_') && !isDLPlayer(id) }
 
-export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection, routeDrawMode, drawingFor, onRequestDraw, onRequestBlock, onDrawStroke, drawnRoutes, routeArt, onSubRequest }: Props) {
+export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection, routeDrawMode, drawingFor, onRequestDraw, onRequestBlock, onDrawStroke, drawnRoutes, routeArt, onSubRequest, routeColors }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const ballIconRef  = useRef<HTMLDivElement>(null)
   const gameStateRef = useRef(gameState)
@@ -120,6 +122,8 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
   onRequestBlockRef.current = onRequestBlock
   const onSubRequestRef = useRef(onSubRequest)
   onSubRequestRef.current = onSubRequest
+  const routeColorsRef = useRef<Record<string, string>>(routeColors ?? {})
+  routeColorsRef.current = routeColors ?? {}
   // [fatigue subs] The pending press-and-hold, and whether it fired (so the release is not ALSO
   // taken as a drop or a tap).
   const longPressRef = useRef<{ timer: number; id: string; x: number; y: number } | null>(null)
@@ -661,7 +665,7 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
         if (gameStateRef.current?.phase === 'pre_snap') {
           const dr = drawnRoutesRef.current
           if (dr && Object.keys(dr).length > 0) {
-            drawDrawnRoutes(x, cssW, cssH, renderPositions, cameraRef.current.currentY, dr)
+            drawDrawnRoutes(x, cssW, cssH, renderPositions, cameraRef.current.currentY, dr, routeColorsRef.current)
           }
           if (strokeRef.current && strokeRef.current.length > 1) {
             drawActiveStroke(x, cssW, cssH, cameraRef.current.currentY, strokeRef.current)

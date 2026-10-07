@@ -8,6 +8,7 @@
 
 import type { RosterPlayer } from '../types/player.ts'
 import type { RouteOffset } from './routeDraw.ts'
+import type { RouteColor } from './routeColors.ts'
 
 export interface SlotRequest {
   label: string       // 'WR' | 'TE' | 'RB' on offense; 'CB' | 'S' | 'LB' on defense
@@ -83,15 +84,20 @@ export function fillSlots<T extends SlotRequest>(spots: T[], bench: RosterPlayer
 // blocking spot `blocking` and sends no route for him; reading only the route left every authored
 // blocker standing in the game, unassigned, until the player double-tapped him by hand.
 export function assignmentsFor(
-  filled: FilledSlot<SlotRequest & { route?: RouteOffset[] | null; blocking?: boolean }>[],
-): { routes: Record<string, RouteOffset[]>; blocks: Record<string, 'block'> } {
+  filled: FilledSlot<SlotRequest & { route?: RouteOffset[] | null; blocking?: boolean; color?: RouteColor | null }>[],
+): { routes: Record<string, RouteOffset[]>; blocks: Record<string, 'block'>; colors: Record<string, RouteColor> } {
   const routes: Record<string, RouteOffset[]> = {}
   const blocks: Record<string, 'block'> = {}
+  const colors: Record<string, RouteColor> = {}
   for (const { spot, player } of filled) {
     if (spot.blocking) blocks[player.id] = 'block'
     // A blocker carries NO route rather than an empty one — the engine reads "has a drawn route"
     // as "is running it", so an empty array would send him nowhere at full speed.
-    else if (spot.route && spot.route.length) routes[player.id] = spot.route
+    else if (spot.route && spot.route.length) {
+      routes[player.id] = spot.route
+      // [route colours] The authored marking travels with the route, onto whoever fills the slot.
+      if (spot.color) colors[player.id] = spot.color
+    }
   }
-  return { routes, blocks }
+  return { routes, blocks, colors }
 }

@@ -1,3 +1,4 @@
+import { ROUTE_COLOR_HEX } from '../game/routeColors.ts'
 import type { PlaySpot, ShellSpot } from '../types/playbook.ts'
 
 // [authored] The picture on a play card.
@@ -169,8 +170,8 @@ export default function PlayDiagram({ losY, distance, offense, defense }: Props)
               <polyline
                 points={path.join(' ')}
                 fill="none"
-                stroke={C.route}
-                strokeWidth={1.1}
+                stroke={s.color ? ROUTE_COLOR_HEX[s.color] : C.route}
+                strokeWidth={s.color ? 1.4 : 1.1}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />

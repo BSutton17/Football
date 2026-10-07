@@ -13,8 +13,13 @@ export interface Spot { slot: Slot; dx: number; depth: number }
 export interface Formation { name: string; category: Category; spots: Spot[] }
 
 export interface RouteOffset { dx: number; dd: number }
+// [route colours] A sandbox-only marking for reading a play at a glance — e.g. the primary read in
+// red, the check-down in blue. No colour means the game's normal route yellow. The engine ignores it.
+import type { RouteColor } from '../game/routeColors'
+export type { RouteColor } from '../game/routeColors'
+export { ROUTE_COLOR_HEX } from '../game/routeColors'
 export type Assignment =
-  | { kind: 'route'; points: RouteOffset[] }
+  | { kind: 'route'; points: RouteOffset[]; color?: RouteColor }
   | { kind: 'block' }
   | { kind: 'carry' }
 

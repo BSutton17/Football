@@ -16,7 +16,8 @@ import type { FieldPlayer } from './Field'
 import {
   getPlaybook, createItem, updateItem, deleteItem, ApiError,
 } from './api'
-import type { Playbook, Formation, Play, Category, PlayType, RouteOffset, Assignment } from './api'
+import type { Playbook, Formation, Play, Category, PlayType, RouteOffset, Assignment, RouteColor } from './api'
+import { ROUTE_COLOR_HEX } from './api'
 import { beautifyRoute } from '../game/routeDraw'
 import { DefFormationEditor, ShellEditor } from './DefenseEditors'
 
@@ -287,10 +288,14 @@ function PlayEditor({ book, onSaved, onError }: {
   const reset = () => { setId(null); setName(''); setPlayType('pass'); setAssignments({}); setSelected(null) }
 
   const routes: Record<string, RouteOffset[]> = {}
+  const routeColors: Record<string, string> = {}
   const blocks = new Set<string>()
   let carrier: string | null = null
   for (const [slot, a] of Object.entries(assignments)) {
-    if (a.kind === 'route') routes[slot] = a.points
+    if (a.kind === 'route') {
+      routes[slot] = a.points
+      if (a.color) routeColors[slot] = ROUTE_COLOR_HEX[a.color]
+    }
     if (a.kind === 'block') blocks.add(slot)
     if (a.kind === 'carry') carrier = slot
   }
@@ -302,7 +307,22 @@ function PlayEditor({ book, onSaved, onError }: {
     // points arrive in real field coordinates, so the anchor is the receiver's real spot.
     const offsets = beautifyRoute(pts, { x: BALL_X + p.dx, y: LOS - p.depth })
     if (!offsets) return
-    setAssignments(a => ({ ...a, [slot]: { kind: 'route', points: offsets } }))
+    // A redrawn route keeps the colour it was marked with.
+    setAssignments(a => {
+      const prev = a[slot]
+      const color = prev?.kind === 'route' ? prev.color : undefined
+      return { ...a, [slot]: color ? { kind: 'route', points: offsets, color } : { kind: 'route', points: offsets } }
+    })
+  }
+
+  // [route colours] Mark a route red or blue, or back to the normal yellow (null).
+  const setRouteColor = (slot: string, color: RouteColor | null) => {
+    setAssignments(a => {
+      const prev = a[slot]
+      if (prev?.kind !== 'route') return a
+      const next: Assignment = color ? { kind: 'route', points: prev.points, color } : { kind: 'route', points: prev.points }
+      return { ...a, [slot]: next }
+    })
   }
 
   const save = async () => {
@@ -382,6 +402,7 @@ function PlayEditor({ book, onSaved, onError }: {
           side="offense"
           opponents={opponents}
           routes={playType === 'run' ? {} : routes}
+          routeColors={routeColors}
           blocks={blocks}
           carrier={carrier}
           selected={selected}
@@ -398,6 +419,25 @@ function PlayEditor({ book, onSaved, onError }: {
             <button onClick={() => setAssignments(a => { const n = { ...a }; delete n[selected]; return n })} style={chip(false, false)}>
               Clear
             </button>
+            {/* [route colours] Only once he has a route to colour. */}
+            {assignments[selected]?.kind === 'route' && (() => {
+              const cur = (assignments[selected] as { color?: RouteColor }).color ?? null
+              const swatch = (c: RouteColor | null, label: string, hex: string) => (
+                <button key={label} onClick={() => setRouteColor(selected, c)} title={`${label} route`}
+                  style={{ ...chip(cur === c, false), display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 2, background: hex, display: 'inline-block' }} />
+                  {label}
+                </button>
+              )
+              return (
+                <>
+                  <span style={{ fontSize: 12, color: '#6b7a70', marginLeft: 8 }}>colour:</span>
+                  {swatch(null, 'Yellow', '#fde047')}
+                  {swatch('red', 'Red', ROUTE_COLOR_HEX.red)}
+                  {swatch('blue', 'Blue', ROUTE_COLOR_HEX.blue)}
+                </>
+              )
+            })()}
           </div>
         )}
 
