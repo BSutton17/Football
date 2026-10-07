@@ -31,7 +31,7 @@ const C = {
   firstDown: '#ffd600',
   offense: '#1e88e5',
   defense: '#e53935',
-  route: '#ffffff',
+  route: '#fde047',   // the game's route yellow (renderer DRAWN_ROUTE_COLOR), not white
 }
 
 interface Props {

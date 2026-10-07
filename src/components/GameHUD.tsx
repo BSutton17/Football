@@ -1,3 +1,4 @@
+import { downAndDistance } from '../game/downDistance.ts'
 import { useEffect, useState } from 'react'
 import type { GameState } from '../types/game.ts'
 import { socket, chewClock } from '../socket/index.ts'
@@ -28,7 +29,6 @@ function formatClock(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-const DOWN_SUFFIX = ['', 'st', 'nd', 'rd', 'th'] as const
 
 const PLAY_CLOCK_SECONDS = 25
 
@@ -124,8 +124,6 @@ export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
   // 5 reads "5", not "95"; their 40 reads "40", not "60").
   const yl = Math.round(yardLine)
   const fieldYard = yl <= 50 ? yl : 100 - yl
-  // Goal-to-go: the first-down line is at or past the goal, so the goal IS the marker → "& Goal".
-  const goalToGo = yardLine + distance >= 100
   // Hide the play clock during a special-teams play — the kick runs on its own timer, so a frozen
   // play-clock number up top is just clutter ([41]).
   const showPlayClock = (phase === 'pre_snap' || phase === 'countdown') && !gameState.specialTeams
@@ -178,7 +176,7 @@ export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
       </div>
 
       <div className="hud-bottom">
-        <span className="hud-down">{down}{DOWN_SUFFIX[down]} &amp; {goalToGo ? 'Goal' : distance < 1 ? 'inches' : Math.round(distance)}</span>
+        <span className="hud-down">{downAndDistance(down, distance, yardLine)}</span>
         <span className="hud-yard-line">Ball on {fieldYard}</span>
       </div>
     </>

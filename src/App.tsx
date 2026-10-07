@@ -8,6 +8,7 @@ import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './t
 import { fillSlots, assignmentsFor } from './game/loadPlay.ts'
 import { pickSubstitute, moveKey } from './game/substitution.ts'
 import { colorAfterChange, routeColorHex } from './game/routeColors.ts'
+import { downAndDistance } from './game/downDistance.ts'
 import type { RouteColor } from './game/routeColors.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
 import { opposingLine } from './game/opposingLine.ts'
@@ -2765,7 +2766,7 @@ export default function App() {
       {pickerOpen && role === 'offense' && (
         <PlayPicker
           kind="plays"
-          situation={`${down} & ${distance}`}
+          situation={downAndDistance(down, distance, losYardLine)}
           losY={losYardLine}
           distance={distance}
           items={offeredPlays ?? []}
@@ -2776,7 +2777,7 @@ export default function App() {
       {pickerOpen && role === 'defense' && (
         <PlayPicker
           kind="shells"
-          situation={`${down} & ${distance}`}
+          situation={downAndDistance(down, distance, losYardLine)}
           losY={losYardLine}
           distance={distance}
           items={offeredShells ?? []}
