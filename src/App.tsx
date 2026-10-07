@@ -33,6 +33,7 @@ import { teamColors, textColorOn, accentColor} from './data/teamColors.ts'
 import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveFormation, validateOffensiveFormation, validateDefensiveFormation } from './game/formation.ts'
 import { computeCamera } from './game/renderer.ts'
 import { useMediaQuery } from './hooks/useMediaQuery.ts'
+import { createFatigueAlerts, noteFatigue, alertedFatigue, benchStamina } from './game/fatigueAlerts.ts'
 import StatSpotlight, { readableAccent } from './components/StatSpotlight.tsx'
 import { NFL_TEAMS } from './data/nflTeams.ts'
 import { TEAM_COLORS } from './data/teamColors.ts'
@@ -389,6 +390,10 @@ export default function App() {
   // snapshot (playerId → 0–100) the server sends with each game_state.
   const [fatigueVisible, setFatigueVisible] = useState(false)
   const [fatigue, setFatigue] = useState<Record<string, number>>({})
+  // [fatigue alerts] Who has already had their first-time-in-the-yellow bar, and which play serial the
+  // stamina snapshot belongs to — so a one-snap bar ends at the next line-up. See game/fatigueAlerts.ts.
+  const fatigueAlertsRef = useRef(createFatigueAlerts())
+  const [fatigueSerial, setFatigueSerial] = useState(0)
   // [names toggle] Defense-only switch between showing player NAMES (default) and POSITIONS. When off,
   // names are withheld so the renderer falls back to the position label — for both teams' skill
   // players (QB is unaffected: the defense already sees it as "QB", never by name).
@@ -744,6 +749,8 @@ export default function App() {
       prevBallXRef.current = newBallX
       setBallX(newBallX)
       setFatigue(gs.fatigue ?? {})   // [fatigue] authoritative stamina snapshot for the bars
+      noteFatigue(fatigueAlertsRef.current, gs.fatigue ?? {}, gs.playSerial ?? 0)
+      setFatigueSerial(gs.playSerial ?? 0)
       setSpecialTeams(gs.specialTeams ?? null)   // [Special Teams][1] sync the kicking state on play boundaries / reconnect
       setDecision(gs.decision ?? null)           // [Special Teams][2][3] 4th-down menu (offense only; cleared once chosen)
       setXfActiveIds(gs.xfActiveIds ?? [])       // [294] active X-Factors — star shows pre-snap too
@@ -2179,6 +2186,7 @@ export default function App() {
   // [222] Postgame "Play Again" — ask the server to start a fresh game on the same room. The
   // reset arrives as roles_assigned + game_state, which clears the overlay and the formation.
   function handlePlayAgain() {
+    fatigueAlertsRef.current = createFatigueAlerts()   // a new game: everyone's first yellow is ahead again
     resetGame()
   }
 
@@ -2229,8 +2237,12 @@ export default function App() {
         spyIds={aiCoverage ? [...spyIds, ...aiCoverage.spyIds] : spyIds}
         snapLocked={false}
         carrierVision={carrierVision}
-        showFatigue={fatigueVisible}
-        fatigue={fatigue}
+        // [fatigue alerts] The toggle shows everyone; otherwise only a player newly in the yellow (for
+        // one snap) or anyone in the red — and only BEFORE the snap, never over a live play.
+        showFatigue={true}
+        fatigue={fatigueVisible ? fatigue
+          : (phase === 'pre_snap' || phase === 'countdown') ? alertedFatigue(fatigueAlertsRef.current, fatigue, fatigueSerial)
+          : {}}
         ownTeam={ownTeam}
         oppTeam={oppTeam}
         logoTeamId={ownIsHome ? myTeamId : oppTeamId}
@@ -2684,6 +2696,7 @@ export default function App() {
           fieldCount={fieldCount}
           limitReached={limitReached}
           fatigueOn={fatigueVisible}
+          staminaById={benchStamina(fatigue)}
           onToggleFatigue={() => setFatigueVisible(v => !v)}
         />
       )}
@@ -2696,6 +2709,7 @@ export default function App() {
           fieldCount={fieldCount}
           limitReached={limitReached}
           fatigueOn={fatigueVisible}
+          staminaById={benchStamina(fatigue)}
           onToggleFatigue={() => setFatigueVisible(v => !v)}
           namesOn={showNames}
           onToggleNames={() => setShowNames(v => !v)}

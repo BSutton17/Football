@@ -18,6 +18,9 @@ interface Props {
   limitReached: boolean
   fatigueOn: boolean
   onToggleFatigue: () => void
+  // [fatigue alerts] Stamina of benched players still in the yellow or red — their card carries a bar
+  // until they are back in the green. Players not in here show no bar.
+  staminaById?: Record<string, number>
   // [names toggle] Defense-only: switch the field labels between player names and positions. Omit to
   // hide the button (offense).
   namesOn?: boolean
@@ -35,7 +38,7 @@ function shortName(name: string): string {
 const MOBILE_LANDSCAPE = '(orientation: landscape) and (max-height: 500px)'
 const PORTRAIT         = '(orientation: portrait)'
 
-export default function RosterSidebar({ players, team, side, onDrop, fieldCount, limitReached, fatigueOn, onToggleFatigue, namesOn, onToggleNames }: Props) {
+export default function RosterSidebar({ players, team, side, onDrop, fieldCount, limitReached, fatigueOn, onToggleFatigue, namesOn, onToggleNames, staminaById }: Props) {
   const [userOpen, setUserOpen] = useState(true)
 
   const isMobileLandscape = useMediaQuery(MOBILE_LANDSCAPE)
@@ -146,6 +149,15 @@ export default function RosterSidebar({ players, team, side, onDrop, fieldCount,
               </div>
               <div className="roster-name">{shortName(p.name)}</div>
               {p.ovr != null && <div className="roster-ovr">{p.ovr} OVR</div>}
+              {staminaById?.[p.id] != null && (
+                // Same bands and colours as the bar under a player on the field.
+                <div className="roster-stamina" aria-label={`Stamina ${Math.round(staminaById[p.id])}%`}>
+                  <span
+                    className={staminaById[p.id] > 30 ? 'roster-stamina-fill--yellow' : 'roster-stamina-fill--red'}
+                    style={{ width: `${Math.max(0, Math.min(100, staminaById[p.id]))}%` }}
+                  />
+                </div>
+              )}
             </div>
           ))}
 

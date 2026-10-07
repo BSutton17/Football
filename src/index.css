@@ -684,6 +684,19 @@ body {
   transition: opacity 0.1s;
 }
 
+/* [fatigue alerts] A benched player still in the yellow or red carries his bar on the card until he
+   is back in the green — the same colours as the bar under a player on the field. */
+.roster-stamina {
+  width: 80%;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+}
+.roster-stamina > span { display: block; height: 100%; }
+.roster-stamina-fill--yellow { background: #fdd835; }
+.roster-stamina-fill--red    { background: #e53935; }
+
 .roster-card--dragging {
   opacity: 0.3;
   cursor: grabbing;

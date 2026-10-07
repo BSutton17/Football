@@ -101,27 +101,39 @@ export default function SpecialTeamsView({ st, aimAnchor }: Props) {
   const blockLive = isFGKick && isDefender && st.phase === 'setup' && st.started && !st.blockAttempted && !tapped
 
   const [blockPos, setBlockPos] = useState(0)
-  const blockPosRef = useRef(0)
+  const blockStartRef = useRef(0)
+  // Where the marker is at time `now` — ONE function for both the drawing and the tap.
+  const sweepAt = (now: number) => {
+    const e     = Math.max(0, now - blockStartRef.current) / 1000
+    const phase = (e / BLOCK_SWEEP_HALF_SECONDS) % 2   // 0..2 triangle
+    return phase <= 1 ? phase : 2 - phase              // 0 → 1 → 0 …
+  }
   useEffect(() => {
     if (!blockLive) return   // idle before the kicker starts; frozen once tapped/kicked
     let raf = 0
-    const start = performance.now()
+    blockStartRef.current = performance.now()
     const tick = (now: number) => {
-      const e     = (now - start) / 1000
-      const phase = (e / BLOCK_SWEEP_HALF_SECONDS) % 2   // 0..2 triangle
-      const pos   = phase <= 1 ? phase : 2 - phase        // 0 → 1 → 0 …
-      blockPosRef.current = pos
-      setBlockPos(pos)
+      setBlockPos(sweepAt(now))
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [blockLive])
+  }, [blockLive])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const attemptBlock = () => {
+  // ⚠️ JUDGED AT THE INSTANT OF THE TAP, AND THE MARKER FREEZES EXACTLY THERE. Reported: "I blocked a
+  // field goal that was not in the green." The tap used to send the position from the last animation
+  // frame while the marker on screen was painted a frame behind THAT (a React state update), and the
+  // marker crosses the bar twice a second — a frame is ~3% of the bar, wider than the whole green
+  // band (3%). So the white line you saw and the spot that was judged could be a full green-width
+  // apart. Now the position is computed from the tap's own timestamp, on the same clock as the
+  // sweep, and the frozen marker is drawn at that same number: what you see is what was judged.
+  const attemptBlock = (e?: { timeStamp?: number }) => {
     if (!blockLive) return
-    setTapped(true)                       // freeze the marker locally; the server confirms via blockAttempted
-    sendFieldGoalBlock(blockPosRef.current)
+    const at  = e?.timeStamp && e.timeStamp > blockStartRef.current ? e.timeStamp : performance.now()
+    const pos = sweepAt(at)
+    setBlockPos(pos)
+    setTapped(true)                       // freeze the marker; the server confirms via blockAttempted
+    sendFieldGoalBlock(pos)
   }
 
   // On a punt, tell the RECEIVING team where it's coming down (touchback / out of bounds / the spot),
