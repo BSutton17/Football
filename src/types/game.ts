@@ -173,7 +173,7 @@ export interface PlayResult {
   yardLine: number
   firstDown?: boolean       // [224][225] this play moved the chains
   newPossession?: TeamRole  // set on interception, safety, turnover on downs
-  detail?: 'broken_up' | 'drop' | 'made' | 'missed' | 'short' | 'wide_left' | 'wide_right' | 'blocked' | 'out_of_bounds' | 'touchback' | 'fair_catch' | 'return' | null   // incompletion reason, FG result, or punt result
+  detail?: 'broken_up' | 'drop' | 'made' | 'missed' | 'short' | 'wide_left' | 'wide_right' | 'blocked' | 'out_of_bounds' | 'touchback' | 'fair_catch' | 'return' | 'muffed_lost' | 'muffed_recovered' | null   // incompletion reason, FG result, or punt result (incl. a muff)
 }
 
 // [Special Teams][2][3][4] The 4th-down menu, or [51] the post-TD extra-point / 2-pt menu — both

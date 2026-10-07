@@ -63,6 +63,9 @@ function summarizePlay(r: PlayResult): string {
                               : r.detail === 'touchback'     ? 'Touchback'
                               : r.detail === 'fair_catch'    ? 'Fair catch'
                               : r.detail === 'return'        ? 'Punt returned'
+                              // [muff] Called a muff either way, as requested — who kept it is the rest.
+                              : r.detail === 'muffed_lost'      ? 'Muffed punt — recovered by the kicking team!'
+                              : r.detail === 'muffed_recovered' ? 'Muffed punt — recovered by the return team'
                               : 'Punt!'
     case 'field_goal':   return r.detail === 'made'       ? 'Field goal is good!'
                               : r.detail === 'blocked'     ? 'Field goal BLOCKED!'
@@ -360,13 +363,13 @@ export default function App() {
     const t = setTimeout(() => setPlayNotice(null), 3000)
     return () => clearTimeout(t)
   }, [playNotice])
-  // [spotlight] The stat graphic after a play. Up for four seconds, the last beat of which is a quick
+  // [spotlight] The stat graphic after a play. Up for five seconds, the last 0.7 of which is a slow
   // fade; the SNAP takes it down at once, with no fade at all — a graphic must never sit over a live
   // play. Only the payload is kept here: names, team and placement are resolved when it is drawn.
   const [spotlight, setSpotlight] = useState<{ key: number; payload: StatSpotlightPayload; leaving: boolean } | null>(null)
   useEffect(() => {
     if (!spotlight || spotlight.leaving) return
-    const SHOW_MS = 4000, FADE_MS = 180
+    const SHOW_MS = 5000, FADE_MS = 700   // must match .stat-spotlight's opacity transition
     const fade = setTimeout(() => setSpotlight(s => (s && s.key === spotlight.key ? { ...s, leaving: true } : s)), SHOW_MS - FADE_MS)
     const gone = setTimeout(() => setSpotlight(s => (s && s.key === spotlight.key ? null : s)), SHOW_MS)
     return () => { clearTimeout(fade); clearTimeout(gone) }

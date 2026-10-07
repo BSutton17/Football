@@ -3043,7 +3043,7 @@ body {
   gap: 8px;
   padding: 4px 12px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.78);
+  background: rgba(0, 0, 0, 0.64);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -3078,8 +3078,9 @@ body {
 /* ─── The stat spotlight ([spotlight]) ───────────────────────────────────────
    The broadcast graphic after a play: who, and his line for the game. Built from the same parts as
    the rest of the HUD — the play notice's dark glass, the display face the scoreboard and team cards
-   use, and the player's own team colour as the one accent. Fades in and out fast; the snap removes it
-   outright (App.tsx), so it never sits over a live play. */
+   use, and the player's own team colour as the one accent. Fades in quickly and out slowly; the snap
+   removes it outright (App.tsx), so it never sits over a live play. Kept LIGHT on purpose — it is a
+   caption on the broadcast, not a headline. */
 .stat-spotlight {
   --team: #f59e0b;
   --team-text: #f59e0b;
@@ -3100,7 +3101,7 @@ body {
   pointer-events: none;
   white-space: nowrap;
   animation: stat-spotlight-in 160ms ease-out both;
-  transition: opacity 180ms ease-in;
+  transition: opacity 700ms ease-in;   /* the fade-out — matches FADE_MS in App.tsx */
 }
 .stat-spotlight--top    { top: 124px; }          /* below the play notice (86px) */
 .stat-spotlight--bottom { bottom: max(150px, calc(env(safe-area-inset-bottom) + 138px)); }
@@ -3123,7 +3124,7 @@ body {
   min-width: 0;
 }
 .stat-spotlight-pos {
-  font: 700 0.6rem/1 var(--font-impact);
+  font: 400 0.58rem/1 var(--font-impact);
   letter-spacing: 0.14em;
   padding: 3px 6px 2px;
   border-radius: 4px;
@@ -3132,8 +3133,9 @@ body {
   align-self: center;
 }
 .stat-spotlight-name {
-  font: 400 1.05rem/1.1 var(--font-impact);
-  letter-spacing: 0.04em;
+  font: 400 0.95rem/1.1 var(--font-impact);
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.92);
   text-transform: uppercase;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3142,29 +3144,29 @@ body {
 .stat-spotlight-team {
   margin-left: auto;
   padding-left: 6px;
-  font: 700 0.6rem/1 var(--font-impact);
+  font: 400 0.58rem/1 var(--font-impact);
   letter-spacing: 0.14em;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.5);
 }
 .stat-spotlight-line {
   display: flex;
   align-items: baseline;
   gap: 12px;
-  font-size: 0.62rem;
-  font-weight: 700;
+  font-size: 0.6rem;
+  font-weight: 500;
   letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 255, 255, 0.55);
 }
 .stat-spotlight-today {
-  font: 700 0.55rem/1 var(--font-impact);
+  font: 400 0.55rem/1 var(--font-impact);
   letter-spacing: 0.16em;
   color: var(--team-text, var(--team));
 }
 .stat-spotlight-stat b {
-  font-size: 0.95rem;
-  font-weight: 800;
+  font-size: 0.9rem;
+  font-weight: 600;
   letter-spacing: 0.02em;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.95);
   margin-right: 3px;
 }
 
@@ -3172,7 +3174,7 @@ body {
 @media (orientation: landscape) and (max-height: 500px) {
   .stat-spotlight--top { top: 112px; }
   .stat-spotlight { padding: 5px 14px 6px 16px; }
-  .stat-spotlight-name { font-size: 0.95rem; }
+  .stat-spotlight-name { font-size: 0.88rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
