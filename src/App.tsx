@@ -2390,6 +2390,7 @@ export default function App() {
             key={spotlight.key}
             view={{
               key: spotlight.key, payload: p, name, place, leaving: spotlight.leaving,
+              side: mine ? 'left' : 'right',   // your logo is top-left in the HUD, theirs top-right
               teamAbbr: NFL_TEAMS.find(t => t.id === teamId)?.abbr ?? null,
               color: (teamId && TEAM_COLORS[teamId]?.primary) || '#f59e0b',
               accent: readableAccent((teamId && TEAM_COLORS[teamId]?.primary) || '#f59e0b', teamId ? TEAM_COLORS[teamId]?.secondary : null),

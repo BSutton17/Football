@@ -3131,6 +3131,10 @@ body {
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 .stat-spotlight--bottom { animation-name: stat-spotlight-in-up; }
+@keyframes stat-spotlight-in-side {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 @keyframes stat-spotlight-in-up {
   from { opacity: 0; transform: translateX(-50%) translateY(4px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -3189,9 +3193,14 @@ body {
   margin-right: 3px;
 }
 
-/* A phone held sideways has ~390px of height to spend; tuck it closer under the notice. */
+/* ⚠️ A PHONE HELD SIDEWAYS PUTS IT IN THE CORNER, NOT ON THE FIELD. With ~390px of height a centred
+   card sat a third of the way down the field, over the play. It goes to the top corner on the side of
+   that player's team logo — yours top-left, the opponent's top-right — just under the score and clear
+   of the roster panel (62px) that is pinned open on that edge. */
 @media (orientation: landscape) and (max-height: 500px) {
-  .stat-spotlight--top { top: 112px; }
+  .stat-spotlight--top { top: 44px; transform: none; animation-name: stat-spotlight-in-side; }
+  .stat-spotlight--top.stat-spotlight--left  { left: 72px; right: auto; }
+  .stat-spotlight--top.stat-spotlight--right { left: auto; right: 72px; }
   .stat-spotlight { padding: 5px 14px 6px 16px; }
   .stat-spotlight-name { font-size: 0.88rem; }
 }

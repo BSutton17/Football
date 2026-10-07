@@ -14,6 +14,9 @@ export interface SpotlightView {
   color: string               // the team's primary: the bar and the position badge
   accent: string              // whichever team colour reads on dark glass, for coloured text
   place: 'top' | 'bottom'
+  // Which team-logo corner it belongs to — your team is top-left in the HUD, the opponent top-right.
+  // Only a phone held sideways uses it (index.css); everywhere else the card is centred.
+  side: 'left' | 'right'
   leaving: boolean            // fading out — the last 0.7 s of its five seconds
 }
 
@@ -62,11 +65,11 @@ export function statsFor(role: SpotlightRole, l: StatSpotlightPayload['line']): 
 }
 
 export default function StatSpotlight({ view }: { view: SpotlightView }) {
-  const { payload, name, teamAbbr, color, accent, place, leaving } = view
+  const { payload, name, teamAbbr, color, accent, place, side, leaving } = view
   const stats = statsFor(payload.role, payload.line)
   return (
     <div
-      className={`stat-spotlight stat-spotlight--${place}${leaving ? ' stat-spotlight--leaving' : ''}`}
+      className={`stat-spotlight stat-spotlight--${place} stat-spotlight--${side}${leaving ? ' stat-spotlight--leaving' : ''}`}
       style={{ ['--team' as string]: color, ['--team-text' as string]: accent }}
       role="status"
       aria-live="polite"

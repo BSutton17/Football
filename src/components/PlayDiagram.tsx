@@ -31,7 +31,9 @@ const C = {
   firstDown: '#ffd600',
   offense: '#1e88e5',
   defense: '#e53935',
-  route: '#fde047',   // the game's route yellow (renderer DRAWN_ROUTE_COLOR), not white
+  // A strong, saturated yellow. The field's pale route yellow (#fde047) read as near-white at card
+  // size ("the routes in the plays UI are still white"), so the cards use a deeper one.
+  route: '#ffc400',
 }
 
 interface Props {
@@ -171,7 +173,7 @@ export default function PlayDiagram({ losY, distance, offense, defense }: Props)
                 points={path.join(' ')}
                 fill="none"
                 stroke={s.color ? ROUTE_COLOR_HEX[s.color] : C.route}
-                strokeWidth={s.color ? 1.4 : 1.1}
+                strokeWidth={1.5}
                 strokeLinejoin="round"
                 strokeLinecap="round"
               />
