@@ -24,8 +24,8 @@ const AIM_MAX_DEGREES      = 30
 // double). Fast enough to be challenging, constant enough to learn.
 const BLOCK_SWEEP_HALF_SECONDS = 0.5
 // [48] Zone boundaries (mirror server FG_BLOCK): green is the tiny center band, then yellow, then red.
-const BLOCK_GREEN_HALF  = 0.015   // 3% total
-const BLOCK_YELLOW_HALF = 0.315   // green+yellow span (yellow = 60% total)
+const BLOCK_GREEN_HALF  = 0.01    // 2% total
+const BLOCK_YELLOW_HALF = 0.315   // green+yellow span (yellow = 61% total)
 // The colored track as a left→right gradient: red | yellow | green | yellow | red.
 const BLOCK_TRACK_BG = `linear-gradient(to right,
   #ef4444 0% ${(0.5 - BLOCK_YELLOW_HALF) * 100}%,
