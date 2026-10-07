@@ -32,6 +32,11 @@ import { loadTeamRoster } from './game/teamRoster.ts'
 import { teamColors, textColorOn, accentColor} from './data/teamColors.ts'
 import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveFormation, validateOffensiveFormation, validateDefensiveFormation } from './game/formation.ts'
 import { computeCamera } from './game/renderer.ts'
+import { useMediaQuery } from './hooks/useMediaQuery.ts'
+import StatSpotlight, { readableAccent } from './components/StatSpotlight.tsx'
+import { NFL_TEAMS } from './data/nflTeams.ts'
+import { TEAM_COLORS } from './data/teamColors.ts'
+import type { StatSpotlightPayload } from './types/game.ts'
 import { computeZoneShell, SHELL_ORDER, SHELL_LABEL } from './game/zoneShells.ts'
 import { FIELD } from './constants/simulation.ts'
 import type { GameState, PlayPhase, PositionUpdate, CarrierVision, Score, GameOver, PlayResult, SpecialTeamsState, PlayDecision, GameMode, Difficulty, PlayType } from './types/game.ts'
@@ -75,12 +80,15 @@ function summarizePlay(r: PlayResult): string {
       if (r.detail === 'broken_up') return 'Pass broken up'
       return 'Incomplete pass'
     case 'sack':         return r.newPossession ? 'Sacked — turnover on downs' : `Sacked for ${Math.abs(r.yardsGained)}`
-    case 'tackle':
+    case 'tackle': {
       if (r.newPossession) return 'Turnover on downs'
-      if (r.firstDown)     return r.yardsGained > 0 ? `First down! +${r.yardsGained}` : 'First down!'
-      if (r.yardsGained > 0) return `Gain of ${r.yardsGained}`
-      if (r.yardsGained < 0) return `Loss of ${Math.abs(r.yardsGained)}`
-      return 'No gain'
+      // [out of bounds] Same spot and chains as a tackle; the notice just says how it ended.
+      const oob = r.detail === 'out_of_bounds' ? 'Out of bounds — ' : ''
+      if (r.firstDown)     return `${oob}${r.yardsGained > 0 ? `First down! +${r.yardsGained}` : 'First down!'}`
+      if (r.yardsGained > 0) return `${oob}Gain of ${r.yardsGained}`
+      if (r.yardsGained < 0) return `${oob}Loss of ${Math.abs(r.yardsGained)}`
+      return oob ? 'Out of bounds — no gain' : 'No gain'
+    }
     default:             return ''
   }
 }
@@ -352,6 +360,17 @@ export default function App() {
     const t = setTimeout(() => setPlayNotice(null), 3000)
     return () => clearTimeout(t)
   }, [playNotice])
+  // [spotlight] The stat graphic after a play. Up for three seconds, the last beat of which is a quick
+  // fade; the SNAP takes it down at once, with no fade at all — a graphic must never sit over a live
+  // play. Only the payload is kept here: names, team and placement are resolved when it is drawn.
+  const [spotlight, setSpotlight] = useState<{ key: number; payload: StatSpotlightPayload; leaving: boolean } | null>(null)
+  useEffect(() => {
+    if (!spotlight || spotlight.leaving) return
+    const SHOW_MS = 3000, FADE_MS = 180
+    const fade = setTimeout(() => setSpotlight(s => (s && s.key === spotlight.key ? { ...s, leaving: true } : s)), SHOW_MS - FADE_MS)
+    const gone = setTimeout(() => setSpotlight(s => (s && s.key === spotlight.key ? null : s)), SHOW_MS)
+    return () => { clearTimeout(fade); clearTimeout(gone) }
+  }, [spotlight?.key])   // eslint-disable-line react-hooks/exhaustive-deps
   // Prominent kick-result banner ("It's good!", "Missed!", "Blocked!", "Touchback!"). Unlike the play
   // notice, game_state does NOT clear it — only this timer does — so it survives the ensuing kickoff.
   const [kickResult, setKickResult] = useState<string | null>(null)
@@ -462,7 +481,11 @@ export default function App() {
       setHikeCount(count)
       if (count === 0) setHikeReady(true)
     }
+    function onStatSpotlight(payload: StatSpotlightPayload) {
+      setSpotlight({ key: Date.now(), payload, leaving: false })
+    }
     function onBallSnapped(data?: { manual?: boolean }) {
+      setSpotlight(null)   // [spotlight] gone the instant the ball is snapped — no fade
       setHikeCount(null); setHikeReady(false); setPhase('live'); setScrambling(false)
       clearThrowaway(); setLiveCarrierId(null); setTouchdownBanner(null)
       // [manual] The server tells us whether THIS play is GO-driven — only manual pass plays are.
@@ -756,6 +779,7 @@ export default function App() {
     socket.on('offense_set', onOffenseSet)
     socket.on('hike_countdown', onHikeCountdown)
     socket.on('ball_snapped', onBallSnapped)
+    socket.on('stat_spotlight', onStatSpotlight)
     socket.on('qb_scrambling', onQbScrambling)
     socket.on('game_paused', onGamePaused)
     socket.on('game_resumed', onGameResumed)
@@ -790,6 +814,7 @@ export default function App() {
       socket.off('offense_set', onOffenseSet)
       socket.off('hike_countdown', onHikeCountdown)
       socket.off('ball_snapped', onBallSnapped)
+      socket.off('stat_spotlight', onStatSpotlight)
       socket.off('qb_scrambling', onQbScrambling)
       socket.off('game_paused', onGamePaused)
       socket.off('game_resumed', onGameResumed)
@@ -1312,6 +1337,37 @@ export default function App() {
   }, [room.status, room.role, phase])
 
   // [268][270] Pregame team selection sits between joining and gameplay.
+  // [shells rail] ⚠️ ON A PORTRAIT PHONE THE DEFENSE'S SHELLS BUTTON SITS LEVEL WITH THE QUARTERBACK.
+  // Requested: "move the shell button to the bottom part of the screen, even with where the qb is, to
+  // avoid being in the way." Centred on the left edge it sat over the defense the player is arranging;
+  // the quarterback's row is backfield grass the defense never stands on. Positioned from the field,
+  // like the throwaway button, because the camera moves with the line. The rail is anchored from the
+  // BOTTOM and stacks upward, so the coverage menu still grows away from the button, never onto it.
+  const isPhonePortrait = useMediaQuery('(orientation: portrait) and (max-width: 600px)')
+  // ⚠️ ABOVE THE EARLY RETURNS (lobby, team select, VS), like every hook here — and so read off the
+  // auto-placed quarterback rather than allPositions, which is built below them. Before the snap he
+  // is always that auto-placed one, and the button only exists before the snap.
+  const shellsRole = room.role ?? 'offense'
+  const qbFieldY = getOLQBPlayers(losYardLine, ballX).find(p => p.label === 'QB')?.y ?? (losYardLine - 6)
+  const [shellsRailBottom, setShellsRailBottom] = useState<number | null>(null)
+  useEffect(() => {
+    if (!isPhonePortrait || shellsRole !== 'defense') { setShellsRailBottom(null); return }
+    const BUTTON_HALF = 14     // half the SHELLS button's height, so its centre is on the QB
+    const MIN_BOTTOM = 8
+    function place() {
+      const canvas = document.querySelector('canvas') as HTMLCanvasElement | null
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const cam = computeCamera(rect.width, rect.height, losYardLine)
+      const py = rect.top + (cam.topRelY - qbFieldY) * cam.yardPx
+      const bottom = Math.max(MIN_BOTTOM, Math.round(window.innerHeight - py - BUTTON_HALF))
+      setShellsRailBottom(prev => (prev === bottom ? prev : bottom))
+    }
+    place()
+    window.addEventListener('resize', place)
+    return () => window.removeEventListener('resize', place)
+  }, [isPhonePortrait, shellsRole, losYardLine, qbFieldY])
+
   if (room.status === 'team_select') {
     return (
       <TeamSelectScreen
@@ -2200,6 +2256,28 @@ export default function App() {
       {kickResult && !gameOver && (
         <div className="kick-result-banner" aria-live="polite">{kickResult}</div>
       )}
+      {spotlight && !gameOver && (() => {
+        // [spotlight] Resolved now, not when it arrived: names by HIS team's roster (ids are not
+        // unique across the two — see namedLeaders), and placement by the screen as it is now.
+        // Desktop and a phone held sideways: the top. A phone held upright: the end of the field
+        // the ball is not at — bottom once the ball is past the 50, top before it.
+        const p = spotlight.payload
+        const mine = room.slot != null && p.slot === room.slot
+        const teamId = mine ? myTeamId : oppTeamId
+        const name = (mine ? rosterName : oppNameById).get(p.id) ?? p.name
+        const place = isPhonePortrait && p.yardLine > 50 ? 'bottom' : 'top'
+        return (
+          <StatSpotlight
+            key={spotlight.key}
+            view={{
+              key: spotlight.key, payload: p, name, place, leaving: spotlight.leaving,
+              teamAbbr: NFL_TEAMS.find(t => t.id === teamId)?.abbr ?? null,
+              color: (teamId && TEAM_COLORS[teamId]?.primary) || '#f59e0b',
+              accent: readableAccent((teamId && TEAM_COLORS[teamId]?.primary) || '#f59e0b', teamId ? TEAM_COLORS[teamId]?.secondary : null),
+            }}
+          />
+        )
+      })()}
       {playNotice && !gameOver && !touchdownBanner && (
         <div className="play-notice" aria-live="polite">{playNotice}</div>
       )}
@@ -2532,7 +2610,10 @@ export default function App() {
           a fixed margin, which was measured against a width that changes with the breakpoint and a
           panel that slides closed, and on a portrait phone it left the button mid-field. */}
       {role === 'defense' && !kickInProgress && (
-        <div className="defense-rail">
+        <div
+          className={`defense-rail${shellsRailBottom != null ? ' defense-rail--qb' : ''}`}
+          style={shellsRailBottom != null ? { bottom: `${shellsRailBottom}px` } : undefined}
+        >
           {isPreSnap && opponentPositions.length >= 5 && (
             <button className="plays-btn" onPointerDown={handleOpenPicker}>SHELLS</button>
           )}

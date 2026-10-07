@@ -260,3 +260,21 @@ export interface DevReveal {
   play: { playType: string | null; runAngle: number | null; name: string | null; players: DevRevealPlayer[] } | null
   shell: { name: string | null; players: DevRevealPlayer[] } | null
 }
+
+// [spotlight] A player's game line, shown briefly after he makes a play. Decided by the server
+// (statSpotlight.js) and sent to both players, so both screens show the same graphic.
+export type SpotlightRole = 'rusher' | 'receiver' | 'passer' | 'tackler' | 'sacker'
+export interface StatSpotlightPayload {
+  id: string
+  slot: number | null          // which team he plays for
+  name: string                 // the server's fallback; the client resolves the real name by slot
+  label: string                // position
+  role: SpotlightRole
+  yardLine: number             // the new line of scrimmage, offense-relative
+  line: {
+    attempts: number; completions: number; passYards: number; passTD: number; interceptionsThrown: number
+    carries: number; rushYards: number; rushTD: number
+    receptions: number; recYards: number; recTD: number
+    tackles: number; sacks: number; interceptions: number
+  }
+}

@@ -63,6 +63,8 @@ export interface AssignSafetyHelpPayload {
 // ─── Server → Client ─────────────────────────────────────────────────────────
 
 export interface ServerToClientEvents {
+  // [spotlight] A player's game line, after he made a play.
+  stat_spotlight: (payload: import('./game.ts').StatSpotlightPayload) => void
   // [authored] The AI's own shortlist, offered to the player who asked for it.
   plays_offered: (payload: import('./playbook.ts').PlaysOffered) => void
   shells_offered: (payload: import('./playbook.ts').ShellsOffered) => void

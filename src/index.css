@@ -2719,6 +2719,14 @@ body {
 
 .defense-rail > * { pointer-events: auto; }
 
+/* [shells rail] Portrait phone: anchored from the bottom at the quarterback's height (App.tsx sets
+   `bottom`), stacking UPWARD so the coverage menu grows away from the button rather than onto it. */
+.defense-rail--qb {
+  top: auto;
+  transform: none;
+  flex-direction: column-reverse;
+}
+
 /* Mirrored, since this rail is on the other side. */
 .defense-rail .plays-btn { border-radius: 0 999px 999px 0; }
 
@@ -3065,4 +3073,108 @@ body {
   color: rgba(255, 255, 255, 0.6);
   text-align: center;
   margin-top: 2px;
+}
+
+/* ─── The stat spotlight ([spotlight]) ───────────────────────────────────────
+   The broadcast graphic after a play: who, and his line for the game. Built from the same parts as
+   the rest of the HUD — the play notice's dark glass, the display face the scoreboard and team cards
+   use, and the player's own team colour as the one accent. Fades in and out fast; the snap removes it
+   outright (App.tsx), so it never sits over a live play. */
+.stat-spotlight {
+  --team: #f59e0b;
+  --team-text: #f59e0b;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 39;                      /* just under the play notice, which shares the moment */
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 210px;
+  max-width: calc(100vw - 32px);
+  padding: 7px 16px 8px 18px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.78);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5), inset 4px 0 0 var(--team);
+  color: #f8fafc;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: stat-spotlight-in 160ms ease-out both;
+  transition: opacity 180ms ease-in;
+}
+.stat-spotlight--top    { top: 124px; }          /* below the play notice (86px) */
+.stat-spotlight--bottom { bottom: max(150px, calc(env(safe-area-inset-bottom) + 138px)); }
+.stat-spotlight--leaving { opacity: 0; }
+
+@keyframes stat-spotlight-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+.stat-spotlight--bottom { animation-name: stat-spotlight-in-up; }
+@keyframes stat-spotlight-in-up {
+  from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.stat-spotlight-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.stat-spotlight-pos {
+  font: 700 0.6rem/1 var(--font-impact);
+  letter-spacing: 0.14em;
+  padding: 3px 6px 2px;
+  border-radius: 4px;
+  background: var(--team);
+  color: #fff;
+  align-self: center;
+}
+.stat-spotlight-name {
+  font: 400 1.05rem/1.1 var(--font-impact);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.stat-spotlight-team {
+  margin-left: auto;
+  padding-left: 6px;
+  font: 700 0.6rem/1 var(--font-impact);
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.55);
+}
+.stat-spotlight-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.6);
+}
+.stat-spotlight-today {
+  font: 700 0.55rem/1 var(--font-impact);
+  letter-spacing: 0.16em;
+  color: var(--team-text, var(--team));
+}
+.stat-spotlight-stat b {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #fff;
+  margin-right: 3px;
+}
+
+/* A phone held sideways has ~390px of height to spend; tuck it closer under the notice. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .stat-spotlight--top { top: 112px; }
+  .stat-spotlight { padding: 5px 14px 6px 16px; }
+  .stat-spotlight-name { font-size: 0.95rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-spotlight { animation: none; transition: none; }
 }
