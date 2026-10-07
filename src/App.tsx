@@ -360,13 +360,13 @@ export default function App() {
     const t = setTimeout(() => setPlayNotice(null), 3000)
     return () => clearTimeout(t)
   }, [playNotice])
-  // [spotlight] The stat graphic after a play. Up for three seconds, the last beat of which is a quick
+  // [spotlight] The stat graphic after a play. Up for four seconds, the last beat of which is a quick
   // fade; the SNAP takes it down at once, with no fade at all — a graphic must never sit over a live
   // play. Only the payload is kept here: names, team and placement are resolved when it is drawn.
   const [spotlight, setSpotlight] = useState<{ key: number; payload: StatSpotlightPayload; leaving: boolean } | null>(null)
   useEffect(() => {
     if (!spotlight || spotlight.leaving) return
-    const SHOW_MS = 3000, FADE_MS = 180
+    const SHOW_MS = 4000, FADE_MS = 180
     const fade = setTimeout(() => setSpotlight(s => (s && s.key === spotlight.key ? { ...s, leaving: true } : s)), SHOW_MS - FADE_MS)
     const gone = setTimeout(() => setSpotlight(s => (s && s.key === spotlight.key ? null : s)), SHOW_MS)
     return () => { clearTimeout(fade); clearTimeout(gone) }

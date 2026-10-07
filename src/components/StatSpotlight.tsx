@@ -14,7 +14,7 @@ export interface SpotlightView {
   color: string               // the team's primary: the bar and the position badge
   accent: string              // whichever team colour reads on dark glass, for coloured text
   place: 'top' | 'bottom'
-  leaving: boolean            // fading out — the last beat of its three seconds
+  leaving: boolean            // fading out — the last beat of its four seconds
 }
 
 type Stat = { value: number | string; label: string }
