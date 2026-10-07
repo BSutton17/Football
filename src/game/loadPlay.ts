@@ -44,8 +44,20 @@ export interface FillResult<T extends SlotRequest> {
 // ⚠️ THE ORDER IS THE PLAY'S, NOT THE ROSTER'S. Slots are filled as the play lists them, so the
 // first WR slot gets the best receiver. Sorting the slots first would quietly reassign who runs
 // which route, which is a different play from the one that was recommended.
-export function fillSlots<T extends SlotRequest>(spots: T[], bench: RosterPlayer[]): FillResult<T> {
-  const ranked = [...bench].sort((a, b) => (b.ovr ?? 0) - (a.ovr ?? 0))
+// ⚠️ LAST PLAY'S PERSONNEL FIRST, AND A RESTED PLAYER LAST. Reported: "shells and plays are forcing
+// players back on — even if you sub a player out to rest, clicking a new play or shell subs them back
+// in." The slots are labelled WR2, RB1, LB1, and filling each with the best overall rating put a
+// starter straight back on the field the snap after he was sat down. Now, at every position, the men
+// who were on the field last play are used first, then the rest of the bench, and anybody the player
+// deliberately took off only if there is truly nobody else.
+export interface FillOptions {
+  onField?: Set<string>     // who was on the field for the last play
+  resting?: Set<string>     // who the player took off to rest
+}
+
+export function fillSlots<T extends SlotRequest>(spots: T[], bench: RosterPlayer[], opts: FillOptions = {}): FillResult<T> {
+  const tier = (p: RosterPlayer) => opts.onField?.has(p.id) ? 0 : opts.resting?.has(p.id) ? 2 : 1
+  const ranked = [...bench].sort((a, b) => tier(a) - tier(b) || (b.ovr ?? 0) - (a.ovr ?? 0))
   const usedIds = new Set<string>()
   const filled: FilledSlot<T>[] = []
   const unfilled: T[] = []

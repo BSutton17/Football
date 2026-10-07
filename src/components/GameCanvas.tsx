@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { FaFootballBall } from 'react-icons/fa'
 import type { GameState, PositionUpdate } from '../types/game.ts'
-import { drawFrame, computeCamera, drawRushVisualizer, drawPassLine, drawDrawnRoutes, drawActiveStroke } from '../game/renderer.ts'
+import { drawFrame, computeCamera, drawRushVisualizer, drawPassLine, drawDrawnRoutes, drawActiveStroke, fatigueBarRect, playerRadiusPx } from '../game/renderer.ts'
 import type { TeamPaint, RouteArt } from '../game/renderer.ts'
 import type { CarrierVision } from '../types/game.ts'
 import { PLAYER, FIELD } from '../constants/simulation.ts'
@@ -23,6 +23,15 @@ const ZONE_MAX_Y = FIELD.PLAY_LENGTH + FIELD.END_ZONE_DEPTH - 0.5
 // your own receiver opens drawing; anything further is you repositioning him, and the route is left
 // alone. This is what lets a single click do both jobs without a modifier or a double-tap.
 const TAP_SLOP_YARDS = 0.6
+
+// [fatigue subs] Holding a player still this long asks to sub him out. Long enough that an ordinary
+// tap or the start of a drag never trips it; moving more than TAP_SLOP_YARDS cancels it.
+const LONG_PRESS_MS = 550
+// Tolerance around the drawn energy bar, in px — the bar is a few pixels tall, a fingertip is not.
+const BAR_HIT_PAD_X = 6
+const BAR_HIT_PAD_Y = 10
+// The yellow line on the bar (renderer: >60% is green). Only a tired player's bar is a sub button.
+const TIRED_AT = 60
 
 interface Props {
   gameState: GameState | null
@@ -58,6 +67,9 @@ interface Props {
   drawingFor?: string | null
   onRequestDraw?: (playerId: string) => void
   onRequestBlock?: (playerId: string) => void
+  // [fatigue subs] Swap this player for the next best available at his position. The App decides
+  // whether that is allowed and who comes on; the canvas only reports the gesture.
+  onSubRequest?: (playerId: string) => void
   onDrawStroke?: (points: { x: number; y: number }[]) => void
   drawnRoutes?: Record<string, { dx: number; dd: number }[]>
   // [medium] Route art drawn UNDER the players while a manual play is frozen; null otherwise.
@@ -68,7 +80,7 @@ function isDLPlayer(id: string)  { return id.startsWith('auto_dl') }
 // QB and OL are fully locked; DL can slide horizontally
 function isLockedAuto(id: string) { return id.startsWith('auto_') && !isDLPlayer(id) }
 
-export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection, routeDrawMode, drawingFor, onRequestDraw, onRequestBlock, onDrawStroke, drawnRoutes, routeArt }: Props) {
+export default function GameCanvas({ gameState, positions, onPlayerMove, onSelect, onThrowReceiver, onThrowAtDefender, onScramble, targetReceiverId, routeDepths, onRouteDepthChange, runAngle, runnerId, runnerBounds, manTargets, zoneTypes, zoneCenters, onZoneCenterMove, blitzIds, spyIds, snapLocked, carrierVision, showFatigue, fatigue, ownTeam, oppTeam, logoTeamId, fieldDirection, routeDrawMode, drawingFor, onRequestDraw, onRequestBlock, onDrawStroke, drawnRoutes, routeArt, onSubRequest }: Props) {
   const canvasRef    = useRef<HTMLCanvasElement>(null)
   const ballIconRef  = useRef<HTMLDivElement>(null)
   const gameStateRef = useRef(gameState)
@@ -106,6 +118,12 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
   onRequestDrawRef.current = onRequestDraw
   const onRequestBlockRef = useRef(onRequestBlock)
   onRequestBlockRef.current = onRequestBlock
+  const onSubRequestRef = useRef(onSubRequest)
+  onSubRequestRef.current = onSubRequest
+  // [fatigue subs] The pending press-and-hold, and whether it fired (so the release is not ALSO
+  // taken as a drop or a tap).
+  const longPressRef = useRef<{ timer: number; id: string; x: number; y: number } | null>(null)
+  const longPressFiredRef = useRef(false)
   // Did the current press begin on the armed receiver, and how far has it travelled since? A press
   // that starts on him and never moves is a tap (→ block); one that moves is a drawing.
   const pressOnPlayerRef = useRef(false)
@@ -321,6 +339,34 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
         return
       }
 
+      // [fatigue subs] A tap on a tired player's ENERGY BAR subs him out. Checked before anything is
+      // selected or picked up, because the bar sits just under the player and a tap there would
+      // otherwise grab him. Only bars that are actually drawn count (the fatigue map handed to the
+      // canvas is exactly the visible ones), and only before the snap.
+      {
+        const gsBar = gameStateRef.current
+        const myTeamBar = gsBar?.role === 'defense' ? 'd' : 'o'
+        const subPhase = gsBar?.phase === 'pre_snap' || (gsBar?.phase === 'countdown' && myTeamBar === 'd')
+        if (subPhase && !snapLockedRef.current && onSubRequestRef.current) {
+          const { cam } = pointerToField(e)
+          const r = playerRadiusPx(cam)
+          const shown = showFatigueRef.current ? fatigueRef.current : {}
+          for (const p of latestPositionsRef.current) {
+            if (p.team !== myTeamBar) continue
+            const stamina = shown[p.id]
+            if (typeof stamina !== 'number' || stamina > TIRED_AT) continue
+            const cx = cam.offsetX + p.x * cam.yardPx
+            const cy = (cam.topRelY - p.y) * cam.yardPx
+            const bar = fatigueBarRect(cx, cy, r)
+            if (e.offsetX >= bar.x - BAR_HIT_PAD_X && e.offsetX <= bar.x + bar.w + BAR_HIT_PAD_X &&
+                e.offsetY >= bar.y - BAR_HIT_PAD_Y && e.offsetY <= bar.y + bar.h + BAR_HIT_PAD_Y) {
+              onSubRequestRef.current(p.id)
+              return
+            }
+          }
+        }
+      }
+
       const TAP_YARDS = Math.max(2.0, PLAYER.RADIUS * 2.5)
       let closest: PositionUpdate | null = null
       let minDist = TAP_YARDS
@@ -377,6 +423,29 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
           const clamped = clampDragPos(closest.x, closest.y)
           canvasDragRef.current = { id: closest.id, ...clamped }
           c.setPointerCapture(e.pointerId)
+
+          // [fatigue subs] Press and HOLD your own player to sub him out, at any time before the snap.
+          // The drag above is already armed; if he is held still long enough the drag is abandoned
+          // (he stays where he was) and the sub is asked for instead.
+          const myTeamHold = gameStateRef.current?.role === 'defense' ? 'd' : 'o'
+          if (closest.team === myTeamHold && onSubRequestRef.current) {
+            const heldId = closest.id
+            longPressFiredRef.current = false
+            longPressRef.current = {
+              id: heldId, x: closest.x, y: closest.y,
+              timer: window.setTimeout(() => {
+                const lp = longPressRef.current
+                if (!lp || lp.id !== heldId || dragId !== heldId) return
+                longPressRef.current = null
+                longPressFiredRef.current = true
+                dragId = null
+                draggingRef.current = false
+                canvasDragRef.current = null
+                drawCandidateRef.current = null
+                onSubRequestRef.current?.(heldId)
+              }, LONG_PRESS_MS),
+            }
+          }
         }
       } else {
         // Check if pointer is on a route depth handle (endpoint ring)
@@ -453,6 +522,12 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
         const { fieldX, fieldY } = pointerToField(e)
         const clamped = clampDragPos(fieldX, fieldY)
         canvasDragRef.current = { id: dragId, ...clamped }
+        // [fatigue subs] Moving means a drag, not a hold.
+        const lp = longPressRef.current
+        if (lp && Math.hypot(clamped.x - lp.x, clamped.y - lp.y) > TAP_SLOP_YARDS) {
+          clearTimeout(lp.timer)
+          longPressRef.current = null
+        }
       } else if (routeDepthDragRef.current) {
         const { fieldY } = pointerToField(e)
         const { startFieldY, startDepth, maxForward } = routeDepthDragRef.current
@@ -469,6 +544,14 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
     }
 
     function onPointerUp(e: PointerEvent) {
+      // [fatigue subs] A release before the hold completes cancels it; a release after it fired is
+      // the end of the gesture and nothing else — not a drop, not a tap.
+      if (longPressRef.current) { clearTimeout(longPressRef.current.timer); longPressRef.current = null }
+      if (longPressFiredRef.current) {
+        longPressFiredRef.current = false
+        try { c.releasePointerCapture(e.pointerId) } catch { /* may already be released */ }
+        return
+      }
       // [route draw] Lifting the finger ends the route — there is no editing a stroke, you redraw it.
       if (strokeRef.current) {
         const path = strokeRef.current
@@ -627,6 +710,7 @@ export default function GameCanvas({ gameState, positions, onPlayerMove, onSelec
     return () => {
       cancelAnimationFrame(rafId)
       observer.disconnect()
+      if (longPressRef.current) { clearTimeout(longPressRef.current.timer); longPressRef.current = null }
       c.removeEventListener('pointerdown',   onPointerDown)
       c.removeEventListener('pointermove',   onPointerMove)
       c.removeEventListener('pointerup',     onPointerUp)

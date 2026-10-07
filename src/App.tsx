@@ -6,6 +6,7 @@ import DevPlayReveal from './components/DevPlayReveal.tsx'
 import { revealCoverage } from './game/revealCoverage.ts'
 import type { OfferedPlay, OfferedShell, PlaysOffered, ShellsOffered } from './types/playbook.ts'
 import { fillSlots, assignmentsFor } from './game/loadPlay.ts'
+import { pickSubstitute, moveKey } from './game/substitution.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
 import { opposingLine } from './game/opposingLine.ts'
 import { canRemoveAutoPlayer, isAutoPlayer, withoutRemoved } from './game/devRemove.ts'
@@ -33,7 +34,7 @@ import { teamColors, textColorOn, accentColor} from './data/teamColors.ts'
 import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveFormation, validateOffensiveFormation, validateDefensiveFormation } from './game/formation.ts'
 import { computeCamera } from './game/renderer.ts'
 import { useMediaQuery } from './hooks/useMediaQuery.ts'
-import { createFatigueAlerts, noteFatigue, alertedFatigue, benchStamina } from './game/fatigueAlerts.ts'
+import { createFatigueAlerts, noteFatigue, alertedFatigue, benchStamina, YELLOW_AT } from './game/fatigueAlerts.ts'
 import StatSpotlight, { readableAccent } from './components/StatSpotlight.tsx'
 import { NFL_TEAMS } from './data/nflTeams.ts'
 import { TEAM_COLORS } from './data/teamColors.ts'
@@ -393,6 +394,10 @@ export default function App() {
   // [fatigue alerts] Who has already had their first-time-in-the-yellow bar, and which play serial the
   // stamina snapshot belongs to — so a one-snap bar ends at the next line-up. See game/fatigueAlerts.ts.
   const fatigueAlertsRef = useRef(createFatigueAlerts())
+  // [fatigue subs] Players this side took off the field to rest. PLAYS and SHELLS fill from these
+  // last, so loading a play never puts a resting starter straight back on. A player comes off this
+  // list the moment he is put back on the field by hand.
+  const restingRef = useRef<Set<string>>(new Set())
   const [fatigueSerial, setFatigueSerial] = useState(0)
   // [names toggle] Defense-only switch between showing player NAMES (default) and POSITIONS. When off,
   // names are withheld so the renderer falls back to the position label — for both teams' skill
@@ -1582,6 +1587,8 @@ export default function App() {
       removePlayer(playerId)
       return
     }
+    if (drawingFor === playerId) setDrawingFor(null)   // [route draw] he is leaving: stop drawing for him
+    restingRef.current.add(playerId)                   // [fatigue subs] taken off: PLAYS/SHELLS use him last
     setPlacedPlayers(prev => prev.filter(p => p.id !== playerId))
     setPlayerRoutes(prev => { const n = { ...prev }; delete n[playerId]; return n })
     setRouteDepths(prev => { const n = { ...prev }; delete n[playerId]; return n })
@@ -1595,6 +1602,67 @@ export default function App() {
     setSelectedId(null)
     setLockedFormation(null)
     removePlayer(playerId)
+  }
+
+  // [fatigue subs] Swap a player for the next best available at his position, from a tap on his
+  // energy bar or a press-and-hold. Same rules as moving a player: the offense only before it sets,
+  // the defense until the snap. Nobody available at that position means nothing happens.
+  //
+  // The man coming on takes over the job exactly (the spot, the route or drawn route, the coverage),
+  // so a sub never changes the play, only the body.
+  function handleSubRequest(playerId: string) {
+    if (role === 'offense' && !isPreSnap) return
+    if (phase === 'live' || kickInProgress) return
+    if (isAutoPlayer(playerId)) return                       // linemen and the QB are not subbed
+    const out = placedPlayers.find(p => p.id === playerId)
+    if (!out?.label) return
+    const roster = role === 'offense' ? teamRoster.offense : teamRoster.defense
+    const onField = new Set(placedPlayers.map(p => p.id))
+    const sub = pickSubstitute(out.label, roster, onField, fatigue, YELLOW_AT)
+    if (!sub) return
+
+    const team: 'o' | 'd' = role === 'offense' ? 'o' : 'd'
+    restingRef.current.add(out.id)
+    restingRef.current.delete(sub.id)
+    setPlacedPlayers(prev => prev.map(p => (p.id === out.id ? { ...p, id: sub.id, label: sub.position } : p)))
+    removePlayer(out.id)
+    placePlayer({ id: sub.id, x: out.x, y: out.y, label: sub.position, team, ratings: teamRoster.ratingsById[sub.id], xFactor: teamRoster.xFactorById[sub.id] })
+
+    if (role === 'offense') {
+      setPlayerRoutes(prev => moveKey(prev, out.id, sub.id))
+      setRouteDepths(prev => moveKey(prev, out.id, sub.id))
+      setDrawnRoutes(prev => moveKey(prev, out.id, sub.id))
+      setLockedFormation(null)
+    } else {
+      // His coverage goes with the spot, on both screens.
+      const cov = playerCoverage[out.id]
+      setPlayerCoverage(prev => moveKey(prev, out.id, sub.id))
+      setManTargets(prev => moveKey(prev, out.id, sub.id))
+      setManCommits(prev => moveKey(prev, out.id, sub.id))
+      setZoneTypes(prev => moveKey(prev, out.id, sub.id))
+      setZoneCenters(prev => moveKey(prev, out.id, sub.id))
+      if (droppingDL === out.id) setDroppingDL(sub.id)
+      if (cov) {
+        clearCoverage(out.id)
+        if (cov === 'zone') {
+          const zt = zoneTypes[out.id]
+          const c = zoneCenters[out.id]
+          if (zt) {
+            assignCoverage(c
+              ? { playerId: sub.id, type: 'zone', zoneType: zt, zoneCenterX: c.x, zoneCenterY: c.y }
+              : { playerId: sub.id, type: 'zone', zoneType: zt })
+          }
+        } else if (cov === 'man') {
+          const t = manTargets[out.id]
+          const mc = manCommits[out.id] ?? null
+          assignCoverage(t ? { playerId: sub.id, type: 'man', targetId: t, manCommit: mc } : { playerId: sub.id, type: 'man', manCommit: mc })
+        } else {
+          assignCoverage({ playerId: sub.id, type: cov })
+        }
+      }
+    }
+    if (selectedId === out.id) setSelectedId(sub.id)
+    if (drawingFor === out.id) setDrawingFor(null)
   }
 
   function handleRouteSelect(playerId: string, route: RouteType) {
@@ -1888,7 +1956,10 @@ export default function App() {
   // armed so the route menu doesn't flash open underneath the overlay.
   function handleRequestDraw(playerId: string) {
     if (lockedFormation) return          // formation is set — routes are final
-    setSelectedId(null)
+    // ⚠️ HE STAYS SELECTED. This cleared the selection, which took the Remove button away with it,
+    // so in draw mode a receiver could be drawn for but never taken off. Requested: "clicking a
+    // player allows you to draw their route but the remove button should still be there."
+    setSelectedId(playerId)
     setDrawingFor(playerId)
   }
 
@@ -1946,7 +2017,9 @@ export default function App() {
   // server sends WR1/WR2/TE1 and has no idea who those are. An empty set and a heavy formation want
   // different people, and asking for the best available at each position IS the personnel change.
   function handleLoadPlay(play: OfferedPlay) {
-    const { filled, usedIds: taken } = fillSlots(play.layout.spots, teamRoster.offense)
+    const { filled, usedIds: taken } = fillSlots(play.layout.spots, teamRoster.offense, {
+      onField: new Set(placedPlayers.map(p => p.id)), resting: restingRef.current,
+    })
     const next: PositionUpdate[] = []
     // Routes for the receivers, and BLOCK for the authored blockers — exactly as a double-tap would.
     const { routes, blocks } = assignmentsFor(filled)
@@ -1985,7 +2058,9 @@ export default function App() {
   function handleLoadShell(shell: OfferedShell) {
     const layout = shell.layout
     if (!layout) return
-    const { filled, usedIds: taken } = fillSlots(layout.spots, teamRoster.defense)
+    const { filled, usedIds: taken } = fillSlots(layout.spots, teamRoster.defense, {
+      onField: new Set(placedPlayers.map(p => p.id)), resting: restingRef.current,
+    })
     const next: PositionUpdate[] = []
     const coverage: Record<string, CoverageType> = {}
     const zones: Record<string, ZoneType> = {}
@@ -2088,6 +2163,7 @@ export default function App() {
       team:  role === 'offense' ? 'o' : 'd',
       label: player.position,
     }
+    restingRef.current.delete(playerId)   // [fatigue subs] put back on by hand: no longer resting
 
     setLockedFormation(null)
     const next     = [...placedPlayers.filter(p => p.id !== playerId), placed]
@@ -2187,6 +2263,7 @@ export default function App() {
   // reset arrives as roles_assigned + game_state, which clears the overlay and the formation.
   function handlePlayAgain() {
     fatigueAlertsRef.current = createFatigueAlerts()   // a new game: everyone's first yellow is ahead again
+    restingRef.current = new Set()
     resetGame()
   }
 
@@ -2243,6 +2320,7 @@ export default function App() {
         fatigue={fatigueVisible ? fatigue
           : (phase === 'pre_snap' || phase === 'countdown') ? alertedFatigue(fatigueAlertsRef.current, fatigue, fatigueSerial)
           : {}}
+        onSubRequest={handleSubRequest}
         ownTeam={ownTeam}
         oppTeam={oppTeam}
         logoTeamId={ownIsHome ? myTeamId : oppTeamId}

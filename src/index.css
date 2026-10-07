@@ -1325,6 +1325,7 @@ body {
   }
   .hike-btn:active { transform: scale(0.97); }   /* drop the centering translate from the active state */
   .formation-ready-btn--offense { bottom: 44px; }   /* up off the bottom strip, clear of the play controls */
+  .remove-player-btn.remove-offense { right: 10px; bottom: 92px; }    /* …and Remove stacked above it */
 }
 
 /* Scramble button — offense, live pass play. Lets the QB take off as a runner ([184]). */
@@ -1655,9 +1656,13 @@ body {
   white-space: nowrap;
 }
 
+/* ⚠️ STACKED ABOVE SET FORMATION, NOT BESIDE IT. Set Formation moved to the bottom-right corner (off
+   the run-angle arrows), and this sat at 85% across / 5% up — on top of it. Same corner, one row up. */
 .remove-offense{
-  left: 85%;
-  bottom: 5%
+  left: auto;
+  right: 24px;
+  transform: none;
+  bottom: max(110px, calc(env(safe-area-inset-bottom) + 98px));
 }
 
 .remove-defense{
@@ -2312,6 +2317,7 @@ body {
   .formation-ready-btn,
   .hike-btn { bottom: 6px; padding: 10px 26px; font-size: 0.95rem; }
   .formation-ready-btn--offense { bottom: 44px; }
+  .remove-player-btn.remove-offense { right: 10px; bottom: 90px; padding: 8px 20px; font-size: 0.8rem; }
   .go-btn   { padding: 12px 34px; font-size: 1rem; }
 
   /* The frozen banner rides just above a shorter GO button now. */

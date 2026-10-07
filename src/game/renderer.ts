@@ -408,7 +408,7 @@ function drawPlayers(
   oppTeam: TeamPaint = { fill: C.DEFENSE, text: '#ffffff', ring: C.SELECTED_RING },
   ownIsOffense = true,
 ) {
-  const r          = Math.max(4, cam.yardPx * PLAYER.RADIUS)
+  const r          = playerRadiusPx(cam)
   const innerSize  = Math.max(8, r * 1.3)   // O / X inside circle
   const labelSize  = Math.max(6, r * 0.8)   // position label below circle
   const showInner  = r >= 5   // always show O/X when circle is big enough
@@ -498,7 +498,8 @@ function drawPlayers(
     if (showFatigue && p.label && !NO_FATIGUE_LABELS.has(p.label)) {
       const stamina = fatigue[p.id]
       if (typeof stamina === 'number') {
-        drawFatigueBar(ctx, cx, cy + r + labelSize + 8, r, stamina)
+        const bar = fatigueBarRect(cx, cy, r)
+        drawFatigueBar(ctx, cx, bar.y, r, stamina)
       }
     }
   }
@@ -507,6 +508,18 @@ function drawPlayers(
 }
 
 // A small stamina bar: green when fresh, amber as it wears, red when gassed. stamina is 0–100.
+// [fatigue subs] Where a player's stamina bar sits on screen — ONE definition for drawing it and for
+// hit-testing a tap on it (GameCanvas), so the target is exactly what is drawn.
+export function playerRadiusPx(cam: Camera): number {
+  return Math.max(4, cam.yardPx * PLAYER.RADIUS)
+}
+export function fatigueBarRect(cx: number, cy: number, r: number) {
+  const labelSize = Math.max(6, r * 0.8)
+  const w = Math.max(12, r * 2.4)
+  const h = Math.max(3, r * 0.35)
+  return { x: cx - w / 2, y: cy + r + labelSize + 8, w, h }
+}
+
 function drawFatigueBar(
   ctx: CanvasRenderingContext2D,
   cx: number,
