@@ -1221,7 +1221,7 @@ export function drawPassLine(
 // Both the finished route and the stroke being traced are yellow — it stays the same object from
 // the moment you start drawing it. They are told apart by the line style instead: the live stroke is
 // dashed and the committed route is solid.
-const DRAWN_ROUTE_COLOR  = '#fde047'
+export const DRAWN_ROUTE_COLOR = '#fde047'   // also the PLAYS cards' route colour (PlayDiagram)
 const DRAWN_STROKE_COLOR = '#fde047'
 
 function drawPolyline(

@@ -1,4 +1,5 @@
 import { ROUTE_COLOR_HEX } from '../game/routeColors.ts'
+import { DRAWN_ROUTE_COLOR } from '../game/renderer.ts'
 import type { PlaySpot, ShellSpot } from '../types/playbook.ts'
 
 // [authored] The picture on a play card.
@@ -31,9 +32,9 @@ const C = {
   firstDown: '#ffd600',
   offense: '#1e88e5',
   defense: '#e53935',
-  // A strong, saturated yellow. The field's pale route yellow (#fde047) read as near-white at card
-  // size ("the routes in the plays UI are still white"), so the cards use a deeper one.
-  route: '#ffc400',
+  // ⚠️ THE SAME YELLOW AS THE FIELD, BY IMPORT — requested: "the yellow in the plays UI should be the
+  // same colour as the yellow on the field". A copy of the hex is how the two drifted apart before.
+  route: DRAWN_ROUTE_COLOR,
 }
 
 interface Props {
