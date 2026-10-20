@@ -26,6 +26,7 @@ export interface PlayerDesign {
   // field, { dd } downfield). Present instead of a named `route` when the player drew one; the
   // server re-clamps it and builds the waypoints the receiver actually runs.
   drawnRoute?: { dx: number; dd: number }[]
+  checkRelease?: boolean    // [check release] a blue-route TE: block if they blitz his side, else run it
   ratings?: PlayerRatings   // [293] per-team player attributes that drive the simulation
   xFactor?: string          // [294] signature ability the player can earn (inactive until earned)
 }

@@ -9,6 +9,7 @@ import { fillSlots, assignmentsFor } from './game/loadPlay.ts'
 import { pickSubstitute, moveKey } from './game/substitution.ts'
 import { colorAfterChange, routeColorHex } from './game/routeColors.ts'
 import { downAndDistance } from './game/downDistance.ts'
+import { startKeepAwake } from './socket/keepAwake.ts'
 import type { RouteColor } from './game/routeColors.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
 import { opposingLine } from './game/opposingLine.ts'
@@ -373,6 +374,14 @@ export default function App() {
     return () => cancelAnimationFrame(raf)
   }, [kickFormationType, losYardLine, ballX, kickingTeamId])
   const [gameOver, setGameOver] = useState<GameOver | null>(null)
+  // [keep awake] While a game is actually being played, ping the server every 10 minutes so the Heroku
+  // eco dyno does not fall asleep under it (socket traffic does not count as activity). Stops at the
+  // final whistle or on leaving the game, so an idle tab never keeps the dyno — and the eco hours —
+  // running. See socket/keepAwake.ts.
+  useEffect(() => {
+    if (room.status !== 'ready' || gameOver) return
+    return startKeepAwake()
+  }, [room.status, gameOver])
   // [224][225] short play-by-play notice (e.g. "First down!", "Intercepted!"). Cleared next snap.
   const [playNotice, setPlayNotice] = useState<string | null>(null)
   // Any notice auto-dismisses after 3 seconds (the next snap's game_state may clear it sooner).
@@ -1970,6 +1979,9 @@ export default function App() {
         drawnRoute:      playType === 'run' ? undefined : drawnRoutes[p.id],   // [rpo] an RPO runs routes
         ratings:         teamRoster.ratingsById[p.id],   // [293] per-team ratings → simulation
         xFactor:         teamRoster.xFactorById[p.id],   // [294] potential X-Factor ability
+        // [check release] A TE whose route is marked blue blocks if they blitz his side, and runs the
+        // route otherwise. The server makes the read at the snap.
+        ...(p.label === 'TE' && routeColors[p.id] === 'blue' && p.route !== 'block' ? { checkRelease: true } : {}),
       })),
     })
   }

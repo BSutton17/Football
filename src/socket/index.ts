@@ -25,6 +25,7 @@ function resolveServerUrl(): string {
 }
 
 const SERVER_URL: string = resolveServerUrl()
+export { SERVER_URL }
 
 const socket: GameSocket = io(SERVER_URL, {
   autoConnect: false,
