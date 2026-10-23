@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useRoom } from './hooks/useRoom.ts'
-import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, transitionContinue, adjustRunAngle, SESSION_KEY } from './socket/index.ts'
+import { socket, setOffense, placePlayer, removePlayer, assignCoverage, clearCoverage, snapBall, throwToReceiver, throwAtDefender, scramble, throwAway, resetGame, callTimeout, goPress, goRelease, pauseGame, resumeGame, setDefense, requestPlays, requestShells, pickPlay, transitionContinue, adjustRunAngle, SESSION_KEY } from './socket/index.ts'
 import PlayPicker from './components/PlayPicker.tsx'
 import DevPlayReveal from './components/DevPlayReveal.tsx'
 import { revealCoverage } from './game/revealCoverage.ts'
@@ -2086,6 +2086,7 @@ export default function App() {
     for (const p of enforced) {
       placePlayer({ id: p.id, x: p.x, y: p.y, label: p.label ?? '', team: 'o', ratings: teamRoster.ratingsById[p.id], xFactor: teamRoster.xFactorById[p.id] })
     }
+    pickPlay(play.id)   // [play cooldown]
     setPickerOpen(false)
   }
 

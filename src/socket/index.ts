@@ -140,6 +140,12 @@ export function placePlayer(data: PlacePlayerPayload): void {
 // [authored] Ask the server what it would call here. The answer comes back on 'plays_offered' /
 // 'shells_offered' — see types/playbook.ts. Each side may only ask for its own: the offense's
 // shortlist IS the play call, and the defense never sees it.
+// [play cooldown] Tell the server which offered play went on the field: a picked play sits out of the
+// shortlist for seven plays, one that was only shown for five.
+export function pickPlay(playId: string): void {
+  if (socket.connected) socket.emit('play_picked', { playId })
+}
+
 export function requestPlays(): void {
   if (socket.connected) socket.emit('request_plays')
 }

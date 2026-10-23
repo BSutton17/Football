@@ -167,6 +167,8 @@ export interface ClientToServerEvents {
   // the defense never sees it. The server enforces that; this only describes the wire.
   request_plays: () => void
   request_shells: () => void
+  // [play cooldown] The player loaded one of the offered plays; it sits out of the shortlist longer.
+  play_picked: (payload: { playId: string }) => void
   // [transition screens] Solo half-time waits for the player rather than a five-second timer.
   transition_continue: () => void
   // Room
