@@ -58,6 +58,7 @@ export function statsFor(role: SpotlightRole, l: StatSpotlightPayload['line']): 
       if (role === 'sacker' || l.sacks) out.push({ value: l.sacks, label: l.sacks === 1 ? 'SACK' : 'SACKS' })
       // A sack is not a tackle in the box score, so a sacker's first big play would read "0 TKL".
       if (role !== 'sacker' || l.tackles) out.push({ value: l.tackles, label: 'TKL' })
+      if (l.tfl) out.push({ value: l.tfl, label: 'TFL' })   // [TFL] separate from ordinary tackles
       if (l.interceptions) out.push({ value: l.interceptions, label: 'INT' })
       return out
     }

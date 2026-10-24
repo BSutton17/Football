@@ -14,8 +14,8 @@ interface Props {
 const KICK_TIMER_SECONDS  = 3.5
 // ⚠️ MIRRORS THE SERVER EXACTLY (specialTeams.js). This had drifted to the bare 0.9 rate, missing the
 // server's 4/3 slowdown, so the meter on screen fell faster than the real one between server updates.
-// Now both carry the slowdown, the later 15% speed-up, and a further 10% on top (2026-10-21).
-const POWER_DRAIN_PER_SEC  = (1 / KICK_TIMER_SECONDS) * 0.9 / (4 / 3) * 1.15 * 1.1
+// Now both carry the slowdown, the later 15% speed-up, and a further 10% twice (2026-10-21, -24).
+const POWER_DRAIN_PER_SEC  = (1 / KICK_TIMER_SECONDS) * 0.9 / (4 / 3) * 1.15 * 1.1 * 1.1
 const POWER_REFILL         = 0.02
 const AIM_STEP             = 0.1
 const AIM_MAX_DEGREES      = 30

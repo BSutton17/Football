@@ -276,5 +276,6 @@ export interface StatSpotlightPayload {
     carries: number; rushYards: number; rushTD: number
     receptions: number; recYards: number; recTD: number
     tackles: number; sacks: number; interceptions: number
+    tfl?: number                // [TFL] tackles for loss, sacks included
   }
 }
