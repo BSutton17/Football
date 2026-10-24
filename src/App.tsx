@@ -12,6 +12,7 @@ import { downAndDistance } from './game/downDistance.ts'
 import { startKeepAwake } from './socket/keepAwake.ts'
 import type { RouteColor } from './game/routeColors.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
+import { shellsWindowOpen } from './game/shellsWindow.ts'
 import { opposingLine } from './game/opposingLine.ts'
 import { canRemoveAutoPlayer, isAutoPlayer, withoutRemoved } from './game/devRemove.ts'
 import type { AssignCoveragePayload } from './types/socket.ts'
@@ -1343,6 +1344,17 @@ export default function App() {
   }, [situationKey])
 
   useEffect(() => { if (phase === 'live') setPickerOpen(false) }, [phase])
+
+  // [shells window] The defense may still change its shell after the offense sets — the countdown is
+  // its adjust window, and the server accepts placements and coverage throughout it. It used to be
+  // gated on pre-snap alone, so the SHELLS button vanished the moment the offense locked: "once the
+  // offense is set the defense's shell button disappears. It should remain available until 3 seconds
+  // before the countdown is over." A menu still open at that point closes with it.
+  const shellsAvailable = shellsWindowOpen(phase, hikeCount)
+  // (room.role, not `role` — that const is declared further down and is not readable here yet.)
+  useEffect(() => {
+    if (room.role === 'defense' && !shellsAvailable) setPickerOpen(false)
+  }, [room.role, shellsAvailable])
 
   useEffect(() => {
     if (room.status !== 'ready' || phase !== 'pre_snap') return
@@ -2747,7 +2759,7 @@ export default function App() {
           className={`defense-rail${shellsRailBottom != null ? ' defense-rail--qb' : ''}`}
           style={shellsRailBottom != null ? { bottom: `${shellsRailBottom}px` } : undefined}
         >
-          {isPreSnap && opponentPositions.length >= 5 && (
+          {shellsAvailable && opponentPositions.length >= 5 && (
             <button className="plays-btn" onPointerDown={handleOpenPicker}>SHELLS</button>
           )}
           {showCoverageMenu && selectedPlayer && (
