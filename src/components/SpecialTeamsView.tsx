@@ -16,6 +16,8 @@ const KICK_TIMER_SECONDS  = 3.5
 // server's 4/3 slowdown, so the meter on screen fell faster than the real one between server updates.
 // Now both carry the slowdown, the later 15% speed-up, and a further 10% twice (2026-10-21, -24).
 const POWER_DRAIN_PER_SEC  = (1 / KICK_TIMER_SECONDS) * 0.9 / (4 / 3) * 1.15 * 1.1 * 1.1
+// …and the punt alone another 10% (2026-10-25), mirroring the server's PUNT_DRAIN_SPEEDUP.
+const PUNT_DRAIN_SPEEDUP   = 1.1
 const POWER_REFILL         = 0.02
 const AIM_STEP             = 0.1
 const AIM_MAX_DEGREES      = 30
@@ -60,13 +62,14 @@ export default function SpecialTeamsView({ st, aimAnchor }: Props) {
     let last = performance.now()
     const tick = (now: number) => {
       const dt = (now - last) / 1000; last = now
-      powerRef.current = Math.max(0, powerRef.current - POWER_DRAIN_PER_SEC * dt)
+      const drain = st.kickType === 'punt' ? POWER_DRAIN_PER_SEC * PUNT_DRAIN_SPEEDUP : POWER_DRAIN_PER_SEC
+      powerRef.current = Math.max(0, powerRef.current - drain * dt)
       setPower(powerRef.current)
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [live, st.started])
+  }, [live, st.started, st.kickType])
 
   // [12] A directional input: optimistically swing + refill, then tell the server. No-op once kicked.
   const inputRef = useRef<(dir: 'left' | 'right') => void>(() => {})

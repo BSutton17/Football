@@ -88,6 +88,9 @@ function summarizePlay(r: PlayResult): string {
     case 'incomplete':
       if (r.newPossession)          return 'Turnover on downs'
       if (r.detail === 'broken_up') return 'Pass broken up'
+      if (r.detail === 'overthrown') return 'Pass overthrown'
+      if (r.detail === 'inaccurate') return 'Inaccurate throw'
+      if (r.detail === 'drop')       return 'Dropped'
       return 'Incomplete pass'
     case 'sack':         return r.newPossession ? 'Sacked — turnover on downs' : `Sacked for ${Math.abs(r.yardsGained)}`
     case 'tackle': {
