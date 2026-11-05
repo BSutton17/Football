@@ -77,7 +77,7 @@ export default function Cinematic({ season, onDone }: { season: SeasonView; onDo
 
       {stage === 1 && (
         <div className="cine-road" key="road">
-          <div className="cine-road-title">Seventeen games. No replays.</div>
+          <div className="cine-road-title">Seventeen games. One Victor.</div>
           <div className="cine-road-grid">
             {opponents.map((id, i) => (
               <div className="cine-road-logo" key={`${id}-${i}`} style={{ animationDelay: `${i * LOGO_STEP_MS}ms` }}>
