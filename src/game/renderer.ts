@@ -15,7 +15,8 @@ const logoCache = new Map<string, HTMLImageElement | null>()
 function getLogoImage(teamId: string | null | undefined): HTMLImageElement | null {
   if (!teamId) return null
   if (logoCache.has(teamId)) return logoCache.get(teamId) ?? null
-  const src = teamLogo(teamId)
+  // [seasons] A path instead of a team: the Super Bowl's art at midfield.
+  const src = teamId.startsWith('/') ? teamId : teamLogo(teamId)
   if (!src) { logoCache.set(teamId, null); return null }
   const img = new Image()
   img.src = src
@@ -226,12 +227,16 @@ function drawMidfieldLogo(
   const cx   = fieldXToCanvas(FIELD.WIDTH / 2, cam)
   const cy   = relYToCanvas(50, cam)
   const size = Math.max(60, cam.yardPx * 18)   // ~18 yards — big, centered on the 50
+  // Team logos are square; the Super Bowl's art is not, and must not be stretched to be.
+  const ratio = img.naturalWidth / img.naturalHeight || 1
+  const w = ratio >= 1 ? size : size * ratio
+  const h = ratio >= 1 ? size / ratio : size
   ctx.save()
   ctx.globalAlpha = 0.5
   ctx.translate(cx, cy)
   ctx.rotate(Math.PI / 2)      // 90° — reads sideline-to-sideline
   ctx.scale(1, direction)      // direction −1 → mirror, so it isn't flipped when driving the other way
-  ctx.drawImage(img, -size / 2, -size / 2, size, size)
+  ctx.drawImage(img, -w / 2, -h / 2, w, h)
   ctx.restore()
 }
 

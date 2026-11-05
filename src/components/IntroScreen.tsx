@@ -31,14 +31,17 @@ function loadYouTubeApi(): Promise<any> {
 
 type Phase = 'splash' | 'loading' | 'title'
 
-export default function IntroScreen({ children }: { children: ReactNode }) {
-  const [phase, setPhase]     = useState<Phase>('splash')
+// `skip` goes straight to the title with no splash, no song and no video: coming back to the Seasons
+// screen from a game is not a fresh launch.
+export default function IntroScreen({ children, skip = false }: { children: ReactNode; skip?: boolean }) {
+  const [phase, setPhase]     = useState<Phase>(skip ? 'title' : 'splash')
   const [barFill, setBarFill] = useState(0)   // 0 → 100 (%) drives the fake loading bar width
   const loadMsRef = useRef(0)
   const songRef   = useRef<any>(null)
 
   // Create the audio-only song player once. It's armed but only made audible on the button press.
   useEffect(() => {
+    if (skip) return
     let cancelled = false
     loadYouTubeApi().then((YT) => {
       if (cancelled) return
@@ -83,7 +86,7 @@ export default function IntroScreen({ children }: { children: ReactNode }) {
   return (
     <div className="intro-root">
       {/* Muted background video — stays mounted behind everything, incl. the title screen. */}
-      <video className="intro-video" src={VIDEO_SRC} autoPlay muted loop playsInline preload="auto" />
+      {!skip && <video className="intro-video" src={VIDEO_SRC} autoPlay muted loop playsInline preload="auto" />}
       {/* Audio-only song player (YouTube), kept off-screen. */}
       <div className="intro-song-holder"><div id="intro-song" /></div>
 

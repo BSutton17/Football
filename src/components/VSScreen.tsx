@@ -34,6 +34,8 @@ interface Props {
   picks: Record<number, TeamPick>
   slot: number | null
   onContinue: () => void
+  // [seasons] Which game of the season this is: "Week 7", "Divisional", "Super Bowl".
+  seasonTag?: string | null
 }
 
 const HOLD_MS = 5200   // how long the VS intro plays before auto-advancing to kickoff
@@ -51,7 +53,7 @@ function topThree(team: NflTeam): RosterPlayer[] {
 // [VS screen] The hype moment after both players lock in: a full split — each team a full-width
 // band in its colors with a massive phrase, logo, rating and top players — joined by a glowing VS.
 // Slowly zooms, then hands off to kickoff (tap to skip).
-export default function VSScreen({ picks, slot, onContinue }: Props) {
+export default function VSScreen({ picks, slot, onContinue, seasonTag }: Props) {
   const byId = useMemo(() => new Map(NFL_TEAMS.map(t => [t.id, t])), [])
   const top = byId.get(picks[0]?.teamId ?? '')
   const bot = byId.get(picks[1]?.teamId ?? '')
@@ -77,6 +79,7 @@ export default function VSScreen({ picks, slot, onContinue }: Props) {
   return (
     // Non-interactive — both players wait through the intro (no tap-to-skip), so they stay in sync.
     <div className="vs2">
+      {seasonTag && <div className="vs2-season-tag">{seasonTag}</div>}
       <Band team={top} mine={slot === 0} position="top" />
       <div className="vs2-seam">
         <span className="vs2-badge">VS</span>

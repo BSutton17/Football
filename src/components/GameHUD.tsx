@@ -149,7 +149,7 @@ export default function GameHUD({ gameState, ownTeamId, oppTeamId }: Props) {
             onPointerDown={onClockTap}
             title={canChew ? 'Tap to chew the clock' : undefined}
           >
-            Q{quarter} · {formatClock(clock)}
+            {quarter >= 5 ? 'OT' : `Q${quarter}`} · {formatClock(clock)}
           </span>
           {showPlayClock && (
             <span className="hud-playclock" style={playClockColor ? { color: playClockColor } : undefined}>

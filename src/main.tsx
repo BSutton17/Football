@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import { lazy, Suspense } from 'react'
 import './index.css'
+import './season/season.css'
 import './screens.css'   // Team Select + VS/loading screens — vmin-scaled (scoped PostCSS), loaded after index.css
 import App from './App.tsx'
 import { lockZoom } from './utils/lockZoom.ts'

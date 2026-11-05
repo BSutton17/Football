@@ -22,6 +22,14 @@ interface Props {
   // quarter length, and shown read-only to the guest.
   defenseSeesOpenness: boolean
   onDefenseVision: (on: boolean) => void
+  // [seasons] Picking a team for a whole season rather than a game. There is no opponent to show and
+  // no game settings to change here, and there is the NFL's strength of schedule to consider.
+  season?: {
+    sos: Record<string, { rank: number; pct: number }>
+    lastYear: Record<string, { w: number; l: number; t: number }>
+    sosYear: number | null
+    onBack: () => void
+  }
 }
 
 // The lengths the host may pick between.
@@ -40,7 +48,7 @@ function rankedRoster(team: NflTeam): RosterPlayer[] {
 // [team select] A primetime, CFB25-inspired team picker for portrait mobile: an animated stadium
 // stage themed to the focused team — massive brush-font phrase behind a big logo, top-three
 // trading cards, an opponent matchup strip, and a swipeable team carousel with a Random button.
-export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pickError, onSelect, onLock, quarterMinutes, onQuarterMinutes, defenseSeesOpenness, onDefenseVision }: Props) {
+export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pickError, onSelect, onLock, quarterMinutes, onQuarterMinutes, defenseSeesOpenness, onDefenseVision, season }: Props) {
   const teams: NflTeam[] = useMemo(() => {
     const byId = new Map(NFL_TEAMS.map(t => [t.id, t]))
     const ids = validTeamIds.length ? validTeamIds : NFL_TEAMS.map(t => t.id)
@@ -99,10 +107,12 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
   const fc = teamColors(focused.id)
   const { overall, offense, defense } = computeTeamRatings(focused)
   const top3 = rankedRoster(focused).slice(0, 3)
+  const sos = season?.sos[focused.id]
+  const lastYear = season?.lastYear[focused.id]
 
   return (
     <div
-      className="ts2-screen"
+      className={`ts2-screen${season ? ' ts2-screen--season' : ''}`}
       style={{
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ['--p' as any]: fc.primary,
@@ -121,7 +131,14 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
         <div className="ts2-bg-particles" />
       </div>
 
+      {season && (
+        <button className="ts2-back" onClick={season.onBack} aria-label="Back">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden><path fill="currentColor" d="M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z" /></svg>
+        </button>
+      )}
+
       {/* Opponent matchup strip */}
+      {!season && (
       <header
         className={`ts2-opp${oppPick?.locked ? ' ts2-opp--locked' : ''}`}
         style={oppColors ? {
@@ -146,6 +163,7 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
           {role && <span className={`ts2-role ts2-role--${role}`}>{role === 'offense' ? 'OFFENSE' : 'DEFENSE'}</span>}
         </div>
       </header>
+      )}
 
       {/* Stage — re-keyed per team so the entrance animations replay on each change */}
       <main className="ts2-stage" key={focused.id}>
@@ -166,6 +184,16 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
           </div>
           <div className="ts2-subovr"><b>{offense}</b><span>OFF</span></div>
           <div className="ts2-subovr"><b>{defense}</b><span>DEF</span></div>
+          {/* [seasons] The league's own figure: this year's opponents, on last year's records. */}
+          {sos && (
+            <div className="ts2-sos" title="Strength of schedule, by the NFL's method">
+              <span className="ts2-sos-rank">#{sos.rank}</span>
+              <span className="ts2-sos-label">
+                {sos.rank <= 8 ? 'Hard' : sos.rank >= 25 ? 'Easy' : 'Average'} schedule<br />
+                {sos.pct.toFixed(3).replace(/^0/, '')} opp. win %{lastYear ? ` · ${lastYear.w}-${lastYear.l}${lastYear.t ? `-${lastYear.t}` : ''} in ${season?.sosYear}` : ''}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="ts2-cards">
@@ -206,6 +234,7 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
         {/* [quarter length] A pregame setting, so it lives with the other pregame decisions. The
             guest sees the same row, rendered read-only, so both players know the game they are
             about to start rather than the guest finding out at kickoff. */}
+        {!season && (
         <div className="ts2-quarter">
           <span className="ts2-quarter-label">
             {isHost ? 'Quarter length' : `Quarter length · set by host`}
@@ -235,6 +264,7 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
             >D-VIS {defenseSeesOpenness ? 'ON' : 'OFF'}</button>
           </div>
         </div>
+        )}
 
         <div className="ts2-actions">
           <button className="ts2-random" onClick={randomTeam} disabled={myLocked}>🎲</button>
@@ -253,7 +283,7 @@ export default function TeamSelectScreen({ role, slot, validTeamIds, picks, pick
             </div>
           ) : (
             <button className="ts2-lock" onClick={() => onLock(focused.id)} disabled={takenByOpp}>
-              {takenByOpp ? 'TEAM TAKEN' : 'LOCK IN'}
+              {takenByOpp ? 'TEAM TAKEN' : season ? 'START SEASON' : 'LOCK IN'}
             </button>
           )}
         </div>

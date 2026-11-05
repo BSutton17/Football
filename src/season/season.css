@@ -1,0 +1,508 @@
+/* ── Seasons ([seasons]) ───────────────────────────────────────────────────
+   Quiet and clean between games: one dark surface, one accent from the player's team, and the display
+   face only for the things that deserve it. The cinematic and the celebrations are where it gets loud.
+   This file is NOT run through the px→vmin plugin, so px means px here. */
+
+.season-screen {
+  --bg: #0b0d10;
+  --surface: #15181d;
+  --surface-2: #1d2127;
+  --line: rgba(255, 255, 255, 0.09);
+  --text: #f4f5f7;
+  --muted: #9aa3ae;
+  --a: #f59e0b;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  text-shadow: none;
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  overflow: hidden;
+}
+.season-center { align-items: center; justify-content: center; }
+
+.season-muted { color: var(--muted); font-size: 14px; line-height: 1.45; }
+.season-small { font-size: 12.5px; }
+.season-kicker {
+  color: var(--muted); font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.season-title { font: 400 56px/1 var(--font-impact); letter-spacing: 0.01em; text-transform: uppercase; }
+
+.season-spinner {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.15); border-top-color: #fff;
+  animation: season-spin 0.9s linear infinite;
+}
+@keyframes season-spin { to { transform: rotate(360deg); } }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.season-btn {
+  appearance: none; border: 1px solid var(--line, rgba(255,255,255,.14)); background: var(--surface-2, #1d2127);
+  color: #f4f5f7; font: 600 15px/1 system-ui, -apple-system, sans-serif;
+  padding: 13px 20px; border-radius: 12px; cursor: pointer; min-height: 44px;
+  transition: transform 0.08s ease, background 0.15s ease;
+}
+.season-btn:active { transform: scale(0.97); }
+.season-btn:disabled { opacity: 0.5; cursor: default; }
+/* White, not the team's colour: half the league's accents read as a disabled button on a dark screen. */
+.season-btn--accent { background: #f4f5f7; border-color: transparent; color: #0b0d10; font-weight: 700; }
+.season-btn--ghost { background: transparent; }
+.season-btn--danger { background: #b91c1c; border-color: transparent; }
+.season-btn--big { padding: 15px 28px; font-size: 16px; flex: 1; }
+.season-link { background: none; border: 0; color: var(--muted); font-size: 14px; padding: 10px; cursor: pointer; }
+.season-back {
+  flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%;
+  background: transparent; border: 0; color: var(--text); cursor: pointer;
+}
+.season-back:active { background: var(--surface-2); }
+.season-chip {
+  flex: none; display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 11px;
+  border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted);
+  font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.season-chip:disabled { opacity: 0.5; }
+.season-chip-trophy { height: 20px; width: auto; }
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.season-bar {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; min-height: 56px; border-bottom: 1px solid var(--line);
+}
+.season-bar-text { flex: 1; min-width: 0; }
+.season-bar-title { font: 400 22px/1.1 var(--font-impact); text-transform: uppercase; letter-spacing: 0.02em; }
+.season-bar-name { font-size: 15.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.season-bar-sub { color: var(--muted); font-size: 12.5px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Toasts, veils, dialogs ──────────────────────────────────────────────── */
+.season-toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: max(16px, env(safe-area-inset-bottom)); z-index: 90;
+  display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px);
+  background: #2a2f37; color: #fff; font: 500 14px/1.3 system-ui, sans-serif;
+  padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.14);
+}
+.season-toast button { background: none; border: 0; color: #fff; font-weight: 700; cursor: pointer; flex: none; }
+.season-toast--problem { background: #5b1a1a; }
+.season-veil {
+  position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; padding: 20px;
+  background: rgba(5, 6, 8, 0.72);
+}
+.season-dialog {
+  width: 100%; max-width: 380px; background: #15181d; border: 1px solid rgba(255,255,255,.1);
+  border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; color: #f4f5f7;
+  font-family: system-ui, sans-serif;
+}
+.season-dialog h2 { font-size: 18px; }
+.season-dialog p { color: #9aa3ae; font-size: 14px; line-height: 1.45; }
+
+/* ── Sign in ─────────────────────────────────────────────────────────────── */
+.season-signin {
+  width: 100%; max-width: 380px; padding: 24px; display: flex; flex-direction: column; gap: 16px;
+  align-items: center; text-align: center; overflow-y: auto; touch-action: pan-y;
+}
+.season-google {
+  display: inline-flex; align-items: center; justify-content: center; gap: 12px; width: 100%; max-width: 300px;
+  height: 48px; border-radius: 999px; border: 0; background: #fff; color: #1f2328;
+  font: 600 15.5px/1 system-ui, sans-serif; cursor: pointer;
+}
+.season-google:active { transform: scale(0.98); }
+.season-waiting { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.season-linkrow { display: flex; gap: 8px; }
+
+/* ── The saves ───────────────────────────────────────────────────────────── */
+.saves, .trophies {
+  flex: 1; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch;
+  display: flex; flex-direction: column; gap: 12px; padding: 16px;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  width: 100%; max-width: 640px; margin: 0 auto;
+}
+.save {
+  position: relative; display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--a);
+  border-radius: 14px; padding: 14px; color: var(--text); cursor: pointer; font: inherit;
+}
+.save:active { background: var(--surface-2); }
+.save--empty { border: 1px dashed rgba(255, 255, 255, 0.2); background: transparent; }
+.save-plus {
+  flex: none; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface-2); color: var(--muted); font-size: 30px; font-weight: 300;
+}
+.save-text { flex: 1; min-width: 0; }
+.save-team { font-size: 16.5px; font-weight: 700; }
+.save-status { color: var(--text); opacity: 0.85; font-size: 13.5px; margin-top: 3px; }
+.save-meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.save-live {
+  flex: none; background: var(--a); color: #0b0d10; font-size: 12px; font-weight: 700;
+  padding: 5px 10px; border-radius: 999px;
+}
+.save-delete {
+  flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%;
+  background: transparent; border: 0; color: var(--muted); cursor: pointer;
+}
+.save-delete:active { background: rgba(255, 255, 255, 0.08); color: #fca5a5; }
+
+.trophy {
+  display: flex; align-items: center; gap: 14px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px;
+}
+.trophy-art { height: 96px; width: auto; flex: none; }
+
+/* ── Settings ────────────────────────────────────────────────────────────── */
+.settings {
+  flex: 1; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch;
+  width: 100%; max-width: 560px; margin: 0 auto; padding: 18px 16px;
+  padding-bottom: max(18px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 20px;
+}
+.setting { display: flex; flex-direction: column; gap: 9px; }
+.setting h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.choice-row { display: flex; gap: 8px; }
+.choice {
+  flex: 1; min-height: 46px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); font: 600 14.5px/1 system-ui, sans-serif; cursor: pointer;
+}
+.choice--on { background: #f4f5f7; color: #0b0d10; border-color: #f4f5f7; }
+.settings .season-btn--big { flex: none; }
+
+/* ── Season home ─────────────────────────────────────────────────────────── */
+.season-home-body {
+  flex: 1; min-height: 0; overflow-y: auto; touch-action: pan-y; -webkit-overflow-scrolling: touch;
+  width: 100%; max-width: 720px; margin: 0 auto;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.next {
+  padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--p) 26%, transparent), transparent 92%);
+}
+.next-label {
+  font: 400 21px/1.1 var(--font-impact); letter-spacing: 0.03em; text-transform: uppercase;
+}
+.next-match { display: flex; align-items: center; justify-content: center; gap: 18px; width: 100%; }
+.next-team { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 88px; }
+.next-abbr { font: 400 22px/1 var(--font-impact); letter-spacing: 0.03em; margin-top: 2px; }
+.next-rec { color: var(--muted); font-size: 12.5px; }
+.next-vs { color: var(--muted); font-size: 15px; font-weight: 600; }
+.next-sbart { width: 104px; height: auto; display: block; }
+.next-where { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+.next-actions { display: flex; gap: 8px; width: 100%; max-width: 360px; justify-content: center; }
+.next-confirm { display: flex; flex-direction: column; gap: 8px; align-items: center; width: 100%; font-size: 14px; }
+.next-last { color: var(--muted); font-size: 12.5px; }
+.next-mode { color: var(--muted); font-size: 11.5px; opacity: 0.8; }
+.next-bye { font: 400 26px/1.15 var(--font-impact); text-transform: uppercase; letter-spacing: 0.02em; }
+.next-lombardi { height: 150px; width: auto; }
+.outcome { font-weight: 800; }
+.outcome--W { color: #4ade80; }
+.outcome--L { color: #f87171; }
+.outcome--T { color: #fbbf24; }
+
+.season-panel { display: flex; flex-direction: column; }
+.season-tabs {
+  position: sticky; top: 0; z-index: 3; display: flex; background: var(--bg);
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.season-tab {
+  flex: 1; height: 44px; background: none; border: 0; color: var(--muted);
+  font: 600 13.5px/1 system-ui, sans-serif; cursor: pointer; border-bottom: 2px solid transparent;
+}
+.season-tab--on { color: var(--text); border-bottom-color: var(--a); }
+.season-tabbody { padding: 12px 12px 20px; }
+.season-empty { padding: 24px 12px; text-align: center; display: flex; flex-direction: column; gap: 8px; }
+
+/* Schedule */
+.sched { list-style: none; display: flex; flex-direction: column; }
+.sched-row {
+  display: flex; align-items: center; gap: 9px; min-height: 46px; padding: 5px 8px;
+  border-bottom: 1px solid var(--line); font-size: 14px;
+}
+.sched-row--now { background: color-mix(in srgb, var(--a) 14%, transparent); border-radius: 8px; }
+.sched-row--bye { color: var(--muted); }
+.sched-week { flex: none; width: 22px; color: var(--muted); font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.sched-at { flex: none; width: 18px; color: var(--muted); font-size: 12px; }
+.sched-opp { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sched-result { flex: none; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.sched-result--tbd { color: var(--muted); font-size: 12px; }
+
+/* Scores */
+.week-pills {
+  display: flex; gap: 5px; overflow-x: auto; touch-action: pan-x; padding-bottom: 10px; scrollbar-width: none;
+}
+.week-pills::-webkit-scrollbar { display: none; }
+.week-pill {
+  flex: none; width: 36px; height: 34px; border-radius: 9px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--muted); font: 600 13px/1 system-ui, sans-serif; cursor: pointer;
+}
+.week-pill--on { background: #f4f5f7; color: #0b0d10; }
+.scores { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.score {
+  position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 7px 10px; display: flex; flex-direction: column; gap: 3px;
+}
+.score--mine { border-color: var(--a); }
+.score-side { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13.5px; height: 28px; }
+.score-side--won { color: var(--text); font-weight: 700; }
+.score-seed { flex: none; width: 13px; font-size: 11.5px; color: var(--muted); font-weight: 500; }
+.score-abbr { flex: 1; }
+.score-num { font-variant-numeric: tabular-nums; }
+.score-ot { align-self: flex-end; color: var(--muted); font-size: 11px; }
+
+/* Standings */
+.conf-toggle { display: flex; gap: 6px; margin-bottom: 10px; }
+.conf-btn {
+  flex: 1; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--muted); font: 700 13.5px/1 system-ui, sans-serif; cursor: pointer;
+}
+.conf-btn--on { background: #f4f5f7; color: #0b0d10; }
+.standings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.standings { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.standings th:first-child { width: 34%; }
+.standings th {
+  color: var(--muted); font-size: 11.5px; font-weight: 600; text-align: right; padding: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.standings td { text-align: right; padding: 5px 4px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.standings .standings-team { text-align: left; }
+.standings-who { display: flex; align-items: center; gap: 7px; font-weight: 600; }
+.standings-me td { background: color-mix(in srgb, var(--a) 14%, transparent); }
+.standings-seed {
+  font-size: 10.5px; color: #0b0d10; background: var(--a); border-radius: 4px; padding: 1px 4px; font-weight: 800;
+}
+
+/* Bracket */
+.bracket-seeds {
+  display: flex; gap: 6px; overflow-x: auto; touch-action: pan-x; padding-bottom: 10px; scrollbar-width: none;
+}
+.bracket-seeds::-webkit-scrollbar { display: none; }
+.bracket-seed {
+  flex: none; display: flex; align-items: center; gap: 5px; height: 34px; padding: 0 9px;
+  border-radius: 9px; background: var(--surface); border: 1px solid var(--line); font-size: 12.5px; color: var(--muted);
+}
+.bracket-seed b { color: var(--text); }
+.bracket-seed--me { border-color: var(--a); }
+.bracket-round { margin-top: 12px; }
+.bracket-title { font-size: 12.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+.bracket-round--sb { display: flex; flex-direction: column; align-items: center; padding-top: 8px; }
+.bracket-round--sb .scores { width: 100%; max-width: 240px; grid-template-columns: 1fr; }
+.bracket-sbart { width: 130px; height: auto; margin-bottom: 6px; }
+
+/* A phone held sideways: the game is the left column, the league the right. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .season-title { font-size: 40px; }
+  .season-bar { min-height: 46px; padding: 3px 12px; }
+  .season-signin { gap: 10px; padding: 12px; }
+  .season-home-body {
+    display: grid; grid-template-columns: minmax(280px, 40%) 1fr; max-width: none; overflow: hidden;
+    padding-bottom: 0;
+  }
+  .next {
+    overflow-y: auto; touch-action: pan-y; padding: 10px 12px; gap: 7px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+  .next-team { min-width: 70px; }
+  .next-team .team-logo { width: 54px !important; height: 54px !important; }
+  .next-where { font-size: 11.5px; }
+  .next-lombardi { height: 88px; }
+  .season-panel { min-height: 0; overflow-y: auto; touch-action: pan-y; border-left: 1px solid var(--line); }
+  .season-tabs { border-top: 0; }
+  .saves { flex-direction: row; flex-wrap: wrap; max-width: none; align-content: flex-start; }
+  .saves .save { width: calc(50% - 6px); }
+  .settings { gap: 12px; padding: 10px 16px; max-width: 640px; }
+  .choice { min-height: 40px; }
+}
+
+/* ── Celebrations ────────────────────────────────────────────────────────── */
+.celebrate {
+  position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; color: #fff; font-family: system-ui, -apple-system, sans-serif; text-shadow: none;
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--p) 80%, #fff 8%), transparent 62%),
+    #08090c;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  animation: celebrate-in 0.35s ease-out both;
+}
+.celebrate--over { background: radial-gradient(circle at 50% 35%, #23272e, #08090c 70%); }
+.celebrate--gold {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 217, 122, 0.34), transparent 58%),
+    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--p) 70%, transparent), transparent 80%),
+    #08090c;
+}
+@keyframes celebrate-in { from { opacity: 0; } to { opacity: 1; } }
+.season-confetti { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.celebrate-inner {
+  position: relative; z-index: 1; max-width: 460px; display: flex; flex-direction: column;
+  align-items: center; gap: 12px; text-align: center;
+  animation: celebrate-rise 0.6s cubic-bezier(0.2, 1.3, 0.4, 1) both;
+}
+@keyframes celebrate-rise { from { transform: translateY(26px) scale(0.92); opacity: 0; } to { transform: none; opacity: 1; } }
+.celebrate-kicker { font-size: 13px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--a); }
+.celebrate-title { font: 400 clamp(32px, 9vmin, 58px)/1.05 var(--font-impact); text-transform: uppercase; letter-spacing: 0.01em; }
+.celebrate-sub { color: rgba(255, 255, 255, 0.78); font-size: 15px; line-height: 1.45; margin-bottom: 6px; }
+.celebrate-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.celebrate-inner--champ { gap: 8px; }
+.celebrate-sb { width: clamp(110px, 26vmin, 170px); height: auto; }
+.celebrate-lombardi {
+  height: clamp(170px, 40vh, 340px); width: auto;
+  filter: drop-shadow(0 0 28px rgba(255, 225, 150, 0.45));
+  animation: lombardi-rise 1.1s cubic-bezier(0.2, 1.1, 0.4, 1) both;
+}
+@keyframes lombardi-rise { from { transform: translateY(60px) scale(0.8); opacity: 0; } to { transform: none; opacity: 1; } }
+.celebrate-copy { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .celebrate-inner { gap: 7px; }
+  .celebrate-inner .team-logo { width: 76px !important; height: 76px !important; }
+  .celebrate-inner--champ { flex-direction: row; max-width: none; gap: 22px; align-items: center; }
+  .celebrate-lombardi { height: 78vh; }
+  .celebrate-sb { width: 110px; }
+}
+
+/* ── The new-season title sequence ───────────────────────────────────────── */
+.cine {
+  position: fixed; inset: 0; z-index: 80; overflow: hidden; background: #000; color: #fff;
+  display: flex; align-items: center; justify-content: center; text-align: center; text-shadow: none;
+  font-family: var(--font-impact);
+}
+.cine-skip {
+  position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom));
+  font: 500 12px/1 system-ui, sans-serif; color: rgba(255, 255, 255, 0.55);
+}
+
+.cine-beams { position: absolute; inset: -30%; pointer-events: none; }
+.cine-beam {
+  position: absolute; top: 0; bottom: 0; width: 34%; filter: blur(30px); opacity: 0.8; mix-blend-mode: screen;
+  background: linear-gradient(180deg, var(--a), transparent 82%);
+}
+.cine-beam--a { left: 8%; transform-origin: top center; animation: cine-sweep-a 3.2s ease-in-out infinite alternate; }
+.cine-beam--b { right: 8%; transform-origin: top center; background: linear-gradient(180deg, color-mix(in srgb, var(--p) 72%, #fff), transparent 74%); opacity: 0.62; animation: cine-sweep-b 2.7s ease-in-out infinite alternate; }
+@keyframes cine-sweep-a { from { transform: rotate(-24deg); } to { transform: rotate(20deg); } }
+@keyframes cine-sweep-b { from { transform: rotate(22deg); } to { transform: rotate(-18deg); } }
+
+.cine-year { position: relative; animation: cine-year 1.7s ease-out both; }
+.cine-year-num { font-size: clamp(90px, 32vmin, 240px); line-height: 0.95; letter-spacing: 0.02em; }
+.cine-year-label { font: 600 clamp(13px, 3vmin, 20px)/1 system-ui, sans-serif; letter-spacing: 0.34em; text-transform: uppercase; margin-top: 12px; color: rgba(255, 255, 255, 0.82); }
+@keyframes cine-year {
+  0% { transform: scale(1.5); opacity: 0; filter: blur(16px); letter-spacing: 0.2em; }
+  38% { transform: scale(1.06); opacity: 1; filter: blur(0); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.cine-road { position: relative; width: min(92vw, 700px); }
+.cine-road-title {
+  font-size: clamp(22px, 6.4vmin, 44px); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 18px;
+  animation: cine-fade 0.4s ease-out both;
+}
+.cine-road-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 9px; }
+.cine-road-logo { animation: cine-logo 0.32s cubic-bezier(0.2, 1.6, 0.4, 1) both; }
+@keyframes cine-logo {
+  from { transform: scale(2.8) rotate(-10deg); opacity: 0; filter: brightness(3); }
+  to { transform: none; opacity: 1; filter: none; }
+}
+@keyframes cine-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.cine-flash {
+  position: absolute; inset: 0; z-index: 4; background: #fff; pointer-events: none;
+  animation: cine-flash 0.5s ease-out both;
+}
+@keyframes cine-flash { from { opacity: 1; } to { opacity: 0; } }
+
+.cine-slam {
+  position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 8px; animation: cine-shake 0.46s linear both;
+}
+@keyframes cine-shake {
+  0% { transform: translate(0, 0); }
+  15% { transform: translate(-9px, 7px); }
+  30% { transform: translate(8px, -6px); }
+  50% { transform: translate(-5px, 4px); }
+  72% { transform: translate(3px, -2px); }
+  100% { transform: translate(0, 0); }
+}
+.cine-flood {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--p) 88%, #fff 12%), var(--p) 42%, #000 118%);
+}
+.cine-shock {
+  position: absolute; top: 46%; left: 50%; width: 60px; height: 60px; margin: -30px; border-radius: 50%;
+  border: 7px solid rgba(255, 255, 255, 0.85); animation: cine-shock 0.9s ease-out both;
+}
+.cine-shock--late { animation-delay: 0.14s; border-width: 3px; }
+@keyframes cine-shock {
+  from { transform: scale(0.4); opacity: 1; }
+  to { transform: scale(26); opacity: 0; }
+}
+.cine-phrase {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-5deg); width: 118vw;
+  font: 400 clamp(60px, 21vmin, 170px)/0.95 var(--font-phrase); color: rgba(255, 255, 255, 0.13);
+  text-transform: uppercase; white-space: nowrap; overflow: hidden;
+  animation: cine-phrase 2.4s ease-out both;
+}
+@keyframes cine-phrase {
+  from { transform: translate(-50%, -50%) rotate(-5deg) scale(1.4); opacity: 0; }
+  to { transform: translate(-50%, -50%) rotate(-5deg) scale(1); opacity: 1; }
+}
+.cine-logo { position: relative; animation: cine-land 0.5s cubic-bezier(0.25, 1.5, 0.5, 1) both; }
+.cine-logo .team-logo { width: clamp(120px, 40vmin, 230px) !important; height: clamp(120px, 40vmin, 230px) !important; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.5); }
+@keyframes cine-land {
+  from { transform: scale(3.6); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.cine-name {
+  position: relative; color: var(--on-p, #fff); font-size: clamp(30px, 9.6vmin, 68px); line-height: 1;
+  text-transform: uppercase; letter-spacing: 0.02em; animation: cine-name 0.6s 0.28s ease-out both;
+}
+@keyframes cine-name { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
+.cine-opener {
+  position: relative; color: var(--on-p, #fff); opacity: 0.9;
+  font: 600 clamp(13px, 3.4vmin, 19px)/1 system-ui, sans-serif; letter-spacing: 0.12em; text-transform: uppercase;
+  margin-top: 6px; animation: cine-fade 0.5s ease-out both;
+}
+.cine--stage2 .cine-beams, .cine--stage3 .cine-beams { display: none; }
+
+/* ── The team picker, in a season ────────────────────────────────────────── */
+/* No opponent strip above and no settings below, so the team takes the middle of the screen, with room
+   above the logo for the phrase that sits behind it. */
+.ts2-screen--season .ts2-stage { justify-content: center; padding-top: 44px; }
+.ts2-screen--season .ts2-ratings { flex-wrap: wrap; justify-content: center; align-items: center; }
+.ts2-screen--season .ts2-sos { flex-basis: 100%; max-width: 330px; margin-top: 4px; }
+@media (orientation: landscape) and (max-height: 500px) {
+  .ts2-screen--season .ts2-stage { padding-top: 4px; }
+  .ts2-screen--season .ts2-sos { flex-basis: auto; margin-top: 0; }
+  .ts2-screen--season .ts2-ratings { flex-wrap: nowrap; }
+}
+.ts2-back {
+  position: absolute; z-index: 5; top: max(8px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left));
+  width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; border: 0;
+  background: rgba(0, 0, 0, 0.42); color: #fff; cursor: pointer;
+}
+.ts2-sos {
+  display: flex; align-items: center; justify-content: center; gap: 12px; font-family: system-ui, sans-serif;
+  background: rgba(0, 0, 0, 0.42); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 10px;
+  padding: 5px 11px; color: #fff; text-shadow: none;
+}
+.ts2-sos-rank { font: 400 19px/1 var(--font-impact); letter-spacing: 0.02em; }
+.ts2-sos-label { font-size: 11px; line-height: 1.25; text-align: left; color: rgba(255, 255, 255, 0.78); }
+
+/* ── In the game ─────────────────────────────────────────────────────────── */
+.season-resuming {
+  position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; gap: 14px; align-items: center;
+  justify-content: center; background: #0b0d10; color: #f4f5f7; font: 500 15px/1.3 system-ui, sans-serif;
+}
+.pause-season-btn {
+  background: transparent; color: #fff; border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 10px; padding: 11px 22px; font: 600 15px/1 system-ui, sans-serif; cursor: pointer; min-height: 44px;
+}
+.pause-season-btn:disabled { opacity: 0.45; cursor: default; }
+.gameover-season-tag { font: 600 14px/1 system-ui, sans-serif; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.8; }
+.vs2-season-tag {
+  position: absolute; z-index: 6; top: max(10px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right));
+  background: rgba(0, 0, 0, 0.6); color: #fff; padding: 6px 14px; border-radius: 999px; white-space: nowrap;
+  font: 700 13px/1 system-ui, sans-serif; letter-spacing: 0.1em; text-transform: uppercase; text-shadow: none;
+}
+.room-seasons-btn { border-color: #f59e0b !important; }

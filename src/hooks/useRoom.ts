@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
-import { socket, createRoom as socketCreate, createSoloRoom as socketCreateSolo, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, setQuarterLength as socketSetQuarterLength, setDefenseVision as socketSetDefenseVision, disconnect, SESSION_KEY } from '../socket/index.ts'
+import { useState, useEffect, useRef } from 'react'
+import { socket, soloRoster, createRoom as socketCreate, createSoloRoom as socketCreateSolo, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, seasonPlay as socketSeasonPlay, setQuarterLength as socketSetQuarterLength, setDefenseVision as socketSetDefenseVision, disconnect, SESSION_KEY } from '../socket/index.ts'
 import { generateRoomCode } from '../utils/roomCode.ts'
 import { gameStore } from '../utils/gameStore.ts'
 import type { TeamRole } from '../types/player.ts'
 import type { GameMode, Difficulty } from '../types/game.ts'
+import { teamById } from '../data/nflTeams.ts'
 
 export type RoomStatus = 'idle' | 'connecting' | 'waiting' | 'team_select' | 'vs' | 'ready' | 'reconnecting' | 'error' | 'abandoned'
 
@@ -52,6 +53,11 @@ const CLEARED_SELECTION = {
 }
 
 export function useRoom() {
+  // [role race] The role as of the last event, not the last render. Socket messages that arrive together
+  // can all run before React gets to render, so a handler reading `state.role` may be several messages
+  // out of date. See onPlayerPlaced in App.tsx for what that cost.
+  const roleRef = useRef<TeamRole | null>(null)
+
   const [state, setState] = useState<RoomState>(() => {
     // If a session token exists on mount, show reconnecting immediately
     const hasSession = !!gameStore.getItem(SESSION_KEY)
@@ -109,7 +115,14 @@ export function useRoom() {
     // Role is assigned before team selection; status is driven by team_select_start /
     // team_select_complete (or reconnect_success), so this only records the role.
     function onRolesAssigned({ role }: { role: TeamRole }) {
+      roleRef.current = role
       setState(s => ({ ...s, role }))
+    }
+
+    // [seasons] A season game has no team selection. On a new game team_select_complete follows and
+    // plays the VS screen; a game coming back from a save skips it (reconnect_success).
+    function onSeasonGameStart({ slot }: { slot: number; resuming: boolean }) {
+      setState(s => ({ ...s, slot, picks: {}, pickError: null }))
     }
 
     // [268][269] Both players enter team selection together.
@@ -159,13 +172,22 @@ export function useRoom() {
       // Restore as 'ready'; if the room is actually still in team selection the server follows up
       // with team_select_start, which flips status back to 'team_select'. Restoring the slot (and the
       // team_selected picks the server re-sends) recovers team colors / roster after a refresh.
+      roleRef.current = role
       setState(s => ({ ...s, status: 'ready', roomId, role, slot: slot ?? s.slot, error: null }))
     }
 
     // [192] Possession changed (interception / turnover on downs) — adopt the new role so the
     // offense/defense UI follows the ball.
     function onSwitchSides({ role }: { role: TeamRole }) {
+      roleRef.current = role
       setState(s => ({ ...s, role }))
+    }
+
+    // The same game was opened on another device, which now holds the seat.
+    function onSessionTakenOver() {
+      gameStore.removeItem(SESSION_KEY)
+      socket.disconnect()
+      setState({ ...CLEARED_SELECTION, status: 'error', roomId: null, role: null, error: 'This game was opened on another device.' })
     }
 
     function onReconnectFailed() {
@@ -237,6 +259,7 @@ export function useRoom() {
     socket.on('room_joined', onRoomJoined)
     socket.on('roles_assigned', onRolesAssigned)
     socket.on('team_select_start', onTeamSelectStart)
+    socket.on('season_game_start', onSeasonGameStart)
     socket.on('quarter_length_changed', onQuarterLengthChanged)
     socket.on('defense_vision_changed', onDefenseVisionChanged)
     socket.on('team_selected', onTeamSelected)
@@ -245,6 +268,7 @@ export function useRoom() {
     socket.on('switch_sides', onSwitchSides)
     socket.on('reconnect_success', onReconnectSuccess)
     socket.on('reconnect_failed', onReconnectFailed)
+    socket.on('session_taken_over', onSessionTakenOver)
     socket.on('room_mode_mismatch', onRoomModeMismatch)
     socket.on('room_full', onRoomFull)
     socket.on('room_not_found', onRoomNotFound)
@@ -260,6 +284,7 @@ export function useRoom() {
       socket.off('room_joined', onRoomJoined)
       socket.off('roles_assigned', onRolesAssigned)
       socket.off('team_select_start', onTeamSelectStart)
+      socket.off('season_game_start', onSeasonGameStart)
       socket.off('quarter_length_changed', onQuarterLengthChanged)
       socket.off('defense_vision_changed', onDefenseVisionChanged)
       socket.off('team_selected', onTeamSelected)
@@ -268,6 +293,7 @@ export function useRoom() {
       socket.off('switch_sides', onSwitchSides)
       socket.off('reconnect_success', onReconnectSuccess)
       socket.off('reconnect_failed', onReconnectFailed)
+      socket.off('session_taken_over', onSessionTakenOver)
       socket.off('room_mode_mismatch', onRoomModeMismatch)
       socket.off('room_full', onRoomFull)
       socket.off('room_not_found', onRoomNotFound)
@@ -298,6 +324,18 @@ export function useRoom() {
     const id = generateRoomCode()
     setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: id, role: null, error: null, mode, difficulty, offline: true })
     socketCreateSolo(id, mode, difficulty, aiTeamId)
+  }
+
+  // [seasons] Start, or get back into, this season's current game. The server decides which: if it has
+  // a save, this picks up where that left off. The opponent's roster travels with the request for the
+  // same reason it does on any solo game, the server has none of its own.
+  function startSeasonGame(args: { seasonId: string; token: string; opponentId: string; mode: GameMode; difficulty: Difficulty }) {
+    const team = teamById(args.opponentId)
+    if (!team) return
+    gameStore.removeItem(SESSION_KEY)
+    roleRef.current = null
+    setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: null, role: null, error: null, mode: args.mode, difficulty: args.difficulty, offline: true })
+    socketSeasonPlay({ token: args.token, seasonId: args.seasonId, aiTeamId: args.opponentId, aiRoster: soloRoster(team) })
   }
 
   // The joiner's mode is only a filter — the server refuses a mismatch and the room's own
@@ -340,5 +378,5 @@ export function useRoom() {
     socketSetDefenseVision(on)
   }
 
-  return { ...state, createRoom, createOfflineRoom, joinRoom, leaveRoom, selectTeam, lockTeam, enterGame, setQuarterMinutes, setDefenseVision }
+  return { ...state, roleRef, startSeasonGame, createRoom, createOfflineRoom, joinRoom, leaveRoom, selectTeam, lockTeam, enterGame, setQuarterMinutes, setDefenseVision }
 }

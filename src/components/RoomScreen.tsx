@@ -11,6 +11,8 @@ interface Props extends RoomState {
   createOfflineRoom: (mode: GameMode, difficulty: Difficulty, aiTeamId: string | null) => void
   joinRoom:   (id: string, mode: GameMode) => void
   leaveRoom:  () => void
+  // [seasons] Off to the save-slot screen.
+  onOpenSeasons?: () => void
 }
 
 // [manual] The lobby is two steps. First pick how the game plays — Automatic (the original: tap
@@ -44,7 +46,7 @@ function difficultyName(id: Difficulty | null | undefined): string {
   return DIFFICULTIES.find(d => d.id === id)?.name ?? 'Easy'
 }
 
-export default function RoomScreen({ status, roomId, role, error, mode, difficulty, offline, createRoom, createOfflineRoom, joinRoom, leaveRoom }: Props) {
+export default function RoomScreen({ status, roomId, role, error, mode, difficulty, offline, createRoom, createOfflineRoom, joinRoom, leaveRoom, onOpenSeasons }: Props) {
   const [inputCode, setInputCode]   = useState('')
   const [pickedMode, setPickedMode] = useState<GameMode | null>(null)
   const [pickedDiff, setPickedDiff] = useState<Difficulty>('easy')
@@ -77,6 +79,12 @@ export default function RoomScreen({ status, roomId, role, error, mode, difficul
       {/* Step 1 — how do you want to play? */}
       {status === 'idle' && !offlineOpen && pickedMode === null && (
         <div className="room-lobby">
+          {onOpenSeasons && (
+            <button className="room-mode-btn room-seasons-btn" data-testid="open-seasons" onClick={onOpenSeasons}>
+              <span className="room-mode-name">Seasons</span>
+              <span className="room-mode-blurb">The real NFL schedule, one team</span>
+            </button>
+          )}
           {MODES.map(m => (
             <button key={m.id} className="room-mode-btn" onClick={() => setPickedMode(m.id)}>
               <span className="room-mode-name">{m.name}</span>

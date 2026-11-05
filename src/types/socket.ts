@@ -94,6 +94,12 @@ export interface ServerToClientEvents {
   defense_vision_changed: (data: { on: boolean }) => void
   // [pause] Either player froze (or lifted) the game. byYou distinguishes the caller.
   game_paused:  (data: { byYou: boolean; auto?: boolean }) => void
+  // [seasons]
+  session_taken_over: () => void
+  season_game_start: (data: { slot: number; resuming: boolean }) => void
+  season_game_final: (data: { seasonId: string; gameId: string; recorded: boolean; season: unknown }) => void
+  season_saved: (data: { seasonId: string }) => void
+  season_error: (data: { code: string; message: string }) => void
   game_resumed: () => void
   // [187] The QB has held the ball long enough (in GAME time) that throwing it away is offered.
   throwaway_ready: () => void
@@ -224,6 +230,10 @@ export interface ClientToServerEvents {
   // [pause] Either player may call or lift a pause.
   pause_game:         () => void
   resume_game:        () => void
+  // [seasons]
+  season_play: (data: { token: string; seasonId: string; aiTeamId: string; aiRoster: unknown[] }) => void
+  season_save_quit: () => void
+  season_leave: () => void
   app_hidden: () => void
   app_visible: () => void
   // [manual] GO pressed / released. Press resumes the play (the first press is the snap itself);

@@ -22,6 +22,11 @@ import type { HalftimeStats, StatLeader, DevReveal } from './types/game.ts'
 import { beautifyRoute } from './game/routeDraw.ts'
 import type { RouteOffset } from './game/routeDraw.ts'
 import RoomScreen from './components/RoomScreen.tsx'
+import SeasonApp from './season/SeasonApp.tsx'
+import { api } from './season/api.ts'
+import { getActiveSeason, loadAuth, setActiveSeason } from './season/authStore.ts'
+import { superBowlArt } from './season/format.ts'
+import type { SeasonView } from './season/types.ts'
 import IntroScreen from './components/IntroScreen.tsx'
 import TeamSelectScreen from './components/TeamSelectScreen.tsx'
 import VSScreen from './components/VSScreen.tsx'
@@ -48,6 +53,7 @@ import { TEAM_COLORS } from './data/teamColors.ts'
 import type { StatSpotlightPayload } from './types/game.ts'
 import { computeZoneShell, SHELL_ORDER, SHELL_LABEL } from './game/zoneShells.ts'
 import { FIELD } from './constants/simulation.ts'
+import type { SeasonGameInfo } from './types/game.ts'
 import type { GameState, PlayPhase, PositionUpdate, CarrierVision, Score, GameOver, PlayResult, SpecialTeamsState, PlayDecision, GameMode, Difficulty, PlayType } from './types/game.ts'
 
 const YARD_LINE = 25   // mock ball position
@@ -147,6 +153,89 @@ const NAME_REVEAL_LABELS = new Set(['RB', 'WR', 'TE'])
 
 export default function App() {
   const room = useRoom()
+
+  // ── [seasons] Between games ────────────────────────────────────────────
+  const [seasonsOpen, setSeasonsOpen] = useState(false)
+  // Back from a game, and which season to open straight into.
+  const [seasonFocus, setSeasonFocus] = useState<string | null>(null)
+  const [seasonReturn, setSeasonReturn] = useState(false)
+  const [seasonStartError, setSeasonStartError] = useState<string | null>(null)
+  // Which game of which season the game on screen is, from the server. Null otherwise.
+  const [seasonInfo, setSeasonInfo] = useState<SeasonGameInfo | null>(null)
+  const [seasonSaving, setSeasonSaving] = useState(false)
+  const [resuming, setResuming] = useState(false)
+
+  function playSeasonGame(season: SeasonView, token: string) {
+    const game = season.currentGame
+    if (!game) return
+    setSeasonStartError(null)
+    setSeasonFocus(season.id)
+    setActiveSeason(season.id)
+    room.startSeasonGame({
+      seasonId: season.id,
+      token,
+      opponentId: game.home === season.teamId ? game.away : game.home,
+      mode: season.settings.mode,
+      difficulty: season.settings.difficulty,
+    })
+  }
+
+  function backToSeasons(seasonId: string | null) {
+    setActiveSeason(null)
+    setSeasonInfo(null)
+    setSeasonFocus(seasonId)
+    setSeasonReturn(true)
+    setSeasonsOpen(true)
+    room.leaveRoom()
+  }
+
+  // ⚠️ THERE IS A GAME TO GET BACK TO, AND THE ROOM IT WAS IN IS GONE: the app was closed, or the server
+  // restarted. Autosave has it, so go straight back in rather than dropping the player at the title
+  // screen to go looking. Only from idle, which is where a failed reconnect lands.
+  const resumeTriedRef = useRef(false)
+  useEffect(() => {
+    if (room.status !== 'idle') { if (room.status === 'ready') resumeTriedRef.current = false; return }
+    const seasonId = getActiveSeason()
+    if (!seasonId || resumeTriedRef.current) return
+    resumeTriedRef.current = true
+    setResuming(true)
+    void (async () => {
+      try {
+        const auth = await loadAuth()
+        if (!auth) { setActiveSeason(null); return }
+        const { season } = await api.season(auth.token, seasonId)
+        if (!season.activeGameId || !season.currentGame) { setActiveSeason(null); return }
+        playSeasonGame(season, auth.token)
+      } catch {
+        // No connection, or the season is gone. The save-slot screen still offers Resume.
+        setActiveSeason(null)
+      } finally {
+        setResuming(false)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [room.status])
+
+  // A game failing to start comes back as an event, with the room half-opened. Close it again.
+  useEffect(() => {
+    function onSeasonError({ code, message }: { code: string; message: string }) {
+      if (code === 'not_now') { setSeasonSaving(false); return }
+      setSeasonSaving(false)
+      setSeasonStartError(message)
+      setActiveSeason(null)
+      setSeasonsOpen(true)
+      setSeasonReturn(true)
+      room.leaveRoom()
+    }
+    function onSeasonSaved({ seasonId }: { seasonId: string }) {
+      setSeasonSaving(false)
+      backToSeasons(seasonId)
+    }
+    socket.on('season_error', onSeasonError)
+    socket.on('season_saved', onSeasonSaved)
+    return () => { socket.off('season_error', onSeasonError); socket.off('season_saved', onSeasonSaved) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // [289][291][292] Load the player's selected team's roster into memory — the offense/defense pools
   // the sidebar drags onto the field. Falls back to the generic roster if no team is known yet.
@@ -326,7 +415,7 @@ export default function App() {
   // (period_transition) and self-clearing after its own 5s timer, so a mid-transition game_state
   // (the next play lining up behind it) doesn't dismiss it early. [219][220] final result overlay.
   const [periodTransition, setPeriodTransition] = useState<{
-    kind: 'quarter' | 'halftime'
+    kind: 'quarter' | 'halftime' | 'overtime'
     endedQuarter: number
     stats?: HalftimeStats
     // ⚠️ No adjustments field, deliberately. What the AI read off the first half is its own
@@ -351,6 +440,9 @@ export default function App() {
   const [stFormation, setStFormation] = useState<PositionUpdate[]>([])
   // [294] Ids of players whose X-Factor is active — drives the gold star before AND after the snap.
   const [xfActiveIds, setXfActiveIds] = useState<string[]>([])
+  // ⚠️ THE OTHER TEAM'S, KEPT APART. The line and quarterback have the same ids on both sides, so one
+  // list drew a star on the wrong man. See Server/src/game/systems/xFactors.js.
+  const [xfOppActiveIds, setXfOppActiveIds] = useState<string[]>([])
   // True while a punt / FG / XP kicking interface is up (kickoffs are automatic — no formation).
   const kickInProgress = !!(specialTeams && specialTeams.playerControlled)
   const kickFormationType = kickInProgress ? specialTeams!.kickType : null
@@ -360,7 +452,8 @@ export default function App() {
   // [team colors] Each team keeps its colors all game (own vs opponent), regardless of side. The room
   // creator (slot 0) is HOME: primary body + a contrasting O/X. The other player is AWAY: white body
   // with its primary as the O/X. The selection border is the team's secondary either way.
-  const ownIsHome = (room.slot ?? 0) === 0
+  // [seasons] In a season the schedule says who is home, whatever seat they are in.
+  const ownIsHome = seasonInfo ? seasonInfo.homeSlot === (room.slot ?? 0) : (room.slot ?? 0) === 0
   const paintFor = (teamId: string | null, isHome: boolean) => {
     const { primary, secondary } = teamColors(teamId ?? '')
     return isHome
@@ -492,9 +585,14 @@ export default function App() {
   const [throwawayAt, setThrowawayAt] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
-    const myTeam: 'o' | 'd' = room.role === 'defense' ? 'd' : 'o'
     function onPlayerPlaced(p: PositionUpdate) {
-      if (p.team === myTeam) {
+      // ⚠️ THE ROLE AS OF THIS MESSAGE, NOT AS OF THE LAST RENDER, and with no role yet nothing is ours.
+      // This read `room.role`, which can be several messages behind when they arrive together, and
+      // defaulted to offense. So when the computer's formation landed before the role did, this client
+      // adopted the computer's players as its own, then dutifully re-placed them on ITS side of the
+      // ball. A Denver tight end was credited with sacking Denver's quarterback.
+      const role = room.roleRef.current
+      if (role && p.team === (role === 'defense' ? 'd' : 'o')) {
         // Our own players normally come from local placement, so own-team echoes are redundant.
         // But the dev quick-setup places THIS side's players on the server; adopt any we don't
         // already have locally so they actually render. Auto OL/QB/DL are generated locally on
@@ -611,7 +709,7 @@ export default function App() {
     // doesn't dismiss it early. Halftime's field reset is handled server-side (unchanged).
     function onPeriodTransition(
       { kind, endedQuarter, seconds, stats }:
-      { kind: 'quarter' | 'halftime'; endedQuarter: number; seconds: number; stats?: HalftimeStats },
+      { kind: 'quarter' | 'halftime' | 'overtime'; endedQuarter: number; seconds: number; stats?: HalftimeStats },
     ) {
       // ⚠️ `stats` WAS BEING DROPPED ON THE FLOOR. The server has always sent the box score with
       // the halftime transition, and this handler destructured everything except it, then stored a
@@ -803,6 +901,8 @@ export default function App() {
       setSpecialTeams(gs.specialTeams ?? null)   // [Special Teams][1] sync the kicking state on play boundaries / reconnect
       setDecision(gs.decision ?? null)           // [Special Teams][2][3] 4th-down menu (offense only; cleared once chosen)
       setXfActiveIds(gs.xfActiveIds ?? [])       // [294] active X-Factors — star shows pre-snap too
+      setXfOppActiveIds(gs.xfOppActiveIds ?? [])
+      setSeasonInfo(gs.season ?? null)           // [seasons] and the game this is, if it is one
       setTouchdownBanner(null)    // [196] clear the celebration once the next play is set up
       setPlayNotice(null)         // [224][225] clear the play notice for the new play
       setPlayOver(false)          // next snap is lining up — drop the post-play click-blocker
@@ -1461,10 +1561,33 @@ export default function App() {
 
   // [VS screen] Both players locked — play the hype intro before kickoff.
   if (room.status === 'vs') {
-    return <VSScreen picks={room.picks} slot={room.slot} onContinue={room.enterGame} />
+    const tag = seasonInfo?.superBowl ? 'Super Bowl'
+      : seasonInfo?.roundName ?? (seasonInfo?.week ? `Week ${seasonInfo.week}` : null)
+    return <VSScreen picks={room.picks} slot={room.slot} onContinue={room.enterGame} seasonTag={tag} />
   }
 
-  if (room.status !== 'ready') return <IntroScreen><RoomScreen {...room} /></IntroScreen>
+  if (room.status !== 'ready') {
+    // On the way back into a game, the whole way: not the title screen for the moment it takes.
+    const reentering = resuming || (!seasonsOpen && !!getActiveSeason() && (room.status === 'connecting' || room.status === 'waiting' || room.status === 'reconnecting'))
+    if (reentering) {
+      return <div className="season-resuming"><div className="season-spinner" aria-hidden />Getting back to your game…</div>
+    }
+    return (
+      <IntroScreen skip={seasonReturn}>
+        {seasonsOpen ? (
+          <SeasonApp
+            focusSeasonId={seasonFocus}
+            startError={seasonStartError}
+            starting={room.status === 'connecting' || room.status === 'waiting'}
+            onBack={() => { setSeasonsOpen(false); setSeasonFocus(null); setSeasonStartError(null) }}
+            onPlay={playSeasonGame}
+          />
+        ) : (
+          <RoomScreen {...room} onOpenSeasons={() => setSeasonsOpen(true)} />
+        )}
+      </IntroScreen>
+    )
+  }
 
   const role = room.role ?? 'offense'
 
@@ -1530,11 +1653,13 @@ export default function App() {
   // During live play, positions_update moves players; outside live, use design positions.
   // The ball carrier ([193]) is tagged 'ball' so the renderer draws the football on them and
   // the camera follows them.
-  const xfActiveSet = new Set(xfActiveIds)
+  const xfOwnSet = new Set(xfActiveIds)
+  const xfOppSet = new Set(xfOppActiveIds)
+  const myTeamLetter = (room.role ?? 'offense') === 'offense' ? 'o' : 'd'
   const applyLivePos = (p: PositionUpdate): PositionUpdate => {
     // [294] The gold star shows BEFORE and after the snap: pre-snap from the server's active set,
     // during live from the per-tick xfActive flag.
-    const starred = xfActiveSet.has(p.id)
+    const starred = (p.team === myTeamLetter ? xfOwnSet : xfOppSet).has(p.id)
     if (phase !== 'live') return starred ? { ...p, xfActive: true } : p
     const lp = livePositions[p.id]
     // Carry the server-computed openness so the renderer can color pass catchers ([169]); it's
@@ -2392,7 +2517,7 @@ export default function App() {
         routeColors={routeColorHex(routeColors)}
         ownTeam={ownTeam}
         oppTeam={oppTeam}
-        logoTeamId={ownIsHome ? myTeamId : oppTeamId}
+        logoTeamId={seasonInfo?.superBowl ? superBowlArt(seasonInfo.year) : ownIsHome ? myTeamId : oppTeamId}
         fieldDirection={fieldDirection}
       />
       <GameHUD gameState={gameState} ownTeamId={myTeamId} oppTeamId={oppTeamId} />
@@ -2453,7 +2578,9 @@ export default function App() {
           <div className="period-transition-text">
             {periodTransition.kind === 'halftime'
               ? 'HALFTIME'
-              : `END OF Q${periodTransition.endedQuarter}`}
+              : periodTransition.kind === 'overtime'
+                ? 'OVERTIME'
+                : `END OF Q${periodTransition.endedQuarter}`}
           </div>
           {/* [stats] Halftime carries the box score; an ordinary quarter break does not — it is a
               five-second breather, not a report. */}
@@ -2481,7 +2608,9 @@ export default function App() {
       )}
       {gameOver && (
         <div className="gameover-overlay">
-          <div className="gameover-sub">Final</div>
+          <div className="gameover-sub">
+            {seasonInfo ? `${seasonInfo.superBowl ? 'Super Bowl' : seasonInfo.roundName ?? `Week ${seasonInfo.week}`} · Final` : 'Final'}
+          </div>
           <div className={`gameover-title gameover-title--${gameOver.result}`}>
             {gameOver.result === 'win' ? 'You Win!' : gameOver.result === 'loss' ? 'You Lose' : 'Tie Game'}
           </div>
@@ -2531,7 +2660,16 @@ export default function App() {
               </tbody>
             </table>
           )}
-          <button className="gameover-btn" onPointerDown={handlePlayAgain}>Play Again</button>
+          {seasonInfo ? (
+            <button
+              className="gameover-btn"
+              onPointerDown={() => { socket.emit('season_leave'); backToSeasons(seasonInfo.seasonId) }}
+            >
+              Continue
+            </button>
+          ) : (
+            <button className="gameover-btn" onPointerDown={handlePlayAgain}>Play Again</button>
+          )}
         </div>
       )}
       {formationErrors.length > 0 && (
@@ -2663,7 +2801,26 @@ export default function App() {
               {gamePause.byYou ? 'You paused the game' : 'Your opponent paused the game'}
             </div>
             <button className="pause-resume-btn" onPointerDown={resumeGame}>RESUME</button>
-            <div className="pause-note">Your spot is held for 10 minutes while paused</div>
+            {/* [seasons] Walking away from a season game. It is saved after every play anyway, but this
+                keeps the exact moment. Not mid-play: quitting a down would be a way to undo it. */}
+            {seasonInfo ? (
+              <>
+                <button
+                  className="pause-season-btn"
+                  disabled={phase === 'live' || !!specialTeams || seasonSaving}
+                  onPointerDown={() => { setSeasonSaving(true); socket.emit('season_save_quit') }}
+                >
+                  {seasonSaving ? 'Saving…' : 'Save & Quit'}
+                </button>
+                <div className="pause-note">
+                  {phase === 'live' || specialTeams
+                    ? 'You can save once this play is over'
+                    : 'Your game saves after every play, and you can pick it up from the Seasons screen'}
+                </div>
+              </>
+            ) : (
+              <div className="pause-note">Your spot is held for 10 minutes while paused</div>
+            )}
           </div>
         )
       )}

@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0d10" />
+  <title>Sign in · E-Football</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; }
+    body {
+      background: #0b0d10; color: #f4f5f7;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center;
+    }
+    main { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 18px; align-items: center; }
+    h1 { font-size: 26px; letter-spacing: 0.02em; font-weight: 800; }
+    p { color: #9aa3ae; font-size: 15px; line-height: 1.45; }
+    #button { min-height: 44px; display: flex; justify-content: center; }
+    .done h1 { color: #4ade80; }
+    .error { color: #fca5a5; }
+  </style>
+</head>
+<body>
+  <main id="main">
+    <h1>E-Football</h1>
+    <p id="message">Sign in to play Seasons.</p>
+    <div id="button"></div>
+  </main>
+
+  <script>
+    // [auth] The sign-in page, on its own URL because of the iPhone home screen: an app saved there
+    // cannot show Google's sign-in itself, so it opens this page and asks the server for the result.
+    // See Server/src/auth/routes.js.
+    //
+    // ⚠️ THE SERVER ADDRESS IS DECIDED FROM THIS PAGE'S OWN HOST, AND IS NEVER READ FROM THE LINK. The
+    // credential is good for an hour, so a link able to name its own server could collect it.
+    const CLIENT_ID = '133838464157-itoa8ptipuc4pbnkmu9tm2otnuubdm23.apps.googleusercontent.com'
+    const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+    const SERVER = isLocal ? 'http://localhost:3001' : 'https://football-server-3a8e8a32d792.herokuapp.com'
+
+    const params = new URLSearchParams(location.search)
+    const handoffId = params.get('h')
+    const sameWindow = params.get('return') === '1'
+    const message = document.getElementById('message')
+
+    function show(text, cls) {
+      message.textContent = text
+      message.className = cls ?? ''
+    }
+
+    function save(result) {
+      // If this page shares the app's storage this is all it takes; if not, the app collects the
+      // session from the server through the handoff, and this copy is simply unused.
+      try { localStorage.setItem('ef2_auth', JSON.stringify({ token: result.token, user: result.user })) } catch { /* private mode */ }
+    }
+
+    async function onCredential(response) {
+      show('Signing you in…')
+      document.getElementById('button').hidden = true
+      try {
+        const res = await fetch(SERVER + '/auth/google', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ credential: response.credential, handoffId }),
+        })
+        if (res.status === 503) throw new Error('The game server could not reach its database. Please try again shortly.')
+        if (!res.ok) throw new Error('Google sign-in could not be verified. Please try again.')
+        const result = await res.json()
+        save(result)
+        document.getElementById('main').classList.add('done')
+        document.querySelector('h1').textContent = 'You are signed in'
+        if (sameWindow) {
+          show('Taking you back to the game…')
+          location.replace('/')
+          return
+        }
+        show('Go back to E-Football. It will carry on from here.')
+        // Only a window a script opened can be closed by a script. Harmless if it cannot.
+        setTimeout(() => { try { window.close() } catch { /* stays open with the message above */ } }, 600)
+      } catch (err) {
+        document.getElementById('button').hidden = false
+        show(err.message ?? 'Something went wrong. Please try again.', 'error')
+      }
+    }
+
+    function start() {
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: onCredential,
+        ux_mode: 'popup',
+        auto_select: false,
+      })
+      google.accounts.id.renderButton(document.getElementById('button'), {
+        theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', width: 280,
+      })
+    }
+
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.onload = start
+    script.onerror = () => show('Could not reach Google. Check your connection and reload this page.', 'error')
+    document.head.appendChild(script)
+  </script>
+</body>
+</html>

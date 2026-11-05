@@ -3235,3 +3235,8 @@ body {
   font-weight: 600;
   pointer-events: none;
 }
+
+/* The title was breaking into "E-" and "FOOTBALL" on a phone held upright. */
+@media (max-width: 480px) {
+  .room-title { font-size: clamp(2rem, 11vw, 3rem); white-space: nowrap; letter-spacing: 0.08em; }
+}

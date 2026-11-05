@@ -103,6 +103,11 @@ export function randomSoloTeam(): NflTeam {
   return pool[Math.floor(Math.random() * pool.length)]
 }
 
+// [seasons] Everything about which game this is lives on the server; the token proves who is asking.
+export function seasonPlay(data: { token: string; seasonId: string; aiTeamId: string; aiRoster: unknown[] }): void {
+  emitWhenConnected(() => socket.emit('season_play', data))
+}
+
 // The players the computer picks its eleven from: the skill pool and the coverage pool. The line,
 // the quarterback and the down linemen are generated on both sides from the same table, so they are
 // not sent. Trimmed to what the AI reads — id, position, overall, name, ratings, X-Factor.

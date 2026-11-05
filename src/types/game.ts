@@ -75,6 +75,9 @@ export interface GameState {
   paused?: boolean       // [pause] a player has frozen the game
   pausedByYou?: boolean  // [pause] …and it was this viewer who did it
   pausedAuto?: boolean   // [quick leave] the server called it because somebody stepped away
+  xfOppActiveIds?: string[]                  // [294] …the OTHER team's. The two share some ids.
+  overtime?: boolean     // [overtime] season games only
+  season?: SeasonGameInfo | null             // [seasons] which game of which season, or null
   specialTeams?: SpecialTeamsState | null   // [Special Teams][1] non-null while a kick is in progress
   decision?: PlayDecision | null            // [Special Teams][2][3] 4th-down menu (offense only)
   xfActiveIds?: string[]                     // [294] players with an active X-Factor (star shows pre-snap too)
@@ -109,6 +112,17 @@ export type PlayType = 'run' | 'pass' | 'rpo'
 
 // [manual] 'automatic' is the original game (tap HIKE, the play runs itself); 'manual' is
 // electric-football mode, where players move only while the offense holds GO.
+export interface SeasonGameInfo {
+  seasonId: string
+  gameId: string
+  homeSlot: 0 | 1
+  neutral: boolean
+  superBowl: boolean
+  year: number
+  roundName: string | null
+  week: number | null
+}
+
 export type GameMode = 'automatic' | 'manual'
 
 // [manual] Applies to whichever team has the ball, and only ever hides information from it:
