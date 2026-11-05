@@ -295,6 +295,7 @@ function SavesScreen({ home, auth, onBack, onOpen, onNew, onDelete, onTrophies, 
   onSignOut: () => void
 }) {
   const [confirm, setConfirm] = useState<SeasonSummary | null>(null)
+  const [confirmNew, setConfirmNew] = useState<SeasonSummary | null>(null)
   const slots = home?.slots ?? []
   const year = home?.schedule.year
   const trophies = home?.trophies.length ?? 0
@@ -341,6 +342,15 @@ function SavesScreen({ home, auth, onBack, onOpen, onNew, onDelete, onTrophies, 
               <div className="save-meta">{s.year} · {modeLine(s)}</div>
             </div>
             {s.activeGameId && <span className="save-live">Resume</span>}
+            {/* "There is only one season": a finished save has nothing left but to start again. */}
+            {s.phase === 'complete' && (
+              <button
+                className="save-again"
+                onClick={(e) => { e.stopPropagation(); setConfirmNew(s) }}
+              >
+                New Season
+              </button>
+            )}
             <button
               className="save-delete"
               aria-label="Delete this save"
@@ -359,6 +369,19 @@ function SavesScreen({ home, auth, onBack, onOpen, onNew, onDelete, onTrophies, 
           </button>
         ))}
       </div>
+
+      {confirmNew && (
+        <div className="season-veil" onClick={() => setConfirmNew(null)}>
+          <div className="season-dialog" onClick={e => e.stopPropagation()}>
+            <h2>Start a new season here?</h2>
+            <p>This replaces your {confirmNew.year} {teamName(confirmNew.teamId)} season. Any trophy you won stays in your case.</p>
+            <div className="next-actions">
+              <button className="season-btn season-btn--accent" onClick={() => onNew(confirmNew.slot, true)}>Start New Season</button>
+              <button className="season-btn season-btn--ghost" onClick={() => setConfirmNew(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirm && (
         <div className="season-veil" onClick={() => setConfirm(null)}>

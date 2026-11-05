@@ -10,7 +10,7 @@ import { pickSubstitute, moveKey } from './game/substitution.ts'
 import { colorAfterChange, routeColorHex } from './game/routeColors.ts'
 import { downAndDistance } from './game/downDistance.ts'
 import { startKeepAwake } from './socket/keepAwake.ts'
-import { installLifecycle, setLifecycleSolo } from './socket/lifecycle.ts'
+import { installLifecycle, keepScreenOn, setLifecycleSolo } from './socket/lifecycle.ts'
 import { gameStore } from './utils/gameStore.ts'
 import type { RouteColor } from './game/routeColors.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
@@ -492,7 +492,9 @@ export default function App() {
   // running. See socket/keepAwake.ts.
   useEffect(() => {
     if (room.status !== 'ready' || gameOver) return
-    return startKeepAwake()
+    keepScreenOn(true)   // [quick leave] and the phone itself, for the length of the game
+    const stop = startKeepAwake()
+    return () => { stop(); keepScreenOn(false) }
   }, [room.status, gameOver])
   // [224][225] short play-by-play notice (e.g. "First down!", "Intercepted!"). Cleared next snap.
   const [playNotice, setPlayNotice] = useState<string | null>(null)

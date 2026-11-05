@@ -60,13 +60,40 @@ function onReturn(): void {
   }
 }
 
+// ── Keeping the screen on ────────────────────────────────────────────────
+//
+// A phone left alone for its auto-lock time goes to sleep, and reading a coverage for thirty seconds
+// looks exactly like being left alone. Only while a game is on screen, and let go otherwise. Not every
+// phone offers it, and on older iPhones a home-screen app is refused: then it is just not available.
+let wakeWanted = false
+let wakeLock: { release: () => Promise<void> } | null = null
+
+async function takeWakeLock(): Promise<void> {
+  if (!wakeWanted || wakeLock || document.visibilityState !== 'visible') return
+  try {
+    const nav = navigator as Navigator & { wakeLock?: { request: (t: 'screen') => Promise<{ release: () => Promise<void>; addEventListener: (e: string, f: () => void) => void }> } }
+    const lock = await nav.wakeLock?.request('screen')
+    if (!lock) return
+    wakeLock = lock
+    // The system drops it whenever the app is hidden. installLifecycle asks again on the way back.
+    lock.addEventListener('release', () => { wakeLock = null })
+  } catch { /* refused: the phone simply sleeps on its usual schedule */ }
+}
+
+export function keepScreenOn(on: boolean): void {
+  wakeWanted = on
+  if (on) void takeWakeLock()
+  else { void wakeLock?.release().catch(() => {}); wakeLock = null }
+}
+
 let installed = false
 
 export function installLifecycle(): void {
   if (installed || typeof document === 'undefined') return
   installed = true
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') onLeave(); else onReturn()
+    if (document.visibilityState === 'hidden') onLeave()
+    else { onReturn(); void takeWakeLock() }
   })
   // iOS sometimes skips visibilitychange on the way out of an app, but not pagehide.
   window.addEventListener('pagehide', onLeave)
