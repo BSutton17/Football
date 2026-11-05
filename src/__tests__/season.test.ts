@@ -2,10 +2,10 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
-  isUserIn, modeLine, NFL_LOGO, opponentIn, ordinal, outcomeFor, recordText, scheduleRows, scoreFor,
-  statusLine, superBowlArt,
+  chipValue, isUserIn, modeLine, NFL_LOGO, opponentIn, ordinal, outcomeFor, passerRating, recordText, scheduleRows, scoreFor,
+  statusLine, superBowlArt, votesLine,
 } from '../season/format.ts'
-import type { SeasonGame, SeasonSummary, SeasonView } from '../season/types.ts'
+import type { Award, SeasonGame, SeasonSummary, SeasonView } from '../season/types.ts'
 
 const read = (p: string) => readFileSync(resolve(__dirname, '..', '..', p), 'utf8')
 
@@ -66,6 +66,35 @@ describe('[seasons] what the screens say', () => {
     expect(superBowlArt(2026)).toBe('/season/super-bowl-2026.svg')
     expect(superBowlArt(2031)).toBe(NFL_LOGO)
     expect(superBowlArt(null)).toBe(NFL_LOGO)
+  })
+})
+
+describe('[awards] what the screens say', () => {
+  const winner = { id: 'x', name: 'X', pos: 'QB', teamId: 'KC', record: '13-4', chips: [], points: 412, first: 31 }
+  const award = (over: Partial<Award>): Award => ({ id: 'mvp', name: 'MVP', group: '', voters: 50, winner, finalists: [winner], ...over })
+
+  it('tells how the vote went, or nothing where there was no vote', () => {
+    expect(votesLine(award({}))).toBe('412 points · 31 of 50 first-place votes')
+    expect(votesLine(award({ voters: 6, winner: { ...winner, first: 4 } }))).toBe('4 of 6 first-place votes')
+    expect(votesLine(award({ fans: true, voters: 0 }))).toBe('Voted by the fans')
+    expect(votesLine(award({ voters: 0, winner: { ...winner, points: undefined } }))).toBeNull()
+  })
+
+  it('a big number has its comma, and a rating is left as it came', () => {
+    expect(chipValue(4118)).toBe('4,118')
+    expect(chipValue(23)).toBe('23')
+    expect(chipValue('106.9')).toBe('106.9')
+  })
+
+  it('computes a passer rating the way the league does', () => {
+    expect(passerRating({ attempts: 400, completions: 280, passYards: 3600, passTD: 30, interceptionsThrown: 8 })).toBeCloseTo(114.6, 0)
+    expect(passerRating({})).toBe(0)
+  })
+
+  it('⚠️ THE AWARDS ARE THEIR OWN SCREEN, shown before anything else the season has queued', () => {
+    const app = read('src/season/SeasonApp.tsx')
+    expect(app).toMatch(/screens\[0\]\?\.type === 'awards' && <AwardShow/)
+    expect(app).toMatch(/screens\[0\]\.type !== 'awards' && \(/)
   })
 })
 

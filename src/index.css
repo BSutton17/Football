@@ -3185,6 +3185,13 @@ body {
   letter-spacing: 0.16em;
   color: var(--team-text, var(--team));
 }
+/* [season stats] A year's numbers beside a game's look alike, so this one has to say so at a glance. */
+.stat-spotlight-today--season {
+  background: #f4f5f7;
+  color: #0b0d10;
+  padding: 0.18em 0.45em;
+  border-radius: 0.2rem;
+}
 .stat-spotlight-stat b {
   font-size: 0.9rem;
   font-weight: 600;

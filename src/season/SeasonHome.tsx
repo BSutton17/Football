@@ -3,14 +3,16 @@ import TeamLogo from '../components/TeamLogo.tsx'
 import { accentColor, teamColors } from '../data/teamColors.ts'
 import { teamById } from '../data/nflTeams.ts'
 import { Lombardi } from './art.tsx'
+import { AwardList, AWARDS_FOOTNOTE } from './AwardShow.tsx'
 import {
-  isUserIn, lastPlayed, lineFor, modeLine, opponentIn, ordinal, outcomeFor, recordText, scheduleRows,
+  isUserIn, lastPlayed, lineFor, modeLine, opponentIn, ordinal, outcomeFor, passerRating, recordText, scheduleRows,
   scoreFor, superBowlArt, teamAbbr, teamName,
 } from './format.ts'
 import { saveTrophyImage, trophyFromSeason } from './trophyImage.ts'
-import type { SeasonGame, SeasonView } from './types.ts'
+import type { SeasonGame, SeasonLine, SeasonView, TeamStatRow } from './types.ts'
 
-type Tab = 'schedule' | 'scores' | 'standings' | 'playoffs'
+type Tab = 'schedule' | 'scores' | 'standings' | 'playoffs' | 'stats'
+const TAB_NAMES: Record<Tab, string> = { schedule: 'Schedule', scores: 'Scores', standings: 'Standings', playoffs: 'Playoffs', stats: 'Stats' }
 
 interface Props {
   season: SeasonView
@@ -53,7 +55,7 @@ export default function SeasonHome({ season, busy, onBack, onPlay, onSim }: Prop
 
         <div className="season-panel">
           <nav className="season-tabs" role="tablist">
-            {(['schedule', 'scores', 'standings', 'playoffs'] as Tab[]).map(t => (
+            {(Object.keys(TAB_NAMES) as Tab[]).map(t => (
               <button
                 key={t}
                 role="tab"
@@ -61,7 +63,7 @@ export default function SeasonHome({ season, busy, onBack, onPlay, onSim }: Prop
                 className={`season-tab${tab === t ? ' season-tab--on' : ''}`}
                 onClick={() => setTab(t)}
               >
-                {t === 'schedule' ? 'Schedule' : t === 'scores' ? 'Scores' : t === 'standings' ? 'Standings' : 'Playoffs'}
+                {TAB_NAMES[t]}
               </button>
             ))}
           </nav>
@@ -70,6 +72,7 @@ export default function SeasonHome({ season, busy, onBack, onPlay, onSim }: Prop
             {tab === 'scores' && <ScoresTab season={season} />}
             {tab === 'standings' && <StandingsTab season={season} />}
             {tab === 'playoffs' && <PlayoffsTab season={season} />}
+            {tab === 'stats' && <StatsTab season={season} />}
           </div>
         </div>
       </div>
@@ -325,6 +328,141 @@ function StandingsTab({ season }: { season: SeasonView }) {
           </table>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ── Stats ([season stats]) ───────────────────────────────────────────────
+
+type StatsView = 'leaders' | 'team' | 'awards'
+
+function StatsTab({ season }: { season: SeasonView }) {
+  const hasAwards = !!season.awards?.length
+  const [view, setView] = useState<StatsView>(hasAwards ? 'awards' : 'leaders')
+  const views: [StatsView, string][] = [['leaders', 'League Leaders'], ['team', 'Your Team'], ...(hasAwards ? [['awards', 'Awards'] as [StatsView, string]] : [])]
+
+  if (!season.leaders.length) {
+    return (
+      <div className="season-empty">
+        <p>No games played yet.</p>
+        <p className="season-muted season-small">
+          Every player in the league is tracked from Week 1. The NFL's awards are given out before the playoffs.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="conf-toggle">
+        {views.map(([id, label]) => (
+          <button key={id} className={`conf-btn${view === id ? ' conf-btn--on' : ''}`} onClick={() => setView(id)}>{label}</button>
+        ))}
+      </div>
+      {view === 'leaders' && <LeadersView season={season} />}
+      {view === 'team' && <TeamStatsView rows={season.teamStats} />}
+      {view === 'awards' && (
+        <>
+          <AwardList awards={season.awards ?? []} teamId={season.teamId} />
+          <p className="season-muted season-small honors-foot">{AWARDS_FOOTNOTE}</p>
+        </>
+      )}
+    </div>
+  )
+}
+
+function LeadersView({ season }: { season: SeasonView }) {
+  const [id, setId] = useState(season.leaders[0].id)
+  const table = season.leaders.find(t => t.id === id) ?? season.leaders[0]
+  return (
+    <>
+      <div className="week-pills">
+        {season.leaders.map(t => (
+          <button key={t.id} className={`leader-pill${t.id === table.id ? ' week-pill--on' : ''}`} onClick={() => setId(t.id)}>{t.label}</button>
+        ))}
+      </div>
+      <ol className="leaders">
+        {table.rows.map((r, i) => (
+          <li key={r.id} className={`leader${r.teamId === season.teamId ? ' leader--mine' : ''}`}>
+            <span className="leader-rank">{i + 1}</span>
+            {r.teamId && <TeamLogo teamId={r.teamId} size={26} />}
+            <span className="leader-name">{r.name}</span>
+            <span className="leader-pos">{r.pos}</span>
+            <span className="leader-value">{r.value.toLocaleString('en-US')}</span>
+          </li>
+        ))}
+      </ol>
+    </>
+  )
+}
+
+type StatColumn = { label: string; value: (l: SeasonLine) => string | number }
+const n = (v: number | undefined) => Math.round(v ?? 0)
+const TEAM_TABLES: { title: string; has: (l: SeasonLine) => boolean; rank: (l: SeasonLine) => number; columns: StatColumn[] }[] = [
+  {
+    title: 'Passing', has: l => !!l.attempts, rank: l => n(l.passYards),
+    columns: [
+      { label: 'C/ATT', value: l => `${n(l.completions)}/${n(l.attempts)}` },
+      { label: 'YDS', value: l => n(l.passYards) },
+      { label: 'TD', value: l => n(l.passTD) },
+      { label: 'INT', value: l => n(l.interceptionsThrown) },
+      { label: 'RTG', value: l => passerRating(l).toFixed(1) },
+    ],
+  },
+  {
+    title: 'Rushing', has: l => !!l.carries, rank: l => n(l.rushYards),
+    columns: [
+      { label: 'CAR', value: l => n(l.carries) },
+      { label: 'YDS', value: l => n(l.rushYards) },
+      { label: 'AVG', value: l => (l.carries ? (n(l.rushYards) / l.carries).toFixed(1) : '0.0') },
+      { label: 'TD', value: l => n(l.rushTD) },
+    ],
+  },
+  {
+    title: 'Receiving', has: l => !!l.receptions || !!l.targets, rank: l => n(l.recYards),
+    columns: [
+      { label: 'REC', value: l => n(l.receptions) },
+      { label: 'YDS', value: l => n(l.recYards) },
+      { label: 'TD', value: l => n(l.recTD) },
+    ],
+  },
+  {
+    title: 'Defense', has: l => !!(l.tackles || l.sacks || l.interceptions || l.passesDefended), rank: l => n(l.tackles) + n(l.sacks) * 5 + n(l.interceptions) * 8,
+    columns: [
+      { label: 'TKL', value: l => n(l.tackles) },
+      { label: 'TFL', value: l => n(l.tfl) },
+      { label: 'SACK', value: l => n(l.sacks) },
+      { label: 'INT', value: l => n(l.interceptions) },
+      { label: 'PD', value: l => n(l.passesDefended) },
+    ],
+  },
+]
+
+function TeamStatsView({ rows }: { rows: TeamStatRow[] }) {
+  return (
+    <div className="team-stats">
+      {TEAM_TABLES.map(t => {
+        const players = rows.filter(r => t.has(r.line)).sort((a, b) => t.rank(b.line) - t.rank(a.line))
+        if (!players.length) return null
+        return (
+          <table className="standings team-stats-table" key={t.title}>
+            <thead>
+              <tr>
+                <th className="standings-team">{t.title}</th>
+                {t.columns.map(c => <th key={c.label}>{c.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {players.map(p => (
+                <tr key={p.id}>
+                  <td className="standings-team team-stats-name">{p.name}</td>
+                  {t.columns.map(c => <td key={c.label}>{c.value(p.line)}</td>)}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+      })}
     </div>
   )
 }

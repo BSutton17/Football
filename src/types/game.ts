@@ -278,13 +278,14 @@ export interface DevReveal {
 
 // [spotlight] A player's game line, shown briefly after he makes a play. Decided by the server
 // (statSpotlight.js) and sent to both players, so both screens show the same graphic.
-export type SpotlightRole = 'rusher' | 'receiver' | 'passer' | 'tackler' | 'sacker'
+export type SpotlightRole = 'rusher' | 'receiver' | 'passer' | 'tackler' | 'sacker' | 'interceptor'
 export interface StatSpotlightPayload {
   id: string
   slot: number | null          // which team he plays for
   name: string                 // the server's fallback; the client resolves the real name by slot
   label: string                // position
   role: SpotlightRole
+  scope?: 'game' | 'season'    // [season stats] his line for this game, or for the year so far
   yardLine: number             // the new line of scrimmage, offense-relative
   line: {
     attempts: number; completions: number; passYards: number; passTD: number; interceptionsThrown: number

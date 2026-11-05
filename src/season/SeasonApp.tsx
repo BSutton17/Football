@@ -8,6 +8,7 @@ import type { Difficulty, GameMode } from '../types/game.ts'
 import { api, Refused, SignedOut } from './api.ts'
 import { Lombardi } from './art.tsx'
 import { clearAuth, loadAuth, peekAuth, setActiveSeason, type AuthRecord } from './authStore.ts'
+import AwardShow from './AwardShow.tsx'
 import Celebration from './Celebration.tsx'
 import Cinematic from './Cinematic.tsx'
 import { modeLine, recordText, statusLine, teamName } from './format.ts'
@@ -252,7 +253,8 @@ export default function SeasonApp({ onBack, onPlay, focusSeasonId, startError, s
           onPlay={() => { setProblem(null); if (tokenRef.current) onPlay(season, tokenRef.current) }}
           onSim={sim}
         />
-        {season.screens[0] && (
+        {season.screens[0]?.type === 'awards' && <AwardShow key={season.screens.length} season={season} onDone={acknowledge} />}
+        {season.screens[0] && season.screens[0].type !== 'awards' && (
           <Celebration key={season.screens.length} season={season} screen={season.screens[0]} onContinue={acknowledge} />
         )}
         {starting && <div className="season-veil"><div className="season-spinner" aria-hidden /></div>}

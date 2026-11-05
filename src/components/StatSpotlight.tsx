@@ -3,8 +3,9 @@ import type { SpotlightRole, StatSpotlightPayload } from '../types/game.ts'
 // ── The stat spotlight ([spotlight]) ─────────────────────────────────────────
 //
 // The broadcast graphic that pops up after somebody makes a play: who he is and his line for the
-// game. Which player, and whether to show one at all, is the server's call (statSpotlight.js); this
-// only draws it. Where it sits and how long it stays live in App.tsx.
+// game, or in a season now and then his line for the year. Which player, which line, and whether to show
+// one at all are the server's call (statSpotlight.js); this only draws it. Where it sits and how long it
+// stays live in App.tsx.
 
 export interface SpotlightView {
   key: number
@@ -52,6 +53,12 @@ export function statsFor(role: SpotlightRole, l: StatSpotlightPayload['line']): 
       if (l.recTD) out.push({ value: l.recTD, label: 'TD' })
       return out
     }
+    case 'interceptor': {
+      const out: Stat[] = [{ value: l.interceptions, label: 'INT' }]
+      if (l.tackles) out.push({ value: l.tackles, label: 'TKL' })
+      if (l.sacks) out.push({ value: l.sacks, label: l.sacks === 1 ? 'SACK' : 'SACKS' })
+      return out
+    }
     case 'sacker':
     case 'tackler': {
       const out: Stat[] = []
@@ -63,6 +70,10 @@ export function statsFor(role: SpotlightRole, l: StatSpotlightPayload['line']): 
       return out
     }
   }
+}
+
+export function spotlightScopeLabel(scope: StatSpotlightPayload['scope']): string {
+  return scope === 'season' ? 'SEASON' : 'TODAY'
 }
 
 export default function StatSpotlight({ view }: { view: SpotlightView }) {
@@ -81,7 +92,7 @@ export default function StatSpotlight({ view }: { view: SpotlightView }) {
         {teamAbbr && <span className="stat-spotlight-team">{teamAbbr}</span>}
       </div>
       <div className="stat-spotlight-line">
-        <span className="stat-spotlight-today">TODAY</span>
+        <span className={`stat-spotlight-today${payload.scope === 'season' ? ' stat-spotlight-today--season' : ''}`}>{spotlightScopeLabel(payload.scope)}</span>
         {stats.map(s => (
           <span key={s.label} className="stat-spotlight-stat">
             <b>{s.value}</b>{s.label}

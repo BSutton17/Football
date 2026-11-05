@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { statsFor } from '../components/StatSpotlight'
+import { spotlightScopeLabel, statsFor } from '../components/StatSpotlight'
 
 // [spotlight] What the graphic prints for each kind of play.
 const line = {
@@ -18,6 +18,17 @@ describe('the spotlight line', () => {
     expect(text('tackler')).toBe('1 SACK · 6 TKL')
     expect(text('sacker', { ...line, sacks: 2 })).toBe('2 SACKS · 6 TKL')
     expect(text('sacker', { ...line, sacks: 1, tackles: 0 })).toBe('1 SACK')   // no "0 TKL" after a sack
+  })
+
+  it('an interception leads with the interceptions, whatever else he has done', () => {
+    expect(text('interceptor', { ...line, interceptions: 2, sacks: 0 })).toBe('2 INT · 6 TKL')
+    expect(text('interceptor', { ...line, interceptions: 1, tackles: 0, sacks: 0 })).toBe('1 INT')
+  })
+
+  it('⚠️ SAYS WHICH LINE IT IS: a season line labelled TODAY would be a lie', () => {
+    expect(spotlightScopeLabel('season')).toBe('SEASON')
+    expect(spotlightScopeLabel('game')).toBe('TODAY')
+    expect(spotlightScopeLabel(undefined)).toBe('TODAY')   // an older server
   })
 
   it('leaves zero extras off a defender, but a sacker always shows his sacks', () => {

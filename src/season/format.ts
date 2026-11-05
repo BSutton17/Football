@@ -1,7 +1,7 @@
 // Small, pure helpers for the season screens.
 
 import { teamById } from '../data/nflTeams.ts'
-import type { Record3, SeasonGame, SeasonSummary, SeasonView, Standings } from './types.ts'
+import type { Award, Record3, SeasonGame, SeasonLine, SeasonSummary, SeasonView, Standings } from './types.ts'
 
 export function recordText(r: Partial<Record3> | null | undefined): string {
   if (!r) return '0-0'
@@ -17,6 +17,31 @@ export function ordinal(n: number): string {
   const v = n % 100
   const suffix = v >= 11 && v <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'
   return `${n}${suffix}`
+}
+
+// A number on a card: 4,118, not 4118. A rating or an average comes as text and is left alone.
+export function chipValue(value: string | number): string {
+  return typeof value === 'number' ? value.toLocaleString('en-US') : value
+}
+
+// How the vote went, in a line. Nothing for an award no ballot decided.
+export function votesLine(award: Award): string | null {
+  if (award.fans) return 'Voted by the fans'
+  const { points, first } = award.winner
+  if (!award.voters || points == null) return null
+  if (award.voters === 50) return `${points} points · ${first} of 50 first-place votes`
+  return `${first} of ${award.voters} first-place votes`
+}
+
+export function passerRating(l: SeasonLine): number {
+  const att = l.attempts ?? 0
+  if (!att) return 0
+  const part = (v: number) => Math.max(0, Math.min(2.375, v))
+  const a = part(((l.completions ?? 0) / att - 0.3) * 5)
+  const b = part(((l.passYards ?? 0) / att - 3) * 0.25)
+  const c = part(((l.passTD ?? 0) / att) * 20)
+  const d = part(2.375 - ((l.interceptionsThrown ?? 0) / att) * 25)
+  return ((a + b + c + d) / 6) * 100
 }
 
 export function isUserIn(game: SeasonGame, teamId: string): boolean {

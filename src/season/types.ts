@@ -36,6 +36,7 @@ export interface Playoffs {
 }
 
 export type SeasonScreen =
+  | { type: 'awards' }
   | { type: 'made_playoffs'; seed: number; bye: boolean }
   | { type: 'missed_playoffs' }
   | { type: 'eliminated'; round: string; by: string }
@@ -59,6 +60,44 @@ export interface SeasonSummary {
   champion: string | null
 }
 
+export interface AwardChip { value: string | number; label: string }
+
+export interface AwardPlayer {
+  id: string
+  name: string
+  pos: string
+  teamId: string
+  record: string
+  chips: AwardChip[]
+  points?: number
+  first?: number
+  note?: string
+}
+
+export interface Award {
+  id: string
+  name: string
+  group: string
+  voters: number            // 50 for the AP's, 6 for the panel's, 0 where no ballot is involved
+  fans?: boolean
+  winner: AwardPlayer
+  finalists: AwardPlayer[]
+  sharedWith?: AwardPlayer[]
+}
+
+export interface LeaderRow { id: string; name: string; teamId: string | null; pos: string; value: number }
+export interface LeaderTable { id: string; label: string; rows: LeaderRow[] }
+
+// A player's numbers for the year. Only what he has done is present.
+export interface SeasonLine {
+  g?: number
+  attempts?: number; completions?: number; passYards?: number; passTD?: number; interceptionsThrown?: number; sacksTaken?: number
+  carries?: number; rushYards?: number; rushTD?: number
+  targets?: number; receptions?: number; recYards?: number; recTD?: number
+  tackles?: number; tfl?: number; sacks?: number; interceptions?: number; passesDefended?: number
+}
+export interface TeamStatRow { id: string; name: string; pos: string; line: SeasonLine }
+
 export interface SeasonView extends SeasonSummary {
   games: SeasonGame[]
   playoffs: Playoffs | null
@@ -67,6 +106,9 @@ export interface SeasonView extends SeasonSummary {
   roundName: string | null
   standings: Standings
   superBowl: { number: number; numeral: string }
+  awards: Award[] | null
+  leaders: LeaderTable[]
+  teamStats: TeamStatRow[]
 }
 
 export interface Sos { rank: number; pct: number; w: number; l: number; t: number }
