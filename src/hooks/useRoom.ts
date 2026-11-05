@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { socket, createRoom as socketCreate, createSoloRoom as socketCreateSolo, joinRoom as socketJoin, selectTeam as socketSelectTeam, lockTeam as socketLockTeam, setQuarterLength as socketSetQuarterLength, setDefenseVision as socketSetDefenseVision, disconnect, SESSION_KEY } from '../socket/index.ts'
 import { generateRoomCode } from '../utils/roomCode.ts'
+import { gameStore } from '../utils/gameStore.ts'
 import type { TeamRole } from '../types/player.ts'
 import type { GameMode, Difficulty } from '../types/game.ts'
 
@@ -36,6 +37,10 @@ export interface RoomState {
   offline: boolean
 }
 
+// How long a brand-new game waits for the server before saying it could not connect. An asleep
+// Heroku dyno takes around ten seconds to wake.
+const NEW_GAME_CONNECT_PATIENCE_MS = 25_000
+
 // Team-selection fields in their empty state — folded into every full state reset.
 // [manual] mode/difficulty are included so every full-state reset that spreads this constant keeps
 // them defined; callers that know better (createRoom / joinRoom) override them afterwards.
@@ -49,7 +54,7 @@ const CLEARED_SELECTION = {
 export function useRoom() {
   const [state, setState] = useState<RoomState>(() => {
     // If a session token exists on mount, show reconnecting immediately
-    const hasSession = !!sessionStorage.getItem(SESSION_KEY)
+    const hasSession = !!gameStore.getItem(SESSION_KEY)
     return {
       status: hasSession ? 'reconnecting' : 'idle',
       roomId: null,
@@ -69,14 +74,14 @@ export function useRoom() {
 
   // Attempt reconnect on mount if a session exists
   useEffect(() => {
-    if (sessionStorage.getItem(SESSION_KEY)) {
+    if (gameStore.getItem(SESSION_KEY)) {
       socket.connect()
     }
   }, [])
 
   useEffect(() => {
     function onSessionToken(token: string) {
-      sessionStorage.setItem(SESSION_KEY, token)
+      gameStore.setItem(SESSION_KEY, token)
     }
 
     // [manual] The server echoes the ROOM's mode/difficulty here. For a joiner that is the first
@@ -164,7 +169,7 @@ export function useRoom() {
     }
 
     function onReconnectFailed() {
-      sessionStorage.removeItem(SESSION_KEY)
+      gameStore.removeItem(SESSION_KEY)
       setState({ ...CLEARED_SELECTION, status: 'idle', roomId: null, role: null, error: null })
     }
 
@@ -193,7 +198,7 @@ export function useRoom() {
     }
 
     function onOpponentLeft() {
-      sessionStorage.removeItem(SESSION_KEY)
+      gameStore.removeItem(SESSION_KEY)
       setState(s => ({ ...s, status: 'waiting', role: null }))
     }
 
@@ -202,15 +207,31 @@ export function useRoom() {
     }
 
     function onGameAbandoned() {
-      sessionStorage.removeItem(SESSION_KEY)
+      gameStore.removeItem(SESSION_KEY)
       disconnect()
       setState({ ...CLEARED_SELECTION, status: 'abandoned', roomId: null, role: null, error: null })
     }
 
+    // [quick leave] ⚠️ A FAILED ATTEMPT IS NOT A LOST GAME. This wiped the session token on the first
+    // refused connection, and a phone coming back from the background is exactly when one is refused
+    // -- the network takes a moment to return. The game was still alive on the server, held for them,
+    // and this threw away the only key to it.
+    //
+    // With a session the socket just keeps trying. Without one the player asked for a NEW game, and
+    // a Heroku dyno waking up takes a while, so give it time before calling it an error.
+    let connectFailedAt = 0
     function onConnectError(err: Error) {
-      sessionStorage.removeItem(SESSION_KEY)
+      if (gameStore.getItem(SESSION_KEY)) {
+        setState(s => (s.status === 'ready' || s.status === 'reconnecting' ? s : { ...s, status: 'reconnecting' }))
+        return
+      }
+      connectFailedAt ||= Date.now()
+      if (Date.now() - connectFailedAt < NEW_GAME_CONNECT_PATIENCE_MS) return
+      connectFailedAt = 0
+      disconnect()
       setState(s => ({ ...s, status: 'error', error: err.message }))
     }
+    function onConnected() { connectFailedAt = 0 }
 
     socket.on('session_token', onSessionToken)
     socket.on('room_joined', onRoomJoined)
@@ -232,6 +253,7 @@ export function useRoom() {
     socket.on('opponent_disconnected', onOpponentDisconnected)
     socket.on('game_abandoned', onGameAbandoned)
     socket.on('connect_error', onConnectError)
+    socket.on('connect', onConnected)
 
     return () => {
       socket.off('session_token', onSessionToken)
@@ -254,6 +276,7 @@ export function useRoom() {
       socket.off('opponent_disconnected', onOpponentDisconnected)
       socket.off('game_abandoned', onGameAbandoned)
       socket.off('connect_error', onConnectError)
+      socket.off('connect', onConnected)
     }
   }, [])
 
@@ -261,7 +284,7 @@ export function useRoom() {
   function createRoom(mode: GameMode = 'automatic', difficulty: Difficulty = 'easy') {
     // Starting a brand-new game — drop any stale session token so the upcoming connect doesn't
     // fire an unwanted reconnect_to_room (which could drop us into a dead room).
-    sessionStorage.removeItem(SESSION_KEY)
+    gameStore.removeItem(SESSION_KEY)
     const id = generateRoomCode()
     setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: id, role: null, error: null, mode, difficulty })
     socketCreate(id, mode, difficulty)
@@ -271,7 +294,7 @@ export function useRoom() {
   // the game is real, and everything downstream is unaware — except that the second seat is filled
   // server-side the moment it is created, so there is no "waiting for opponent" step at all.
   function createOfflineRoom(mode: GameMode = 'automatic', difficulty: Difficulty = 'easy', aiTeamId: string | null = null) {
-    sessionStorage.removeItem(SESSION_KEY)
+    gameStore.removeItem(SESSION_KEY)
     const id = generateRoomCode()
     setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: id, role: null, error: null, mode, difficulty, offline: true })
     socketCreateSolo(id, mode, difficulty, aiTeamId)
@@ -280,7 +303,7 @@ export function useRoom() {
   // The joiner's mode is only a filter — the server refuses a mismatch and the room's own
   // difficulty arrives with room_joined.
   function joinRoom(id: string, mode: GameMode = 'automatic') {
-    sessionStorage.removeItem(SESSION_KEY)
+    gameStore.removeItem(SESSION_KEY)
     const normalized = id.replace(/\D/g, '').slice(0, 4)   // 4-digit numeric room code
     setState({ ...CLEARED_SELECTION, status: 'connecting', roomId: normalized, role: null, error: null, mode, difficulty: 'easy' })
     socketJoin(normalized, mode)

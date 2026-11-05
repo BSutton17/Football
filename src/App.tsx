@@ -10,6 +10,8 @@ import { pickSubstitute, moveKey } from './game/substitution.ts'
 import { colorAfterChange, routeColorHex } from './game/routeColors.ts'
 import { downAndDistance } from './game/downDistance.ts'
 import { startKeepAwake } from './socket/keepAwake.ts'
+import { installLifecycle, setLifecycleSolo } from './socket/lifecycle.ts'
+import { gameStore } from './utils/gameStore.ts'
 import type { RouteColor } from './game/routeColors.ts'
 import { shouldClearHikeGate, shouldClearOpponentFormation } from './game/resync.ts'
 import { shellsWindowOpen } from './game/shellsWindow.ts'
@@ -273,7 +275,20 @@ export default function App() {
   // The socket handlers are registered once; a ref keeps them reading the current value without
   // re-subscribing every time it changes.
   const soloRef = useRef(false)
-  useEffect(() => { soloRef.current = soloGame }, [soloGame])
+  useEffect(() => { soloRef.current = soloGame; setLifecycleSolo(soloGame) }, [soloGame])
+  // [quick leave] Swiping away and coming back. See socket/lifecycle.ts.
+  useEffect(() => { installLifecycle() }, [])
+  // [quick leave] The socket is down while a game is on screen. Shown after a beat, because a quick
+  // reconnect should not flash anything at all.
+  const [connectionLost, setConnectionLost] = useState(false)
+  useEffect(() => {
+    let timer = 0
+    const onDown = () => { window.clearTimeout(timer); timer = window.setTimeout(() => setConnectionLost(true), 1200) }
+    const onUp = () => { window.clearTimeout(timer); setConnectionLost(false) }
+    socket.on('disconnect', onDown)
+    socket.on('connect', onUp)
+    return () => { window.clearTimeout(timer); socket.off('disconnect', onDown); socket.off('connect', onUp) }
+  }, [])
 
   // [rpo] Whether a throw is still on the table. A pass play always; an RPO only until the read
   // window closes and the server tells us it handed off (rpo_handoff). Every throw-shaped control
@@ -324,7 +339,7 @@ export default function App() {
   const [timeoutPause, setTimeoutPause] = useState<{ byYou: boolean } | null>(null)
   // [pause] A player-called pause: { byYou } while frozen, else null. Everything is stopped
   // server-side; this only drives the overlay and the resume button.
-  const [gamePause, setGamePause] = useState<{ byYou: boolean } | null>(null)
+  const [gamePause, setGamePause] = useState<{ byYou: boolean; auto?: boolean } | null>(null)
   // [Special Teams][1] Server-authoritative kicking state; non-null while a kick is in progress.
   const [specialTeams, setSpecialTeams] = useState<SpecialTeamsState | null>(null)
   // [FG aim] Screen position of the ball for the kicker's aim arrow — so the arrow sits OVER the ball
@@ -540,7 +555,7 @@ export default function App() {
     // [manual] The play froze (GO released, or the anti-jitter minimum finally elapsed) / resumed.
     // [pause] Either player froze the game. It outlives play boundaries and reconnects, so it is
     // cleared only by an explicit resume (or by game_state saying it is no longer paused).
-    function onGamePaused({ byYou }: { byYou: boolean }) { setGamePause({ byYou }) }
+    function onGamePaused({ byYou, auto }: { byYou: boolean; auto?: boolean }) { setGamePause({ byYou, auto }) }
     function onGameResumed() { setGamePause(null) }
 
     // [187] The play has run long enough in GAME time. The button appears in the backfield, behind
@@ -722,7 +737,7 @@ export default function App() {
       playSerialRef.current = gs.playSerial ?? 0
       // [pause] Authoritative: a client returning from a dropped connection picks the pause back up
       // from here rather than sitting in a game that looks frozen for no reason.
-      setGamePause(gs.paused ? { byYou: !!gs.pausedByYou } : null)
+      setGamePause(gs.paused ? { byYou: !!gs.pausedByYou, auto: !!gs.pausedAuto } : null)
       setGameMode(gs.mode ?? 'automatic')
       setDifficulty(gs.difficulty ?? 'easy')
       setManualLive(false)
@@ -1024,7 +1039,7 @@ export default function App() {
     setZoneCenters({})
     setLockedFormation(null)
     setLivePositions({})
-    sessionStorage.removeItem('ef2_placed_players')
+    gameStore.removeItem('ef2_placed_players')
     // Nothing from a previous game may come back after this point.
     newGameRef.current = true
   }, [room.status])
@@ -1053,7 +1068,7 @@ export default function App() {
       setLockedFormation(null)
       setLivePositions({})
       turnoverPendingRef.current = true   // next game_state lines up fresh on the mirrored LOS
-      sessionStorage.removeItem('ef2_placed_players')
+      gameStore.removeItem('ef2_placed_players')
     }
     prevRoleRef.current = r
   }, [room.role])
@@ -1080,11 +1095,11 @@ export default function App() {
   type SavedFormation = { role: string | null; players: string | null; coverage: string | null }
   const savedRestoreRef = useRef<SavedFormation | null | undefined>(undefined)
   if (savedRestoreRef.current === undefined) {
-    savedRestoreRef.current = sessionStorage.getItem(SESSION_KEY)
+    savedRestoreRef.current = gameStore.getItem(SESSION_KEY)
       ? {
-          role:     sessionStorage.getItem('ef2_role'),
-          players:  sessionStorage.getItem('ef2_placed_players'),
-          coverage: sessionStorage.getItem('ef2_coverage'),
+          role:     gameStore.getItem('ef2_role'),
+          players:  gameStore.getItem('ef2_placed_players'),
+          coverage: gameStore.getItem('ef2_coverage'),
         }
       : null
   }
@@ -1100,8 +1115,8 @@ export default function App() {
     // Possession flipped while we were away — that formation is the other side's now. Drop it and
     // line up fresh as the role the server just handed back.
     if (saved.role && saved.role !== room.role) {
-      sessionStorage.removeItem('ef2_placed_players')
-      sessionStorage.removeItem('ef2_coverage')
+      gameStore.removeItem('ef2_placed_players')
+      gameStore.removeItem('ef2_coverage')
       setDlPositions(freshDl(YARD_LINE))
       turnoverPendingRef.current = true   // next game_state lines up fresh on the mirrored LOS
       return
@@ -1122,17 +1137,17 @@ export default function App() {
 
   // Persist placed players so a page reload restores positions.
   useEffect(() => {
-    sessionStorage.setItem('ef2_placed_players', JSON.stringify(placedPlayers))
+    gameStore.setItem('ef2_placed_players', JSON.stringify(placedPlayers))
   }, [placedPlayers])
 
   // …and the coverage that goes with them, for the same reason.
   useEffect(() => {
-    sessionStorage.setItem('ef2_coverage', JSON.stringify({ playerCoverage, zoneTypes, zoneCenters, manTargets, manCommits, droppingDL }))
+    gameStore.setItem('ef2_coverage', JSON.stringify({ playerCoverage, zoneTypes, zoneCenters, manTargets, manCommits, droppingDL }))
   }, [playerCoverage, zoneTypes, zoneCenters, manTargets, manCommits, droppingDL])
 
   // [role drift] Which side that snapshot was drawn by — see the restore above.
   useEffect(() => {
-    if (room.role) sessionStorage.setItem('ef2_role', room.role)
+    if (room.role) gameStore.setItem('ef2_role', room.role)
   }, [room.role])
 
   // ── [offline] Man defenders travel with their man ─────────────────────────
@@ -2625,21 +2640,35 @@ export default function App() {
       )}
       {/* [pause] Pause button. Offered in every phase — the whole point is life interrupting a game,
           and that rarely waits for a dead ball. Hidden once the game is over. */}
-      {!gamePause && !gameOver && (
+      {(!gamePause || (gamePause.auto && gamePause.byYou)) && !gameOver && (
         <button className="pause-btn" onPointerDown={pauseGame} aria-label="Pause game">II</button>
       )}
 
       {/* [pause] While paused the game is frozen server-side; this covers the field so neither
           player can read the coverage while the clock is stopped, and either can resume. */}
-      {gamePause && (
-        <div className="pause-overlay">
-          <div className="pause-title">PAUSED</div>
-          <div className="pause-sub">
-            {gamePause.byYou ? 'You paused the game' : 'Your opponent paused the game'}
+      {/* [quick leave] A hold the server called for THIS player clears itself the moment they are
+          back, so it shows nothing. For the player left waiting it is a different screen: there is
+          nothing to resume yet, because the person who would play it has not returned. */}
+      {gamePause && !(gamePause.auto && gamePause.byYou) && (
+        gamePause.auto ? (
+          <div className="pause-overlay">
+            <div className="pause-title">PAUSED</div>
+            <div className="pause-sub">Your opponent stepped away</div>
+            <div className="pause-note">The game continues when they are back. Waiting up to 3 minutes.</div>
           </div>
-          <button className="pause-resume-btn" onPointerDown={resumeGame}>RESUME</button>
-          <div className="pause-note">Your spot is held for 10 minutes while paused</div>
-        </div>
+        ) : (
+          <div className="pause-overlay">
+            <div className="pause-title">PAUSED</div>
+            <div className="pause-sub">
+              {gamePause.byYou ? 'You paused the game' : 'Your opponent paused the game'}
+            </div>
+            <button className="pause-resume-btn" onPointerDown={resumeGame}>RESUME</button>
+            <div className="pause-note">Your spot is held for 10 minutes while paused</div>
+          </div>
+        )
+      )}
+      {connectionLost && !gameOver && (
+        <div className="conn-banner" aria-live="polite">Reconnecting…</div>
       )}
 
       {/* [69] Frozen-play banner while a timeout is running (both clocks are stopped server-side). */}

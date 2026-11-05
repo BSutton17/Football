@@ -93,7 +93,7 @@ export interface ServerToClientEvents {
   // [defense vision] The host toggled whether the DEFENCE is shown how open receivers are.
   defense_vision_changed: (data: { on: boolean }) => void
   // [pause] Either player froze (or lifted) the game. byYou distinguishes the caller.
-  game_paused:  (data: { byYou: boolean }) => void
+  game_paused:  (data: { byYou: boolean; auto?: boolean }) => void
   game_resumed: () => void
   // [187] The QB has held the ball long enough (in GAME time) that throwing it away is offered.
   throwaway_ready: () => void
@@ -224,6 +224,8 @@ export interface ClientToServerEvents {
   // [pause] Either player may call or lift a pause.
   pause_game:         () => void
   resume_game:        () => void
+  app_hidden: () => void
+  app_visible: () => void
   // [manual] GO pressed / released. Press resumes the play (the first press is the snap itself);
   // release freezes it, subject to the anti-jitter minimum hold enforced server-side.
   go_press:           () => void

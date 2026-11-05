@@ -3,6 +3,7 @@ import type { ServerToClientEvents, ClientToServerEvents, SetOffensePayload, Pla
 import type { GameMode, Difficulty } from '../types/game.ts'
 import { teamById, NFL_TEAMS } from '../data/nflTeams.ts'
 import type { NflTeam } from '../data/nflTeams.ts'
+import { gameStore } from '../utils/gameStore.ts'
 
 export type GameSocket = Socket<ServerToClientEvents, ClientToServerEvents>
 
@@ -33,16 +34,26 @@ const socket: GameSocket = io(SERVER_URL, {
   // proxies/CDNs do). Without a fallback the connection just fails outright.
   transports: ['websocket', 'polling'],
   reconnection: true,
-  reconnectionAttempts: 5,
+  // [quick leave] ⚠️ IT NEVER STOPS TRYING. This was 5 attempts, which a phone in a lift, or one
+  // slow to get its network back after waking, burns in about ten seconds -- and then the socket sat
+  // dead for good with the game still waiting for it. `disconnect()` is what ends a connection on
+  // purpose; running out of attempts should not be how a game ends.
+  reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
 })
+
+// Only the newest request survives a failed connect: pressing Create again after an error must not
+// also fire the first one when the connection finally opens.
+let pendingOnConnect: (() => void) | null = null
 
 function emitWhenConnected(fn: () => void): void {
   if (socket.connected) {
     fn()
   } else {
-    socket.once('connect', fn)
+    if (pendingOnConnect) socket.off('connect', pendingOnConnect)
+    pendingOnConnect = () => { pendingOnConnect = null; fn() }
+    socket.once('connect', pendingOnConnect)
     socket.connect()
   }
 }
@@ -117,7 +128,8 @@ export function setDefense(): void {
 }
 
 export function disconnect(): void {
-  sessionStorage.removeItem(SESSION_KEY)
+  gameStore.removeItem(SESSION_KEY)
+  if (pendingOnConnect) { socket.off('connect', pendingOnConnect); pendingOnConnect = null }
   socket.disconnect()
 }
 
@@ -267,7 +279,7 @@ export function resetGame(): void {
 // On every (re)connect: if a session token is stored, attempt to restore the session
 socket.on('connect', () => {
   console.log(`[socket] connected: ${socket.id}`)
-  const token = sessionStorage.getItem(SESSION_KEY)
+  const token = gameStore.getItem(SESSION_KEY)
   if (token) {
     socket.emit('reconnect_to_room', token)
   }

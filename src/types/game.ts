@@ -74,6 +74,7 @@ export interface GameState {
   playSerial?: number // [stale set] identifies this pre-snap situation; echoed back on set_offense
   paused?: boolean       // [pause] a player has frozen the game
   pausedByYou?: boolean  // [pause] …and it was this viewer who did it
+  pausedAuto?: boolean   // [quick leave] the server called it because somebody stepped away
   specialTeams?: SpecialTeamsState | null   // [Special Teams][1] non-null while a kick is in progress
   decision?: PlayDecision | null            // [Special Teams][2][3] 4th-down menu (offense only)
   xfActiveIds?: string[]                     // [294] players with an active X-Factor (star shows pre-snap too)

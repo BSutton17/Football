@@ -228,7 +228,11 @@ export default function RoomScreen({ status, roomId, role, error, mode, difficul
       )}
 
       {(status === 'connecting' || status === 'reconnecting') && (
-        <p className="room-status">{status === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}</p>
+        <>
+          <p className="room-status">{status === 'reconnecting' ? 'Reconnecting…' : 'Connecting…'}</p>
+          {/* [quick leave] The socket now keeps trying indefinitely, so this needs a way out. */}
+          <button className="room-back-btn" onClick={() => { backToModes(); leaveRoom() }}>Cancel</button>
+        </>
       )}
 
       {status === 'waiting' && (

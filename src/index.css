@@ -3218,3 +3218,20 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .stat-spotlight { animation: none; transition: none; }
 }
+
+/* [quick leave] The connection is down while a game is on screen. */
+.conn-banner {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+}
