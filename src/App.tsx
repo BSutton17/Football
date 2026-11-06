@@ -43,7 +43,7 @@ import CoverageMenu from './components/CoverageMenu.tsx'
 import type { RouteType, CoverageType, ZoneType, ManCommit } from './types/routes.ts'
 import { loadTeamRoster } from './game/teamRoster.ts'
 import { teamColors, textColorOn, accentColor} from './data/teamColors.ts'
-import { getOLQBPlayers, getDLPlayers, getPositionYBounds, enforceOffensiveFormation, validateOffensiveFormation, validateDefensiveFormation } from './game/formation.ts'
+import { getOLQBPlayers, getDLPlayers, dlRowOnLine, getPositionYBounds, enforceOffensiveFormation, validateOffensiveFormation, validateDefensiveFormation } from './game/formation.ts'
 import { computeCamera } from './game/renderer.ts'
 import { useMediaQuery } from './hooks/useMediaQuery.ts'
 import { createFatigueAlerts, noteFatigue, alertedFatigue, benchStamina, YELLOW_AT } from './game/fatigueAlerts.ts'
@@ -879,7 +879,7 @@ export default function App() {
           const b = getPositionYBounds(p.label ?? '', room.role ?? 'offense', gs.yardLine)
           return { ...p, x: clampX(p.x + xDelta), y: Math.max(b.minY, Math.min(b.maxY, p.y + losDelta)) }
         }))
-        setDlPositions(prev => prev.map(p => ({ ...p, x: clampX(p.x + xDelta), y: clampFieldY(p.y + losDelta) })))
+        setDlPositions(prev => dlRowOnLine(prev, gs.yardLine).map(p => ({ ...p, x: clampX(p.x + xDelta) })))
         setOpponentPositions(prev => prev.map(p => ({ ...p, x: clampX(p.x + xDelta), y: clampFieldY(p.y + losDelta) })))
         // Zone landmarks live in offense-relative yards too, so they ride up the field with the
         // new LOS (and sideways with the ball) instead of being left behind on the old spot.
@@ -889,7 +889,10 @@ export default function App() {
           return next
         })
       }
-      if (turnoverPendingRef.current) {
+      // ⚠️ AND SO DOES THE FIRST LOOK AT A GAME, which might be anywhere: a save, or a page that reloaded
+      // mid-drive. The row was built for the yard line a new game opens on, and "sets the baseline without
+      // shifting" left it there, wherever the ball really was.
+      if (turnoverPendingRef.current || !ready) {
         setDlPositions(freshDl(gs.yardLine, newBallX))   // the new defense lines up on the new LOS + hash
         turnoverPendingRef.current = false
       }
@@ -1156,7 +1159,8 @@ export default function App() {
     if (prevRoleRef.current && r && prevRoleRef.current !== r) {
       setPlacedPlayers([])
       setOpponentPositions([])
-      setDlPositions(freshDl(YARD_LINE))
+      // The last spot we were told about, not a new game's. The game_state may already have been and gone.
+      setDlPositions(freshDl(prevLosRef.current, prevBallXRef.current))
       setPlayerRoutes({})
       setDrawnRoutes({})
       setRouteColors({})
@@ -1219,7 +1223,7 @@ export default function App() {
     if (saved.role && saved.role !== room.role) {
       gameStore.removeItem('ef2_placed_players')
       gameStore.removeItem('ef2_coverage')
-      setDlPositions(freshDl(YARD_LINE))
+      setDlPositions(freshDl(prevLosRef.current, prevBallXRef.current))
       turnoverPendingRef.current = true   // next game_state lines up fresh on the mirrored LOS
       return
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validateOffensiveFormation, validateDefensiveFormation } from '../game/formation'
+import { validateOffensiveFormation, validateDefensiveFormation, getDLPlayers, dlRowOnLine, DL_DEPTH } from '../game/formation'
 import type { PositionUpdate } from '../types/game'
 
 const YARD_LINE = 40
@@ -81,5 +81,25 @@ describe('validateDefensiveFormation', () => {
   it('does not complain when MORE than required are placed', () => {
     const eight = Array.from({ length: 8 }, (_, i) => at(`D${i}`, 10 + i * 4, YARD_LINE + 5, 'LB'))
     expect(validateDefensiveFormation(eight, 7)).toEqual([])
+  })
+})
+
+// [field check] Back from a save, the row stood where a new game opens instead of where the ball was.
+describe('the defensive line stands on the real line of scrimmage', () => {
+  it('whatever depth the row arrived at', () => {
+    const openingRow = getDLPlayers(25)
+    expect(dlRowOnLine(openingRow, 56.8).every(p => p.y === 56.8 + DL_DEPTH)).toBe(true)
+  })
+
+  it('and keeps a lineman moved sideways by hand', () => {
+    const row = getDLPlayers(25).map((p, i) => (i === 0 ? { ...p, x: 11 } : p))
+    expect(dlRowOnLine(row, 40)[0].x).toBe(11)
+  })
+
+  it('lines up one yard off the ball on the ball', () => {
+    const row = getDLPlayers(56.8, 32.7)
+    expect(row.every(p => p.y === 57.8)).toBe(true)
+    const middle = row.reduce((sum, p) => sum + p.x, 0) / row.length
+    expect(middle).toBeCloseTo(32.7)
   })
 })

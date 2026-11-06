@@ -53,8 +53,22 @@ export const DL_SPACING: Record<number, number[]> = {
 // four linemen — its fifth man on the ball is a linebacker walked down.
 function defenseAutoPlaced(yardLine: number, centerX: number = MID, count = 4): PositionUpdate[] {
   return (DL_SPACING[count] ?? DL_SPACING[4]).map((dx, i) => ({
-    id: `auto_dl${i + 1}`, x: centerX + dx, y: yardLine + 1, team: 'd' as const, label: 'DL',
+    id: `auto_dl${i + 1}`, x: centerX + dx, y: yardLine + DL_DEPTH, team: 'd' as const, label: 'DL',
   }))
+}
+
+// How far off the ball the row stands. Held to the server's FRONT_DEPTH by its own test.
+export const DL_DEPTH = 1
+
+// The row on this line of scrimmage, with whatever sideways adjustment was made by hand.
+//
+// ⚠️ THE DEPTH IS SET, NOT SHIFTED. Linemen only ever move sideways, so their depth is a fact about the
+// ball rather than something to carry from snap to snap. Shifting by how far the ball moved keeps a row
+// that started in the wrong place in the wrong place for good: back from a save at midfield, it stood at
+// the opening kickoff's yard line, thirty yards behind the offense, and the quarterback went down on every
+// snap for the rest of the drive.
+export function dlRowOnLine<T extends { y: number }>(row: T[], yardLine: number): T[] {
+  return row.map(p => ({ ...p, y: yardLine + DL_DEPTH }))
 }
 
 // Returns all auto-placed players for both teams.
