@@ -93,6 +93,16 @@ export function lastPlayed(view: SeasonView): SeasonGame | null {
 }
 
 // The one line that says where a save has got to.
+// [projected] One line on where the player's team stands in the bracket as it would be today.
+export function projectedLine(seeds: Record<'AFC' | 'NFC', string[]>, teamId: string): string {
+  for (const conf of ['AFC', 'NFC'] as const) {
+    const at = seeds[conf].indexOf(teamId)
+    if (at === 0) return `You hold the ${conf}'s 1 seed and the first-round bye.`
+    if (at > 0) return `You hold the ${conf}'s ${at + 1} seed.`
+  }
+  return 'You are outside the field right now.'
+}
+
 export function statusLine(s: SeasonSummary): string {
   if (s.finish === 'champion') return 'Super Bowl champions'
   if (s.phase === 'complete') return s.finish === 'missed' ? 'Missed the playoffs' : 'Eliminated in the playoffs'

@@ -5,7 +5,7 @@ import { teamById } from '../data/nflTeams.ts'
 import { Lombardi } from './art.tsx'
 import { AwardList, AWARDS_FOOTNOTE } from './AwardShow.tsx'
 import {
-  isUserIn, lastPlayed, lineFor, modeLine, opponentIn, ordinal, outcomeFor, passerRating, recordText, scheduleRows,
+  isUserIn, lastPlayed, lineFor, modeLine, opponentIn, ordinal, outcomeFor, passerRating, projectedLine, recordText, scheduleRows,
   scoreFor, superBowlArt, teamAbbr, teamName,
 } from './format.ts'
 import { saveTrophyImage, trophyFromSeason } from './trophyImage.ts'
@@ -287,9 +287,11 @@ function ScoreRow({ game, teamId, labelSeeds = false }: { game: SeasonGame; team
 
 // ── Standings ────────────────────────────────────────────────────────────
 
+const conferenceOf = (season: SeasonView): 'AFC' | 'NFC' =>
+  Object.values(season.standings.AFC).some(d => d.some(l => l.id === season.teamId)) ? 'AFC' : 'NFC'
+
 function StandingsTab({ season }: { season: SeasonView }) {
-  const userConf = season.standings.AFC && Object.values(season.standings.AFC).some(d => d.some(l => l.id === season.teamId)) ? 'AFC' : 'NFC'
-  const [conf, setConf] = useState<'AFC' | 'NFC'>(userConf)
+  const [conf, setConf] = useState<'AFC' | 'NFC'>(() => conferenceOf(season))
   const seeds = season.playoffs?.seeds[conf] ?? []
 
   return (
@@ -471,10 +473,69 @@ function TeamStatsView({ rows }: { rows: TeamStatRow[] }) {
 
 const ROUNDS: [number, string][] = [[1, 'Wild Card'], [2, 'Divisional'], [3, 'Conference Championship']]
 
+// [projected] The bracket if the season ended today, laid out like the real one and labeled so it cannot be
+// mistaken for it. Past the Wild Card round the matchups depend on who wins, so those rounds are described.
+function ProjectedBracket({ season, conf, setConf }: { season: SeasonView; conf: 'AFC' | 'NFC'; setConf: (c: 'AFC' | 'NFC') => void }) {
+  const projected = season.projectedPlayoffs!
+  const seeds = projected.seeds[conf]
+  const lines = Object.values(season.standings[conf]).flat()
+  const recordOf = (id: string) => {
+    const l = lines.find(x => x.id === id)
+    return l ? `${l.w}-${l.l}${l.t ? `-${l.t}` : ''}` : ''
+  }
+  return (
+    <div className="bracket">
+      <div className="bracket-projected">
+        <h3 className="bracket-projected__title">Projected Playoffs</h3>
+        <p className="season-muted season-small">If the season ended today, through Week {projected.throughWeek}. {projectedLine(projected.seeds, season.teamId)}</p>
+      </div>
+
+      <div className="conf-toggle">
+        {(['AFC', 'NFC'] as const).map(c => (
+          <button key={c} className={`conf-btn${conf === c ? ' conf-btn--on' : ''}`} onClick={() => setConf(c)}>{c}</button>
+        ))}
+      </div>
+
+      <div className="bracket-seeds">
+        {seeds.map((id, i) => (
+          <div key={id} className={`bracket-seed${i >= 4 ? ' bracket-seed--wild' : ''}${id === season.teamId ? ' bracket-seed--me' : ''}`}>
+            <span>{i + 1}</span><TeamLogo teamId={id} size={24} /><b>{teamAbbr(id)}</b><small>{recordOf(id)}</small>
+          </div>
+        ))}
+      </div>
+      <p className="season-muted season-small">1 to 4 win their divisions. 5 to 7 are the wild cards.</p>
+
+      <div className="bracket-round">
+        <h3 className="bracket-title">Wild Card</h3>
+        <div className={`bracket-bye${seeds[0] === season.teamId ? ' bracket-bye--me' : ''}`}>
+          <span>1</span><TeamLogo teamId={seeds[0]} size={24} /><b>{teamAbbr(seeds[0])}</b><em>First-round bye</em>
+        </div>
+        <ul className="scores">
+          {projected.games.filter(g => g.conf === conf).map(g => <ScoreRow key={g.id} game={g} teamId={season.teamId} labelSeeds />)}
+        </ul>
+      </div>
+
+      <div className="bracket-round">
+        <h3 className="bracket-title">Divisional</h3>
+        <p className="season-muted season-small">The 1 seed hosts the lowest seed left. The other two winners play, the higher seed at home.</p>
+      </div>
+      <div className="bracket-round">
+        <h3 className="bracket-title">Conference Championship</h3>
+        <p className="season-muted season-small">The last two left, the higher seed at home.</p>
+      </div>
+      <div className="bracket-round">
+        <h3 className="bracket-title">Super Bowl {season.superBowl.numeral}</h3>
+        <p className="season-muted season-small">AFC against NFC on a neutral field.</p>
+      </div>
+    </div>
+  )
+}
+
 function PlayoffsTab({ season }: { season: SeasonView }) {
   const p = season.playoffs
-  const userConf = p?.seeds.NFC.includes(season.teamId) ? 'NFC' : 'AFC'
-  const [conf, setConf] = useState<'AFC' | 'NFC'>(userConf)
+  const [conf, setConf] = useState<'AFC' | 'NFC'>(() => conferenceOf(season))
+
+  if (!p && season.projectedPlayoffs) return <ProjectedBracket season={season} conf={conf} setConf={setConf} />
 
   if (!p) {
     return (
@@ -482,7 +543,7 @@ function PlayoffsTab({ season }: { season: SeasonView }) {
         <p>The playoffs start after Week 18.</p>
         <p className="season-muted season-small">
           Seven teams from each conference: four division winners and three wild cards, seeded by the
-          official NFL tie-breakers. The top seed gets a bye.
+          official NFL tie-breakers. The top seed gets a bye. A projected bracket appears here after Week 8.
         </p>
       </div>
     )

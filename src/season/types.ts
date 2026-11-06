@@ -35,6 +35,13 @@ export interface Playoffs {
   conferenceChampions: Partial<Record<'AFC' | 'NFC', string>>
 }
 
+// [projected] The bracket if the season ended today. Present from after Week 8 until the real one exists.
+export interface ProjectedPlayoffs {
+  throughWeek: number
+  seeds: Record<'AFC' | 'NFC', string[]>
+  games: SeasonGame[]
+}
+
 export type SeasonScreen =
   | { type: 'awards' }
   | { type: 'made_playoffs'; seed: number; bye: boolean }
@@ -101,6 +108,7 @@ export interface TeamStatRow { id: string; name: string; pos: string; line: Seas
 export interface SeasonView extends SeasonSummary {
   games: SeasonGame[]
   playoffs: Playoffs | null
+  projectedPlayoffs: ProjectedPlayoffs | null
   screens: SeasonScreen[]
   currentGame: SeasonGame | null
   roundName: string | null
