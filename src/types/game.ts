@@ -17,7 +17,7 @@ export interface Score {
 
 // [Special Teams][1] Kinds of kick and the sub-phases of a kicking play. Mirror the server's
 // game/specialTeams.js (KICK / ST_PHASE) — keep in sync.
-export type KickType = 'kickoff' | 'punt' | 'field_goal' | 'extra_point'
+export type KickType = 'kickoff' | 'punt' | 'field_goal' | 'extra_point' | 'onside_kick'
 export type SpecialTeamsPhase = 'setup' | 'kicking' | 'resolved'
 
 // Viewer-relative special-teams snapshot from the server. Present only while a kick is in progress.
@@ -179,6 +179,7 @@ export type PlayOutcome =
   | 'field_goal'   // [Special Teams] 4th-down FG attempt (detail 'made' | 'missed' | 'blocked' | miss reason)
   | 'extra_point'  // [Special Teams][51][52] extra-point kick (detail 'made' | 'missed')
   | 'two_point'    // [Special Teams][51] two-point conversion (detail 'made' | 'missed')
+  | 'onside_kick'  // [onside] who came up with it (detail 'kicking_team' | 'receiving_team')
 
 export interface PlayResult {
   outcome: PlayOutcome
@@ -188,15 +189,15 @@ export interface PlayResult {
   yardLine: number
   firstDown?: boolean       // [224][225] this play moved the chains
   newPossession?: TeamRole  // set on interception, safety, turnover on downs
-  detail?: 'broken_up' | 'overthrown' | 'inaccurate' | 'drop' | 'made' | 'missed' | 'short' | 'wide_left' | 'wide_right' | 'blocked' | 'out_of_bounds' | 'touchback' | 'fair_catch' | 'return' | 'muffed_lost' | 'muffed_recovered' | null   // incompletion reason, FG result, or punt result (incl. a muff)
+  detail?: 'broken_up' | 'overthrown' | 'inaccurate' | 'drop' | 'made' | 'missed' | 'short' | 'wide_left' | 'wide_right' | 'blocked' | 'out_of_bounds' | 'touchback' | 'fair_catch' | 'return' | 'muffed_lost' | 'muffed_recovered' | 'kicking_team' | 'receiving_team' | null   // incompletion reason, FG result, or punt result (incl. a muff)
 }
 
 // [Special Teams][2][3][4] The 4th-down menu, or [51] the post-TD extra-point / 2-pt menu — both
 // render through the same component.
-export type DecisionOption = 'go_for_it' | 'punt' | 'field_goal' | 'extra_point' | 'two_point'
+export type DecisionOption = 'go_for_it' | 'punt' | 'field_goal' | 'extra_point' | 'two_point' | 'kickoff' | 'onside_kick'
 
 export interface PlayDecision {
-  context: 'fourth_down' | 'conversion'
+  context: 'fourth_down' | 'conversion' | 'onside'
   secondsRemaining: number          // server countdown before the default is auto-picked
   defaultOption: DecisionOption
   fieldGoalDistance?: number        // straight-line yards, for the FG button readout (4th-down only)

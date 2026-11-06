@@ -260,6 +260,9 @@ export interface ClientToServerEvents {
   // Field goal block ([Special Teams][46][49]) — the defender commits a timing tap at bar position 0..1.
   fg_block: (data: { position: number }) => void
 
+  // [onside] The receiving team's one tap at the recovery meter, as a position on the bar (0..1).
+  onside_recovery: (data: { position: number }) => void
+
   // Postgame
   reset_game:         () => void   // [222] start a fresh game on the same room
 

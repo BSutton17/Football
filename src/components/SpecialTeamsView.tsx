@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { SpecialTeamsState } from '../types/game.ts'
-import { sendSpecialTeamsInput, sendFieldGoalBlock } from '../socket/index.ts'
+import { sendSpecialTeamsInput, sendFieldGoalBlock, sendOnsideRecovery } from '../socket/index.ts'
+import { ONSIDE_SWEEP_HALF_SECONDS, onsideTrackBackground } from '../game/onsideMeter.ts'
 
 interface Props {
   st: SpecialTeamsState
@@ -98,17 +99,18 @@ export default function SpecialTeamsView({ st, aimAnchor }: Props) {
   // [46][47] Defensive FG/XP block bar. The defender (not the kicker) gets a white indicator that
   // sweeps back and forth — but only ONCE the kicker's timer has started ([46]). They tap to commit.
   const isFGKick   = st.kickType === 'field_goal' || st.kickType === 'extra_point'
+  const isOnside   = st.kickType === 'onside_kick'
   const isDefender = !st.kicking
   const [tapped, setTapped] = useState(false)
   useEffect(() => { if (!st.started) setTapped(false) }, [st.started])   // reset for a fresh attempt
-  const blockLive = isFGKick && isDefender && st.phase === 'setup' && st.started && !st.blockAttempted && !tapped
+  const blockLive = (isFGKick || isOnside) && isDefender && st.phase === 'setup' && st.started && !st.blockAttempted && !tapped
 
   const [blockPos, setBlockPos] = useState(0)
   const blockStartRef = useRef(0)
   // Where the marker is at time `now` — ONE function for both the drawing and the tap.
   const sweepAt = (now: number) => {
     const e     = Math.max(0, now - blockStartRef.current) / 1000
-    const phase = (e / BLOCK_SWEEP_HALF_SECONDS) % 2   // 0..2 triangle
+    const phase = (e / (isOnside ? ONSIDE_SWEEP_HALF_SECONDS : BLOCK_SWEEP_HALF_SECONDS)) % 2   // 0..2 triangle
     return phase <= 1 ? phase : 2 - phase              // 0 → 1 → 0 …
   }
   useEffect(() => {
@@ -136,7 +138,8 @@ export default function SpecialTeamsView({ st, aimAnchor }: Props) {
     const pos = sweepAt(at)
     setBlockPos(pos)
     setTapped(true)                       // freeze the marker; the server confirms via blockAttempted
-    sendFieldGoalBlock(pos)
+    if (isOnside) sendOnsideRecovery(pos)
+    else sendFieldGoalBlock(pos)
   }
 
   // On a punt, tell the RECEIVING team where it's coming down (touchback / out of bounds / the spot),
@@ -155,6 +158,34 @@ export default function SpecialTeamsView({ st, aimAnchor }: Props) {
   const banner = kicked
     ? <div className="kicked-banner">KICKED{typeof st.kickDistance === 'number' ? ` · ${st.kickDistance} YDS` : ''}{landingText}</div>
     : null
+
+  // [onside] "Register anything in the black box as a tap not just the meter itself to be more forgiving." So the
+  // box IS the button. Spans, because a button may not hold anything else.
+  if (isOnside && isDefender) {
+    const attempted = st.blockAttempted || tapped
+    return (
+      <>
+        {banner}
+        <button
+          className="fg-block fg-block--onside"
+          onPointerDown={attemptBlock}
+          disabled={!blockLive}
+          aria-label="Recover the onside kick"
+        >
+          <span className="fg-block__title">
+            {kicked         ? 'Kick is away…'
+              : attempted    ? 'Going for it…'
+              : st.started   ? 'Tap to recover!'
+              :                'Onside kick! Get ready…'}
+          </span>
+          <span className="fg-block__bar" style={{ background: onsideTrackBackground() }}>
+            <span className="fg-block__marker" style={{ left: `${blockPos * 100}%`, opacity: blockLive ? 1 : 0.4 }} />
+          </span>
+          <span className="fg-block__hint">{blockLive ? 'Tap anywhere in this box' : '\u00a0'}</span>
+        </button>
+      </>
+    )
+  }
 
   if (isFGKick && isDefender) {
     const attempted = st.blockAttempted || tapped

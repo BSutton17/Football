@@ -6,6 +6,12 @@ interface Props {
   decision: PlayDecision
 }
 
+const MENU: Record<PlayDecision['context'], { title: string; ariaLabel: string }> = {
+  fourth_down: { title: '4th Down', ariaLabel: 'Fourth down decision' },
+  conversion:  { title: 'After TD', ariaLabel: 'Extra point decision' },
+  onside:      { title: 'Kick Off', ariaLabel: 'Kickoff decision' },
+}
+
 // [Special Teams][2][3][4] The 4th-down menu: Go For It / Punt / Field Goal. Legality comes from the
 // server (illegal options are disabled). A local countdown mirrors the server's 5-second timer — the
 // server is authoritative and auto-picks the default if it expires, so this is display only. Once a
@@ -34,11 +40,11 @@ export default function FourthDownMenu({ decision }: Props) {
   // Hide the menu the moment a choice is committed (the server's game_state clears it shortly after).
   if (sent) return null
 
-  const isConversion = decision.context === 'conversion'
+  const { title, ariaLabel } = MENU[decision.context]
   return (
-    <div className="fourth-down" role="dialog" aria-label={isConversion ? 'Extra point decision' : 'Fourth down decision'}>
+    <div className="fourth-down" role="dialog" aria-label={ariaLabel}>
       <div className="fourth-down__header">
-        <span className="fourth-down__title">{isConversion ? 'After TD' : '4th Down'}</span>
+        <span className="fourth-down__title">{title}</span>
         <span className="fourth-down__timer">{secondsLeft}</span>
       </div>
       <div className="fourth-down__options">

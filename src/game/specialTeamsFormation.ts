@@ -86,6 +86,19 @@ const FIELD_GOAL: Spec[] = [
   { id: 'db2', team: 'd', label: 'DB', dx:  4, dy: 7 },
 ]
 
+// ── Onside kick ───────────────────────────────────────────────────────────────
+const ONSIDE: Spec[] = [
+  // The kicker, and five a side lined up just behind the ball
+  { id: 'k', team: 'o', label: 'K', dx: 0, dy: -6 },
+  ...[-22, -16, -10, -6, -3, 3, 6, 10, 16, 22].map((dx, i) => ({ id: `c${i}`, team: 'o' as const, label: 'ST', dx, dy: -1 })),
+
+  // The hands team: a front line ten yards off, a second behind it
+  ...[-18, -12, -6, -2, 2, 6, 12, 18].map((dx, i) => ({ id: `h${i}`, team: 'd' as const, label: 'HT', dx, dy: 10 })),
+  ...[-9, 0, 9].map((dx, i) => ({ id: `b${i}`, team: 'd' as const, label: 'HT', dx, dy: 16 })),
+]
+
+const FORMATIONS: Partial<Record<KickType, Spec[]>> = { punt: PUNT, onside_kick: ONSIDE }
+
 // The formation for a kick, centered on the ball's hash and the LOS. Extra points reuse the field-
 // goal alignment (the ball is spotted centered at the opponent's 25, handled by the server).
 // `kicker` / `punter` names (the kicking team's real specialists) are shown on the K / P markers.
@@ -93,7 +106,7 @@ export function getSpecialTeamsFormation(
   kickType: KickType, losYardLine: number, ballX: number,
   names: { kicker?: string; punter?: string } = {},
 ): PositionUpdate[] {
-  const specs   = kickType === 'punt' ? PUNT : FIELD_GOAL
+  const specs   = FORMATIONS[kickType] ?? FIELD_GOAL
   const players = build(specs, losYardLine, ballX)
   // Show the real specialist's name on the kicker (FG/XP) or punter (punt).
   for (const p of players) {

@@ -92,6 +92,7 @@ function summarizePlay(r: PlayResult): string {
                               : r.detail === 'blocked'  ? 'Extra point BLOCKED!'
                               : 'Extra point no good'
     case 'two_point':    return r.detail === 'made' ? 'Two-point conversion good!' : 'Two-point conversion failed'
+    case 'onside_kick':  return r.detail === 'receiving_team' ? 'Onside kick recovered by the receiving team' : 'Onside kick recovered by the kicking team'
     case 'interception': return 'Intercepted!'
     case 'incomplete':
       if (r.newPossession)          return 'Turnover on downs'
@@ -126,6 +127,8 @@ function kickResultText(r: PlayResult): string | null {
            :                          'Missed!'   // wide_left | wide_right | short | missed
     case 'punt':
       return r.detail === 'touchback' ? 'Touchback!' : null
+    case 'onside_kick':
+      return r.newPossession === 'offense' ? 'Your ball!' : 'Their ball!'
     default:
       return null
   }
@@ -733,7 +736,12 @@ export default function App() {
       setTimeoutPause({ byYou })
     }
     function onTimeoutEnded() { setTimeoutPause(null) }   // [69] stoppage elapsed — play resumes
-    function onSpecialTeamsUpdate(st: SpecialTeamsState | null) { setSpecialTeams(st) }   // [Special Teams][1]
+    function onSpecialTeamsUpdate(st: SpecialTeamsState | null) {   // [Special Teams][1]
+      setSpecialTeams(st)
+      if (st) setDecision(null)   // a kick on the field is the menu answered, and no game_state says so
+      // The try's "It's good!" is still up when an onside kick starts, and it sits on what the kicker has to see.
+      if (st?.kickType === 'onside_kick' && st.phase === 'setup') setKickResult(null)
+    }
     // [delay of game] Play clock hit zero — the server applied a 5-yard penalty (it sends the updated
     // game_state first, then this), so show the notice.
     function onPlayClockExpired() { setPlayNotice('Delay of game — 5 yard penalty') }
@@ -2678,7 +2686,7 @@ export default function App() {
           )}
         </div>
       )}
-      {formationErrors.length > 0 && (
+      {formationErrors.length > 0 && !kickInProgress && (
         <div className="formation-banner" aria-live="polite">
           {formationErrors.map((msg, i) => (
             <div key={i} className="formation-error">{msg}</div>

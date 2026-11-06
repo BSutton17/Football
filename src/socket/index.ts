@@ -260,6 +260,11 @@ export function sendFieldGoalBlock(position: number): void {
   if (socket.connected) socket.emit('fg_block', { position })
 }
 
+// [onside] The receiving team's tap at the recovery meter. The server decides what that spot is worth.
+export function sendOnsideRecovery(position: number): void {
+  if (socket.connected) socket.emit('onside_recovery', { position })
+}
+
 export function throwToReceiver(receiverId: string): void {
   if (socket.connected) socket.emit('throw_to_receiver', receiverId)
 }
